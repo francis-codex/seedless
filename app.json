@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Lazor Wallet",
-    "slug": "lazor-wallet-starter",
+    "name": "Seedless",
+    "slug": "seedless",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -31,6 +31,18 @@
     },
     "plugins": [
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1ed1479c-de21-4bf3-8123-74c6fc163ca2"
+      }
+    },
+    "owner": "solana-bridge",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/1ed1479c-de21-4bf3-8123-74c6fc163ca2"
+    }
   }
 }

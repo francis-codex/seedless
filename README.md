@@ -2,6 +2,12 @@
 
 A React Native (Expo) starter template demonstrating passkey-based wallet authentication and gasless transactions on Solana using LazorKit SDK.
 
+## Demo
+
+**[Download Android APK](https://expo.dev/accounts/solana-bridge/projects/seedless/builds/8c0916af-80c7-4f73-a57c-3a752da5917b)**
+
+Scan the QR code or download directly to test the app.
+
 ## Features
 
 - **Passkey Authentication**: No seed phrases. Users authenticate with FaceID, TouchID, or fingerprint
@@ -21,8 +27,8 @@ A React Native (Expo) starter template demonstrating passkey-based wallet authen
 
 ```bash
 # Clone the repo
-git clone https://github.com/yourusername/lazor-wallet-starter.git
-cd lazor-wallet-starter
+git clone https://github.com/francis-codex/seedless.git
+cd seedless
 
 # Install dependencies
 npm install
