@@ -1,5 +1,5 @@
 // Solana RPC Configuration
-// Using Helius mainnet for production
+// Using Helius mainnet RPC
 export const SOLANA_RPC_URL = 'https://mainnet.helius-rpc.com/?api-key=db683a77-edb6-4c80-8cac-944640c07e21';
 
 // LazorKit Portal and Paymaster

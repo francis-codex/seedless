@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,10 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
-import { PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { Connection, PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { getAccount, getAssociatedTokenAddress } from '@solana/spl-token';
 import * as Linking from 'expo-linking';
+import { SOLANA_RPC_URL, USDC_MINT } from '../constants';
 
 interface WalletScreenProps {
   onDisconnect: () => void;
@@ -24,11 +26,52 @@ interface WalletScreenProps {
  * Default: Gasless transactions (paymaster sponsors fees)
  * Optional: Pay fees in SOL (traditional)
  */
+// Create connection once
+const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
+
 export function WalletScreen({ onDisconnect }: WalletScreenProps) {
   const { smartWalletPubkey, disconnect, signAndSendTransaction, isSigning } = useWallet();
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [isSending, setIsSending] = useState(false);
+
+  // Balance state
+  const [solBalance, setSolBalance] = useState<number | null>(null);
+  const [usdcBalance, setUsdcBalance] = useState<number | null>(null);
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+
+  // Fetch wallet balances
+  const fetchBalances = useCallback(async () => {
+    if (!smartWalletPubkey) return;
+
+    setIsLoadingBalance(true);
+    try {
+      // Fetch SOL balance
+      const solLamports = await connection.getBalance(smartWalletPubkey);
+      setSolBalance(solLamports / LAMPORTS_PER_SOL);
+
+      // Fetch USDC balance
+      try {
+        const usdcMint = new PublicKey(USDC_MINT);
+        const ata = await getAssociatedTokenAddress(usdcMint, smartWalletPubkey);
+        const tokenAccount = await getAccount(connection, ata);
+        // USDC has 6 decimals
+        setUsdcBalance(Number(tokenAccount.amount) / 1_000_000);
+      } catch {
+        // No USDC account = 0 balance
+        setUsdcBalance(0);
+      }
+    } catch (error) {
+      console.error('Failed to fetch balances:', error);
+    } finally {
+      setIsLoadingBalance(false);
+    }
+  }, [smartWalletPubkey]);
+
+  // Fetch balances on mount and when wallet changes
+  useEffect(() => {
+    fetchBalances();
+  }, [fetchBalances]);
 
   const shortAddress = smartWalletPubkey
     ? `${smartWalletPubkey.toString().slice(0, 4)}...${smartWalletPubkey.toString().slice(-4)}`
@@ -85,6 +128,8 @@ export function WalletScreen({ onDisconnect }: WalletScreenProps) {
       Alert.alert('Sent', `Signature: ${signature.slice(0, 16)}...`);
       setRecipient('');
       setAmount('');
+      // Refresh balances after successful send
+      fetchBalances();
     } catch (error: any) {
       console.error('Transfer failed:', error);
       Alert.alert('Failed', error.message || 'Transaction failed');
@@ -114,6 +159,30 @@ export function WalletScreen({ onDisconnect }: WalletScreenProps) {
           <Text style={styles.address}>{shortAddress}</Text>
           <Text style={styles.viewFull}>Tap to copy</Text>
         </TouchableOpacity>
+      </View>
+
+      {/* Balance Display */}
+      <View style={styles.balanceSection}>
+        <View style={styles.balanceHeader}>
+          <Text style={styles.balanceLabel}>Balance</Text>
+          <TouchableOpacity onPress={fetchBalances} disabled={isLoadingBalance}>
+            <Text style={styles.refreshText}>{isLoadingBalance ? 'Loading...' : 'Refresh'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.balanceRow}>
+          <Text style={styles.balanceAmount}>
+            {solBalance !== null ? solBalance.toFixed(4) : '—'}
+          </Text>
+          <Text style={styles.balanceToken}>SOL</Text>
+        </View>
+
+        <View style={styles.balanceRow}>
+          <Text style={styles.balanceAmountSecondary}>
+            {usdcBalance !== null ? usdcBalance.toFixed(2) : '—'}
+          </Text>
+          <Text style={styles.balanceTokenSecondary}>USDC</Text>
+        </View>
       </View>
 
       <View style={styles.statusBar}>
@@ -212,6 +281,53 @@ const styles = StyleSheet.create({
   viewFull: {
     fontSize: 14,
     color: '#666',
+  },
+  balanceSection: {
+    backgroundColor: '#000',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+  },
+  balanceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  balanceLabel: {
+    fontSize: 13,
+    color: '#999',
+  },
+  refreshText: {
+    fontSize: 13,
+    color: '#666',
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 4,
+  },
+  balanceAmount: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#fff',
+    marginRight: 8,
+  },
+  balanceToken: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: '#999',
+  },
+  balanceAmountSecondary: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#666',
+    marginRight: 6,
+  },
+  balanceTokenSecondary: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#555',
   },
   statusBar: {
     flexDirection: 'row',
