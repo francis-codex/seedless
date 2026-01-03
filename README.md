@@ -20,6 +20,8 @@ A React Native (Expo) starter template demonstrating passkey-based wallet authen
 - **Passkey Authentication**: No seed phrases. Users authenticate with FaceID, TouchID, or fingerprint
 - **Gasless Transactions**: Send SOL without holding any for fees. Kora paymaster sponsors transactions
 - **Smart Wallet**: PDA-based wallet with recovery and programmable logic
+- **Balance Display**: Real-time SOL and USDC balance with refresh functionality
+- **Jupiter Gasless Swaps**: Swap tokens (SOL ↔ USDC) with zero gas fees using Jupiter aggregator
 - **Clean Architecture**: Minimal, well-documented code ready to extend
 
 ## Quick Start
@@ -64,16 +66,21 @@ lazor-wallet-starter/
 ├── index.ts                # Entry point with polyfills
 ├── app.json                # Expo configuration
 ├── src/
+│   ├── AppContent.tsx      # Navigation router
 │   ├── constants/          # Configuration constants
-│   │   └── index.ts
+│   │   └── index.ts        # RPC, Jupiter API, token configs
 │   ├── providers/          # React context providers
 │   │   └── LazorProvider.tsx
-│   └── screens/            # App screens
-│       ├── HomeScreen.tsx  # Passkey connect screen
-│       └── WalletScreen.tsx # Wallet and transfer screen
+│   ├── screens/            # App screens
+│   │   ├── HomeScreen.tsx  # Passkey connect screen
+│   │   ├── WalletScreen.tsx # Wallet, balance, and transfer screen
+│   │   └── SwapScreen.tsx  # Jupiter gasless swap screen
+│   └── utils/              # Utility functions
+│       └── jupiter.ts      # Jupiter swap integration
 └── docs/
     ├── tutorial-1-passkey-wallet.md
-    └── tutorial-2-gasless-transactions.md
+    ├── tutorial-2-gasless-transactions.md
+    └── tutorial-3-jupiter-gasless-swaps.md
 ```
 
 ## Configuration
@@ -81,12 +88,16 @@ lazor-wallet-starter/
 Update `src/constants/index.ts` with your settings:
 
 ```typescript
-// RPC endpoint
-export const SOLANA_RPC_URL = 'https://api.devnet.solana.com';
+// RPC endpoint (use private RPC for production)
+export const SOLANA_RPC_URL = 'https://mainnet.helius-rpc.com/?api-key=YOUR_KEY';
 
 // LazorKit configuration
 export const PORTAL_URL = 'https://portal.lazor.sh';
-export const PAYMASTER_URL = 'https://kora.devnet.lazorkit.com';
+export const PAYMASTER_URL = 'https://kora.lazorkit.com';
+
+// Jupiter Swap API (get free key at portal.jup.ag)
+export const JUPITER_API_URL = 'https://api.jup.ag';
+export const JUPITER_API_KEY = 'YOUR_JUPITER_API_KEY';
 ```
 
 For production, use a private RPC endpoint (e.g., Helius, QuickNode) to avoid rate limits.
@@ -108,6 +119,19 @@ For production, use a private RPC endpoint (e.g., Helius, QuickNode) to avoid ra
 3. User signs with biometrics
 4. Kora paymaster pays the fee
 5. Transaction is broadcast and confirmed
+
+### Jupiter Gasless Swaps
+
+We use an unconventional approach to combine Jupiter with LazorKit's gasless flow:
+
+1. Get quote from Jupiter `/quote` endpoint
+2. Get raw instructions from `/swap-instructions` (not the serialized transaction)
+3. **Filter out compute budget instructions** (critical for Kora compatibility)
+4. Pass filtered instructions to LazorKit's `signAndSendTransaction`
+5. Kora paymaster sponsors the gas
+6. User gets best-price swap with zero fees
+
+**Why this approach?** Jupiter Ultra returns a transaction blob, but LazorKit needs instruction arrays. Using `/swap-instructions` gives us composability to plug Jupiter's routing into LazorKit's signing flow.
 
 ## SDK Reference
 
@@ -176,12 +200,15 @@ await signAndSendTransaction(
 
 - [Tutorial 1: Creating a Passkey Wallet](./docs/tutorial-1-passkey-wallet.md)
 - [Tutorial 2: Gasless Transactions](./docs/tutorial-2-gasless-transactions.md)
+- [Tutorial 3: Jupiter Gasless Swaps](./docs/tutorial-3-jupiter-gasless-swaps.md)
 
 ## Resources
 
 - [LazorKit Documentation](https://docs.lazorkit.com/)
 - [LazorKit GitHub](https://github.com/lazor-kit/lazor-kit)
 - [Kora Documentation](https://launch.solana.com/docs/kora)
+- [Jupiter Swap API Docs](https://dev.jup.ag/docs/swap-api)
+- [Jupiter API Portal](https://portal.jup.ag) (get your API key)
 - [Solana Passkeys Blog](https://www.helius.dev/blog/solana-passkeys)
 
 ## Tech Stack
@@ -189,8 +216,10 @@ await signAndSendTransaction(
 - React Native (Expo SDK 54)
 - TypeScript
 - LazorKit SDK
-- Kora Paymaster
+- Kora Paymaster (Solana Foundation)
 - Solana Web3.js
+- Jupiter Swap API
+- SPL Token
 
 ## Deployment
 
