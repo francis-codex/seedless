@@ -1,6 +1,6 @@
 # Lazor Wallet Starter
 
-A React Native (Expo) starter template demonstrating passkey-based wallet authentication and gasless transactions on Solana using LazorKit SDK.
+A React Native (Expo) starter template demonstrating a privacy-passkey-based wallet authentication and gasless transactions on Solana using LazorKit SDK.
 
 ## Demo
 
@@ -22,7 +22,7 @@ A React Native (Expo) starter template demonstrating passkey-based wallet authen
 - **Smart Wallet**: PDA-based wallet with recovery and programmable logic
 - **Balance Display**: Real-time SOL and USDC balance with refresh functionality
 - **Jupiter Gasless Swaps**: Swap tokens (SOL - USDC) with zero gas fees using Jupiter aggregator
-- **Private Mode**: Hide balances from shoulder surfers. Requires biometric auth to reveal
+- **Private Mode**: Hide balances. Requires biometric auth to reveal
 - **Stealth Addresses**: One-time receiving addresses for private payments with Solana Pay QR codes
 - **Burner Wallets**: Completely isolated disposable identities with zero on-chain link
 - **Clean Architecture**: Minimal, well-documented code ready to extend
