@@ -1,6 +1,6 @@
 # Lazor Wallet Starter
 
-A React Native (Expo) starter template demonstrating a privacy-passkey-based wallet authentication and gasless transactions on Solana using LazorKit SDK.
+A React Native (Expo) starter template demonstrating a passkey-based wallet authentication and gasless transactions on Solana using LazorKit SDK.
 
 ## Demo
 
@@ -109,7 +109,7 @@ export const JUPITER_API_URL = 'https://api.jup.ag';
 export const JUPITER_API_KEY = 'YOUR_JUPITER_API_KEY';
 ```
 
-For production, use a private RPC endpoint (e.g., Helius, QuickNode) to avoid rate limits.
+For production, use a private RPC endpoint (e.g., Helius) to avoid rate limits.
 
 ## How It Works
 

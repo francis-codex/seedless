@@ -6,14 +6,13 @@ interface LazorProviderProps {
   children: React.JSX.Element | React.JSX.Element[];
 }
 
-/**
- * LazorProvider wraps the app with LazorKitProvider
- *
- * This enables:
- * - Passkey-based wallet authentication (WebAuthn)
- * - Gasless transactions via Kora paymaster
- * - Smart wallet functionality (PDAs)
- */
+  // LazorProvider wraps the app with LazorKitProvider
+ 
+  // This enables:
+  // Passkey-based wallet authentication (WebAuthn)
+  // Gasless transactions via Kora paymaster
+  // Smart wallet functionality (PDAs)
+
 export function LazorProvider({ children }: LazorProviderProps) {
   return (
     <LazorKitProvider

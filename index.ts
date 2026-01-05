@@ -1,4 +1,4 @@
-// Polyfills - MUST be at the very top
+// Polyfills
 import 'react-native-get-random-values';
 import 'react-native-url-polyfill/auto';
 import { Buffer } from 'buffer';

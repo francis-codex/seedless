@@ -24,12 +24,12 @@ interface WalletScreenProps {
   onBurner?: () => void;
 }
 
-/**
- * WalletScreen - Main wallet interface after connection
- *
- * Default: Gasless transactions (paymaster sponsors fees)
- * Optional: Pay fees in SOL (traditional)
- */
+
+ // WalletScreen - Main wallet interface after connection
+ 
+ // Default: Gasless transactions (paymaster sponsors fees)
+ // Optional: Pay fees in SOL (traditional)
+ 
 // Create connection once
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
