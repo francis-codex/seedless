@@ -22,18 +22,19 @@ interface WalletScreenProps {
   onSwap?: () => void;
   onStealth?: () => void;
   onBurner?: () => void;
+  onPaywall?: () => void;
 }
 
 
- // WalletScreen - Main wallet interface after connection
- 
- // Default: Gasless transactions (paymaster sponsors fees)
- // Optional: Pay fees in SOL (traditional)
- 
+// WalletScreen - Main wallet interface after connection
+
+// Default: Gasless transactions (paymaster sponsors fees)
+// Optional: Pay fees in SOL (traditional)
+
 // Create connection once
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
-export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner }: WalletScreenProps) {
+export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPaywall }: WalletScreenProps) {
   const { smartWalletPubkey, disconnect, signAndSendTransaction, isSigning } = useWallet();
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
@@ -265,6 +266,14 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner }: Wall
           )}
         </View>
       </View>
+
+      {/* X402 Paywall Demo */}
+      {onPaywall && (
+        <TouchableOpacity style={styles.paywallButton} onPress={onPaywall} activeOpacity={0.8}>
+          <Text style={styles.paywallButtonText}>X402 Paywall</Text>
+          <Text style={styles.paywallButtonSub}>Pay-per-view content demo</Text>
+        </TouchableOpacity>
+      )}
 
       <View style={styles.divider} />
 
@@ -555,6 +564,22 @@ const styles = StyleSheet.create({
   privacyButtonSub: {
     fontSize: 12,
     color: '#666',
+    marginTop: 4,
+  },
+  paywallButton: {
+    backgroundColor: '#0ea5e9',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+  },
+  paywallButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  paywallButtonSub: {
+    fontSize: 12,
+    color: '#e0f2fe',
     marginTop: 4,
   },
 });

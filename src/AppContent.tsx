@@ -6,8 +6,9 @@ import { WalletScreen } from './screens/WalletScreen';
 import { SwapScreen } from './screens/SwapScreen';
 import { StealthScreen } from './screens/StealthScreen';
 import { BurnerScreen } from './screens/BurnerScreen';
+import { PaywallScreen } from './screens/PaywallScreen';
 
-type Screen = 'wallet' | 'swap' | 'stealth' | 'burner';
+type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'paywall';
 
 // AppContent - Handles navigation based on wallet connection state
 // Uses the hook's isConnected state for persistence across app restarts
@@ -34,6 +35,8 @@ export function AppContent() {
         return <StealthScreen onBack={() => setCurrentScreen('wallet')} />;
       case 'burner':
         return <BurnerScreen onBack={() => setCurrentScreen('wallet')} />;
+      case 'paywall':
+        return <PaywallScreen onBack={() => setCurrentScreen('wallet')} />;
       default:
         return (
           <WalletScreen
@@ -41,6 +44,7 @@ export function AppContent() {
             onSwap={() => setCurrentScreen('swap')}
             onStealth={() => setCurrentScreen('stealth')}
             onBurner={() => setCurrentScreen('burner')}
+            onPaywall={() => setCurrentScreen('paywall')}
           />
         );
     }

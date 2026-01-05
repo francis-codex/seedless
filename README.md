@@ -25,6 +25,7 @@ A React Native (Expo) starter template demonstrating a passkey-based wallet auth
 - **Private Mode**: Hide balances. Requires biometric auth to reveal
 - **Stealth Addresses**: One-time receiving addresses for private payments with Solana Pay QR codes
 - **Burner Wallets**: Completely isolated disposable identities with zero on-chain link
+- **X402 Paywall Demo**: Pay-per-view content using HTTP 402 micropayments
 - **Clean Architecture**: Minimal, well-documented code ready to extend
 
 ## Quick Start
@@ -79,17 +80,20 @@ lazor-wallet-starter/
 │   │   ├── WalletScreen.tsx # Wallet, balance, and transfer screen
 │   │   ├── SwapScreen.tsx  # Jupiter gasless swap screen
 │   │   ├── StealthScreen.tsx # Stealth address management
-│   │   └── BurnerScreen.tsx  # Burner wallet management
+│   │   ├── BurnerScreen.tsx  # Burner wallet management
+│   │   └── PaywallScreen.tsx # X402 pay-per-view demo
 │   └── utils/              # Utility functions
 │       ├── jupiter.ts      # Jupiter swap integration
 │       ├── stealth.ts      # Stealth address cryptography
 │       ├── paymentRequest.ts # Solana Pay URL generation
-│       └── burner.ts       # Burner wallet management
+│       ├── burner.ts       # Burner wallet management
+│       └── x402.ts         # X402 protocol utilities
 └── docs/
     ├── tutorial-1-passkey-wallet.md
     ├── tutorial-2-gasless-transactions.md
     ├── tutorial-3-jupiter-gasless-swaps.md
-    └── tutorial-4-privacy-features.md
+    ├── tutorial-4-privacy-features.md
+    └── tutorial-5-x402-paywall.md
 ```
 
 ## Configuration
