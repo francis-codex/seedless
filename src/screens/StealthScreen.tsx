@@ -35,7 +35,10 @@ import {
     shortenAddress,
 } from '../utils/paymentRequest';
 
-const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
+const connection = new Connection(SOLANA_RPC_URL, {
+    commitment: 'confirmed',
+    disableRetryOnRateLimit: true,
+});
 
 interface StealthScreenProps {
     onBack: () => void;
@@ -146,7 +149,7 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
             recipient: paymentAddress,
             amount,
             token: paymentToken,
-            label: paymentLabel || 'Lazor Wallet',
+            label: paymentLabel || 'Seedless Wallet',
         });
 
         setGeneratedQrUrl(url);

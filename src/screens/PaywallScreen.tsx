@@ -53,6 +53,9 @@ export function PaywallScreen({ onBack }: PaywallScreenProps) {
             return;
         }
 
+        // Save item ID before async operation to avoid stale closure
+        const itemId = selectedItem.id;
+
         setIsPaying(true);
         try {
             const paymentInstruction = createPaymentInstruction(smartWalletPubkey, {
@@ -76,24 +79,30 @@ export function PaywallScreen({ onBack }: PaywallScreenProps) {
                 {
                     redirectUrl,
                     onSuccess: () => {
-                        // Mark content as paid
-                        setContent(prev =>
-                            prev.map(c =>
-                                c.id === selectedItem.id ? { ...c, isPaid: true } : c
-                            )
-                        );
-                        setShowPaymentModal(false);
-                        setShowContentModal(true);
-                        Alert.alert('Unlocked!', 'Content is now available');
+                        console.log('Payment onSuccess callback fired');
                     },
                     onFail: (error) => {
-                        Alert.alert('Payment Failed', error.message);
+                        console.error('Payment onFail:', error);
                     },
                 }
             );
 
-            console.log('Payment signature:', signature);
+            // If we got a signature, payment succeeded - unlock content
+            if (signature) {
+                console.log('Payment signature:', signature);
+
+                // Mark content as paid using saved itemId
+                setContent(prev =>
+                    prev.map(c =>
+                        c.id === itemId ? { ...c, isPaid: true } : c
+                    )
+                );
+                setShowPaymentModal(false);
+                setShowContentModal(true);
+                Alert.alert('Unlocked!', 'Content is now available');
+            }
         } catch (error: any) {
+            console.error('Payment error:', error);
             Alert.alert('Error', error.message || 'Payment failed');
         } finally {
             setIsPaying(false);

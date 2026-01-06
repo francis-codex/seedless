@@ -7,7 +7,10 @@ import * as Crypto from 'expo-crypto';
 import { Keypair, Connection, PublicKey, LAMPORTS_PER_SOL, SystemProgram, Transaction } from '@solana/web3.js';
 import { SOLANA_RPC_URL } from '../constants';
 
-const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
+const connection = new Connection(SOLANA_RPC_URL, {
+    commitment: 'confirmed',
+    disableRetryOnRateLimit: true,
+});
 
 const BURNER_LIST_KEY = 'lazor_burner_list';
 const BURNER_KEY_PREFIX = 'lazor_burner_';

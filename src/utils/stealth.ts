@@ -1,4 +1,4 @@
-// Stealth address utilities using deterministic key derivation
+ // Stealth address utilities using deterministic key derivation
 // Master seed is stored encrypted in SecureStore, separate from passkey auth
 
 import * as SecureStore from 'expo-secure-store';
@@ -28,7 +28,7 @@ export interface StealthAddress {
   label?: string;
 }
 
-// Convert hex string to Uint8Array (avoid Buffer issues on Hermes)
+// Convert hex string to Uint8Array
 function hexToBytes(hex: string): Uint8Array {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {
@@ -44,21 +44,14 @@ function bytesToHex(bytes: Uint8Array): string {
     .join('');
 }
 
-// Concatenate Uint8Arrays (avoid Buffer.concat issues on Hermes)
-function concatBytes(...arrays: Uint8Array[]): Uint8Array {
-  const totalLength = arrays.reduce((sum, arr) => sum + arr.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const arr of arrays) {
-    result.set(arr, offset);
-    offset += arr.length;
-  }
-  return result;
-}
-
-// Convert string to Uint8Array
-function stringToBytes(str: string): Uint8Array {
-  return new TextEncoder().encode(str);
+// Hash a string using digestStringAsync (avoids TypedArray issues in Expo)
+async function hashString(input: string): Promise<Uint8Array> {
+  const hashHex = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    input,
+    { encoding: Crypto.CryptoEncoding.HEX }
+  );
+  return hexToBytes(hashHex);
 }
 
 // Get or create the master seed (stored encrypted)
@@ -96,17 +89,13 @@ export async function deriveStealthKeypairs(masterSeed: string): Promise<{
   scanKeypair: Keypair;
   spendKeypair: Keypair;
 }> {
-  const seedBytes = hexToBytes(masterSeed);
+  // Use digestStringAsync to avoid TypedArray casting issues
+  // We concatenate masterSeed (hex) with derivation path as a single string
+  const scanHash = await hashString(masterSeed + ':scan');
+  const scanKeypair = Keypair.fromSeed(scanHash);
 
-  // scan key = hash(seed + "scan")
-  const scanInput = concatBytes(seedBytes, stringToBytes('scan'));
-  const scanHash = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, scanInput.buffer as ArrayBuffer);
-  const scanKeypair = Keypair.fromSeed(new Uint8Array(scanHash));
-
-  // spend key = hash(seed + "spend")
-  const spendInput = concatBytes(seedBytes, stringToBytes('spend'));
-  const spendHash = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, spendInput.buffer as ArrayBuffer);
-  const spendKeypair = Keypair.fromSeed(new Uint8Array(spendHash));
+  const spendHash = await hashString(masterSeed + ':spend');
+  const spendKeypair = Keypair.fromSeed(spendHash);
 
   return { scanKeypair, spendKeypair };
 }
@@ -146,16 +135,9 @@ export async function deriveStealthKeypairForIndex(
   masterSeed: string,
   index: number
 ): Promise<Keypair> {
-  const seedBytes = hexToBytes(masterSeed);
-
-  const input = concatBytes(
-    seedBytes,
-    stringToBytes('stealth'),
-    stringToBytes(index.toString())
-  );
-  const hash = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, input.buffer as ArrayBuffer);
-
-  return Keypair.fromSeed(new Uint8Array(hash));
+  // Use digestStringAsync with string concatenation
+  const hash = await hashString(masterSeed + ':stealth:' + index.toString());
+  return Keypair.fromSeed(hash);
 }
 
 // Get keypair for sweeping funds from a stealth address

@@ -8,7 +8,10 @@ import {
 } from '../constants';
 
 // Connection for fetching Address Lookup Tables
-const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
+const connection = new Connection(SOLANA_RPC_URL, {
+  commitment: 'confirmed',
+  disableRetryOnRateLimit: true,
+});
 
 // Types for Jupiter API responses
 export interface QuoteResponse {
@@ -47,11 +50,11 @@ interface SwapInstructionsResponse {
 }
 
 
- // Step 1: Get a quote from Jupiter
- 
- // This tells us how much output token we'll get for our input amount
- // It also finds the best route across all DEXes
- 
+// Step 1: Get a quote from Jupiter
+
+// This tells us how much output token we'll get for our input amount
+// It also finds the best route across all DEXes
+
 export async function getQuote(
   inputMint: string,
   outputMint: string,
@@ -83,10 +86,10 @@ export async function getQuote(
 }
 
 
- // Step 2: Get swap instructions from Jupiter
- 
- // This is the key endpoint - it returns raw instructions instead of a serialized transaction
- // This lets us use them with LazorKit
+// Step 2: Get swap instructions from Jupiter
+
+// This is the key endpoint - it returns raw instructions instead of a serialized transaction
+// This lets us use them with LazorKit
 
 export async function getSwapInstructions(
   quote: QuoteResponse,
@@ -120,10 +123,10 @@ export async function getSwapInstructions(
 }
 
 
- // Step 3: Deserialize a Jupiter instruction into Solana's format
- 
- // Jupiter returns instructions in their own format (JSON with base64 data)
- // We need to convert them to Solana's TransactionInstruction format so LazorKit can use them
+// Step 3: Deserialize a Jupiter instruction into Solana's format
+
+// Jupiter returns instructions in their own format (JSON with base64 data)
+// We need to convert them to Solana's TransactionInstruction format so LazorKit can use them
 
 export function deserializeInstruction(instruction: JupiterInstruction): TransactionInstruction {
   return new TransactionInstruction({
@@ -139,17 +142,17 @@ export function deserializeInstruction(instruction: JupiterInstruction): Transac
 }
 
 
- // Step 4: Filter out compute budget instructions
- 
- // THIS IS CRITICAL FOR KORA COMPATIBILITY
- 
- // Why we filter:
- // - Jupiter adds ComputeBudget instructions to set priority fees
- // - Kora paymaster ALSO adds its own compute budget settings
- // - Having both causes conflicts and transaction failures
- 
- // Solution: Remove Jupiter's compute budget instructions and let Kora handle it
- 
+// Step 4: Filter out compute budget instructions
+
+// THIS IS CRITICAL FOR KORA COMPATIBILITY
+
+// Why we filter:
+// - Jupiter adds ComputeBudget instructions to set priority fees
+// - Kora paymaster ALSO adds its own compute budget settings
+// - Having both causes conflicts and transaction failures
+
+// Solution: Remove Jupiter's compute budget instructions and let Kora handle it
+
 export function filterComputeBudgetInstructions(
   instructions: TransactionInstruction[]
 ): TransactionInstruction[] {
@@ -168,10 +171,10 @@ export function filterComputeBudgetInstructions(
 }
 
 
- // Step 5: Fetch Address Lookup Tables
- 
- // Jupiter uses Address Lookup Tables (ALTs) to fit more accounts
- // in a single transaction, We need to fetch the actual table data so LazorKit can build the versioned transaction
+// Step 5: Fetch Address Lookup Tables
+
+// Jupiter uses Address Lookup Tables (ALTs) to fit more accounts
+// in a single transaction, We need to fetch the actual table data so LazorKit can build the versioned transaction
 
 export async function fetchAddressLookupTables(
   addresses: string[]
@@ -200,7 +203,7 @@ export async function fetchAddressLookupTables(
 // - Deserialize them
 // - Filter compute budget (for Kora)
 // - Fetch lookup tables
- 
+
 // Returns everything LazorKit's signAndSendTransaction needs
 export async function prepareSwap(
   inputMint: string,

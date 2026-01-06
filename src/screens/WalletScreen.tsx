@@ -31,8 +31,11 @@ interface WalletScreenProps {
 // Default: Gasless transactions (paymaster sponsors fees)
 // Optional: Pay fees in SOL (traditional)
 
-// Create connection once
-const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
+// Create connection once - disable automatic retry on rate limit to prevent spam
+const connection = new Connection(SOLANA_RPC_URL, {
+  commitment: 'confirmed',
+  disableRetryOnRateLimit: true,
+});
 
 export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPaywall }: WalletScreenProps) {
   const { smartWalletPubkey, disconnect, signAndSendTransaction, isSigning } = useWallet();
@@ -46,9 +49,10 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [balanceError, setBalanceError] = useState<string | null>(null);
 
-  // Throttle balance fetches to prevent 429 rate limit errors
-  const lastFetchRef = useRef<number>(0);
-  const FETCH_COOLDOWN_MS = 5000; // 5 seconds between fetches
+  // Guards to prevent infinite fetch loop
+  const isFetchingRef = useRef(false);
+  const hasFetchedRef = useRef(false);
+  const lastWalletRef = useRef<string | null>(null);
 
   // Privacy state - hides balances from shoulder surfers
   const [isPrivateMode, setIsPrivateMode] = useState(true); // Default to hidden
@@ -81,51 +85,66 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
     }
   };
 
-  // Fetch wallet balances with throttling to prevent 429 errors
-  const fetchBalances = useCallback(async (force = false) => {
-    if (!smartWalletPubkey) return;
-
-    // Throttle: skip if called too soon (unless forced)
-    const now = Date.now();
-    if (!force && now - lastFetchRef.current < FETCH_COOLDOWN_MS) {
+  // Fetch wallet balances - with strict guards to prevent loops
+  const doFetchBalances = async (walletPubkey: PublicKey) => {
+    // Prevent concurrent fetches
+    if (isFetchingRef.current) {
       return;
     }
-    lastFetchRef.current = now;
-
+    isFetchingRef.current = true;
     setIsLoadingBalance(true);
     setBalanceError(null);
+
     try {
       // Fetch SOL balance
-      const solLamports = await connection.getBalance(smartWalletPubkey);
+      const solLamports = await connection.getBalance(walletPubkey);
       setSolBalance(solLamports / LAMPORTS_PER_SOL);
 
       // Fetch USDC balance
       try {
         const usdcMint = new PublicKey(USDC_MINT);
-        const ata = await getAssociatedTokenAddress(usdcMint, smartWalletPubkey);
+        const ata = await getAssociatedTokenAddress(usdcMint, walletPubkey);
         const tokenAccount = await getAccount(connection, ata);
-        // USDC has 6 decimals
         setUsdcBalance(Number(tokenAccount.amount) / 1_000_000);
       } catch {
-        // No USDC account = 0 balance
         setUsdcBalance(0);
       }
+      hasFetchedRef.current = true;
     } catch (error: any) {
-      console.error('Failed to fetch balances:', error);
-      // Handle rate limiting gracefully
+      // Only log once, not spam
+      if (!hasFetchedRef.current) {
+        console.error('Failed to fetch balances:', error);
+      }
       if (error?.message?.includes('429')) {
-        setBalanceError('Rate limited - try again in a moment');
+        setBalanceError('Rate limited - tap Refresh');
       } else {
         setBalanceError('Failed to load balance');
       }
     } finally {
       setIsLoadingBalance(false);
+      isFetchingRef.current = false;
     }
-  }, [smartWalletPubkey]);
+  };
 
-  // Fetch balances on mount only (not on every render)
+  // Manual refresh handler
+  const handleRefresh = () => {
+    if (smartWalletPubkey && !isFetchingRef.current) {
+      doFetchBalances(smartWalletPubkey);
+    }
+  };
+
+  // Fetch balances ONCE on mount when wallet is available
   useEffect(() => {
-    fetchBalances(true);
+    if (!smartWalletPubkey) return;
+
+    const walletStr = smartWalletPubkey.toString();
+
+    // Only fetch if wallet changed or never fetched
+    if (lastWalletRef.current !== walletStr) {
+      lastWalletRef.current = walletStr;
+      hasFetchedRef.current = false;
+      doFetchBalances(smartWalletPubkey);
+    }
   }, [smartWalletPubkey]);
 
   const shortAddress = smartWalletPubkey
@@ -184,7 +203,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
       setRecipient('');
       setAmount('');
       // Refresh balances after successful send
-      fetchBalances();
+      handleRefresh();
     } catch (error: any) {
       console.error('Transfer failed:', error);
       Alert.alert('Failed', error.message || 'Transaction failed');
@@ -229,7 +248,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
                 {isPrivateMode ? 'Show' : 'Hide'}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => fetchBalances(true)} disabled={isLoadingBalance}>
+            <TouchableOpacity onPress={handleRefresh} disabled={isLoadingBalance}>
               <Text style={styles.refreshText}>{isLoadingBalance ? 'Loading...' : 'Refresh'}</Text>
             </TouchableOpacity>
           </View>

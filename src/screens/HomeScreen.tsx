@@ -15,11 +15,11 @@ interface HomeScreenProps {
 }
 
 
- // HomeScreen - Entry point for authentication
- 
- // Triggers passkey flow via biometric authentication
- // (FaceID/TouchID) to create or access a smart wallet.
- 
+// HomeScreen - Entry point for authentication
+
+// Triggers passkey flow via biometric authentication
+// (FaceID/TouchID) to create or access a smart wallet.
+
 export function HomeScreen({ onConnected }: HomeScreenProps) {
   const { connect, isConnecting } = useWallet();
 
@@ -46,7 +46,7 @@ export function HomeScreen({ onConnected }: HomeScreenProps) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Lazor</Text>
+        <Text style={styles.title}>Seedless</Text>
         <Text style={styles.subtitle}>Wallet</Text>
       </View>
 
