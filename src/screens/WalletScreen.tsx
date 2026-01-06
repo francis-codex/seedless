@@ -495,7 +495,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   swapButton: {
-    backgroundColor: '#22c55e',
+    backgroundColor: '#000',
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: 12,

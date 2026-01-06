@@ -128,68 +128,110 @@ export interface ContentItem {
 export const DEMO_CONTENT: ContentItem[] = [
     {
         id: '1',
-        title: 'Understanding Zero-Knowledge Proofs',
-        preview: 'Learn the fundamentals of ZK technology that powers private transactions...',
+        title: 'Tutorial: Passkey Wallet Setup',
+        preview: 'Learn how to create a seedless wallet using WebAuthn passkeys and biometric authentication...',
         price: '0.001',
         asset: 'SOL',
         isPaid: false,
-        fullContent: `Zero-Knowledge Proofs (ZKPs) are cryptographic methods that allow one party to prove they know a value without revealing the value itself.
+        fullContent: `Welcome to Seedless Wallet! This tutorial teaches you how passkey wallets work.
 
-Key concepts:
-1. Completeness - If the statement is true, an honest prover can convince the verifier
-2. Soundness - A dishonest prover cannot convince the verifier of a false statement
-3. Zero-Knowledge - The verifier learns nothing beyond the truth of the statement
+What You'll Learn:
+• How WebAuthn passkeys replace seed phrases
+• Biometric authentication (Face ID / Touch ID)
+• Program Derived Addresses (PDAs) on Solana
 
-Applications include:
-- Private transactions (Zcash, Tornado Cash)
-- Identity verification without data exposure
-- Scalability solutions (ZK-rollups)
+Key Concepts:
 
-This technology is fundamental to blockchain privacy and scaling.`,
+1. NO SEED PHRASE NEEDED
+Traditional wallets require a 12-24 word seed phrase. With passkeys, your device's Secure Enclave generates and stores the private key. You authenticate with biometrics.
+
+2. HOW IT WORKS
+• LazorKitProvider wraps your app for wallet functionality
+• useWallet() hook provides connect/disconnect methods
+• connect() triggers WebAuthn and creates your PDA wallet
+• smartWalletPubkey is your Solana address
+
+3. SECURITY
+Your passkey never leaves your device. The private key is protected by hardware security (Secure Enclave on iOS, Titan M on Android).
+
+See the full code in: src/screens/HomeScreen.tsx`,
     },
     {
         id: '2',
-        title: 'MEV Protection Strategies',
-        preview: 'Protect your trades from front-running and sandwich attacks...',
+        title: 'Tutorial: Gasless Transactions',
+        preview: 'Send SOL without paying gas fees using the Kora paymaster integration...',
         price: '0.002',
         asset: 'SOL',
         isPaid: false,
-        fullContent: `MEV (Maximal Extractable Value) represents profits that validators/searchers extract by reordering transactions.
+        fullContent: `Gas fees are one of the biggest UX hurdles in crypto. This tutorial shows how Seedless Wallet enables gasless transactions.
 
-Common MEV attacks:
-1. Front-running - Placing orders before yours
-2. Sandwich attacks - Buying before and selling after your trade
-3. Liquidation sniping - Racing to liquidate undercollateralized positions
+What You'll Learn:
+• How paymasters sponsor transaction fees
+• Building and sending gasless transfers
+• The complete transaction flow
 
-Protection strategies:
-- Use private mempools (Flashbots on ETH, Jito on Solana)
-- Set tight slippage limits
-- Use DEX aggregators with MEV protection
-- Time transactions during low activity
+Key Concepts:
 
-On Solana, Jito provides MEV protection through their block engine.`,
+1. PAYMASTER SPONSORSHIP
+Kora is LazorKit's paymaster. It pays the Solana network fees on your behalf, so users can send tokens without holding SOL for gas.
+
+2. TRANSACTION FLOW
+• Create transfer instruction with SystemProgram.transfer()
+• Call signAndSendTransaction() with no feeToken (gasless mode)
+• Passkey signs the transaction
+• Kora sponsors the fee, transaction is submitted
+
+3. CODE EXAMPLE
+const signature = await signAndSendTransaction({
+    instructions: [transferInstruction],
+    transactionOptions: {
+        clusterSimulation: 'devnet',
+        // No feeToken = gasless!
+    },
+}, { redirectUrl, onSuccess, onFail });
+
+See the full code in: src/screens/WalletScreen.tsx`,
     },
     {
         id: '3',
-        title: 'Smart Wallet Architecture Deep Dive',
-        preview: 'How passkey wallets work under the hood...',
+        title: 'Tutorial: Privacy Features',
+        preview: 'Stealth addresses and burner wallets for enhanced transaction privacy...',
         price: '0.0015',
         asset: 'SOL',
         isPaid: false,
-        fullContent: `Smart wallets like LazorKit use Program Derived Addresses (PDAs) instead of traditional keypairs.
+        fullContent: `Privacy is essential in blockchain. This tutorial covers two privacy features in Seedless Wallet.
 
-Architecture breakdown:
-1. PDA Generation - Deterministically derived from passkey credential
-2. Authentication - WebAuthn signature verification on-chain
-3. Transaction Flow - User signs with biometrics, signature verified by program
+What You'll Learn:
+• Stealth Addresses for private receiving
+• Burner Wallets for isolated sending
+• How to implement both in your app
 
-Benefits:
-- No seed phrase to manage
-- Hardware-level security via Secure Enclave
-- Account recovery through device management
-- Programmable spending limits
+STEALTH ADDRESSES:
 
-The passkey never leaves the device, and the private key is protected by the device's secure hardware.`,
+Generate one-time receiving addresses that can't be linked to your main wallet. Perfect for:
+• Private donations
+• Salary payments
+• Anonymous purchases
+
+How it works:
+1. Master seed stored in SecureStore
+2. Each address derived via: hash(seed + index)
+3. Funds can be swept back to main wallet
+
+BURNER WALLETS:
+
+Create isolated, disposable wallets for:
+• Testing risky dApps
+• Anonymous transactions
+• Temporary identities
+
+Each burner has its own keypair, completely separate from your passkey wallet. Fund it, use it, destroy it.
+
+See the full code in:
+• src/utils/stealth.ts
+• src/utils/burner.ts
+• src/screens/StealthScreen.tsx
+• src/screens/BurnerScreen.tsx`,
     },
 ];
 
