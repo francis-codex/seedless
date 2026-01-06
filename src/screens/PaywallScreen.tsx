@@ -19,6 +19,7 @@ import {
     formatPaymentAmount,
     createPaymentInstruction,
 } from '../utils/x402';
+import { CLUSTER_SIMULATION, IS_DEVNET } from '../constants';
 
 interface PaywallScreenProps {
     onBack: () => void;
@@ -69,7 +70,7 @@ export function PaywallScreen({ onBack }: PaywallScreenProps) {
                 {
                     instructions: [paymentInstruction],
                     transactionOptions: {
-                        clusterSimulation: 'mainnet',
+                        clusterSimulation: CLUSTER_SIMULATION as 'mainnet' | 'devnet',
                     },
                 },
                 {

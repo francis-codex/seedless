@@ -47,3 +47,6 @@ export const COMPUTE_BUDGET_PROGRAM_ID = 'ComputeBudget1111111111111111111111111
 // Network indicator
 export const IS_DEVNET = true;
 
+// Cluster for LazorKit SDK transactions
+// Use 'devnet' for testing, 'mainnet' for production
+export const CLUSTER_SIMULATION = 'devnet';

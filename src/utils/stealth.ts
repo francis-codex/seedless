@@ -1,4 +1,3 @@
-
 // Stealth address utilities using deterministic key derivation
 // Master seed is stored encrypted in SecureStore, separate from passkey auth
 
@@ -9,7 +8,7 @@ import { Keypair, PublicKey } from '@solana/web3.js';
 const MASTER_SEED_KEY = 'lazor_stealth_master_seed';
 const STEALTH_INDEX_KEY = 'lazor_stealth_index';
 
-// Testing limits for mainnet
+// Testing limits
 export const STEALTH_LIMITS = {
   MAX_SWEEP_SOL: 0.1,
   MAX_SWEEP_USDC: 10,
@@ -29,25 +28,67 @@ export interface StealthAddress {
   label?: string;
 }
 
+// Convert hex string to Uint8Array (avoid Buffer issues on Hermes)
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+  }
+  return bytes;
+}
+
+// Convert Uint8Array to hex string
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+// Concatenate Uint8Arrays (avoid Buffer.concat issues on Hermes)
+function concatBytes(...arrays: Uint8Array[]): Uint8Array {
+  const totalLength = arrays.reduce((sum, arr) => sum + arr.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const arr of arrays) {
+    result.set(arr, offset);
+    offset += arr.length;
+  }
+  return result;
+}
+
+// Convert string to Uint8Array
+function stringToBytes(str: string): Uint8Array {
+  return new TextEncoder().encode(str);
+}
+
 // Get or create the master seed (stored encrypted)
 export async function getOrCreateMasterSeed(): Promise<string> {
-  let seed = await SecureStore.getItemAsync(MASTER_SEED_KEY);
+  try {
+    let seed = await SecureStore.getItemAsync(MASTER_SEED_KEY);
 
-  if (!seed) {
-    const randomBytes = await Crypto.getRandomBytesAsync(32);
-    seed = Buffer.from(randomBytes).toString('hex');
+    if (!seed) {
+      const randomBytes = await Crypto.getRandomBytesAsync(32);
+      seed = bytesToHex(new Uint8Array(randomBytes));
 
-    await SecureStore.setItemAsync(MASTER_SEED_KEY, seed, {
-      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-    });
+      await SecureStore.setItemAsync(MASTER_SEED_KEY, seed, {
+        keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+      });
+    }
+
+    return seed;
+  } catch (error) {
+    console.error('Failed to get/create master seed:', error);
+    throw new Error('Failed to initialize stealth wallet. Please try again.');
   }
-
-  return seed;
 }
 
 export async function isStealthInitialized(): Promise<boolean> {
-  const seed = await SecureStore.getItemAsync(MASTER_SEED_KEY);
-  return seed !== null;
+  try {
+    const seed = await SecureStore.getItemAsync(MASTER_SEED_KEY);
+    return seed !== null;
+  } catch {
+    return false;
+  }
 }
 
 // Derive scan/spend keypairs from master seed
@@ -55,16 +96,16 @@ export async function deriveStealthKeypairs(masterSeed: string): Promise<{
   scanKeypair: Keypair;
   spendKeypair: Keypair;
 }> {
-  const seedBuffer = Buffer.from(masterSeed, 'hex');
+  const seedBytes = hexToBytes(masterSeed);
 
   // scan key = hash(seed + "scan")
-  const scanInput = Buffer.concat([seedBuffer, Buffer.from('scan')]);
-  const scanHash = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, scanInput);
+  const scanInput = concatBytes(seedBytes, stringToBytes('scan'));
+  const scanHash = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, scanInput.buffer as ArrayBuffer);
   const scanKeypair = Keypair.fromSeed(new Uint8Array(scanHash));
 
   // spend key = hash(seed + "spend")
-  const spendInput = Buffer.concat([seedBuffer, Buffer.from('spend')]);
-  const spendHash = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, spendInput);
+  const spendInput = concatBytes(seedBytes, stringToBytes('spend'));
+  const spendHash = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, spendInput.buffer as ArrayBuffer);
   const spendKeypair = Keypair.fromSeed(new Uint8Array(spendHash));
 
   return { scanKeypair, spendKeypair };
@@ -105,14 +146,14 @@ export async function deriveStealthKeypairForIndex(
   masterSeed: string,
   index: number
 ): Promise<Keypair> {
-  const seedBuffer = Buffer.from(masterSeed, 'hex');
+  const seedBytes = hexToBytes(masterSeed);
 
-  const input = Buffer.concat([
-    seedBuffer,
-    Buffer.from('stealth'),
-    Buffer.from(index.toString()),
-  ]);
-  const hash = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, input);
+  const input = concatBytes(
+    seedBytes,
+    stringToBytes('stealth'),
+    stringToBytes(index.toString())
+  );
+  const hash = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, input.buffer as ArrayBuffer);
 
   return Keypair.fromSeed(new Uint8Array(hash));
 }
@@ -122,34 +163,43 @@ export async function getStealthKeypair(
   address: string,
   index: number
 ): Promise<Keypair | null> {
-  const masterSeed = await getOrCreateMasterSeed();
-  const keypair = await deriveStealthKeypairForIndex(masterSeed, index);
+  try {
+    const masterSeed = await getOrCreateMasterSeed();
+    const keypair = await deriveStealthKeypairForIndex(masterSeed, index);
 
-  if (keypair.publicKey.toBase58() !== address) {
+    if (keypair.publicKey.toBase58() !== address) {
+      return null;
+    }
+
+    return keypair;
+  } catch {
     return null;
   }
-
-  return keypair;
 }
 
 // Get all previously generated stealth addresses
 export async function getAllStealthAddresses(): Promise<StealthAddress[]> {
-  const masterSeed = await getOrCreateMasterSeed();
-  const indexStr = await SecureStore.getItemAsync(STEALTH_INDEX_KEY);
-  const maxIndex = indexStr ? parseInt(indexStr, 10) : 0;
+  try {
+    const masterSeed = await getOrCreateMasterSeed();
+    const indexStr = await SecureStore.getItemAsync(STEALTH_INDEX_KEY);
+    const maxIndex = indexStr ? parseInt(indexStr, 10) : 0;
 
-  const addresses: StealthAddress[] = [];
+    const addresses: StealthAddress[] = [];
 
-  for (let i = 0; i < maxIndex; i++) {
-    const keypair = await deriveStealthKeypairForIndex(masterSeed, i);
-    addresses.push({
-      index: i,
-      address: keypair.publicKey.toBase58(),
-      createdAt: 0,
-    });
+    for (let i = 0; i < maxIndex; i++) {
+      const keypair = await deriveStealthKeypairForIndex(masterSeed, i);
+      addresses.push({
+        index: i,
+        address: keypair.publicKey.toBase58(),
+        createdAt: 0,
+      });
+    }
+
+    return addresses;
+  } catch (error) {
+    console.error('Failed to get stealth addresses:', error);
+    return [];
   }
-
-  return addresses;
 }
 
 // Reset index counter (testing only)

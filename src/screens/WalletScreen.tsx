@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import { Connection, PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { getAccount, getAssociatedTokenAddress } from '@solana/spl-token';
 import * as Linking from 'expo-linking';
-import { SOLANA_RPC_URL, USDC_MINT } from '../constants';
+import { SOLANA_RPC_URL, USDC_MINT, CLUSTER_SIMULATION, IS_DEVNET } from '../constants';
 
 interface WalletScreenProps {
   onDisconnect: () => void;
@@ -44,6 +44,11 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [usdcBalance, setUsdcBalance] = useState<number | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
+
+  // Throttle balance fetches to prevent 429 rate limit errors
+  const lastFetchRef = useRef<number>(0);
+  const FETCH_COOLDOWN_MS = 5000; // 5 seconds between fetches
 
   // Privacy state - hides balances from shoulder surfers
   const [isPrivateMode, setIsPrivateMode] = useState(true); // Default to hidden
@@ -76,11 +81,19 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
     }
   };
 
-  // Fetch wallet balances
-  const fetchBalances = useCallback(async () => {
+  // Fetch wallet balances with throttling to prevent 429 errors
+  const fetchBalances = useCallback(async (force = false) => {
     if (!smartWalletPubkey) return;
 
+    // Throttle: skip if called too soon (unless forced)
+    const now = Date.now();
+    if (!force && now - lastFetchRef.current < FETCH_COOLDOWN_MS) {
+      return;
+    }
+    lastFetchRef.current = now;
+
     setIsLoadingBalance(true);
+    setBalanceError(null);
     try {
       // Fetch SOL balance
       const solLamports = await connection.getBalance(smartWalletPubkey);
@@ -97,17 +110,23 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
         // No USDC account = 0 balance
         setUsdcBalance(0);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch balances:', error);
+      // Handle rate limiting gracefully
+      if (error?.message?.includes('429')) {
+        setBalanceError('Rate limited - try again in a moment');
+      } else {
+        setBalanceError('Failed to load balance');
+      }
     } finally {
       setIsLoadingBalance(false);
     }
   }, [smartWalletPubkey]);
 
-  // Fetch balances on mount and when wallet changes
+  // Fetch balances on mount only (not on every render)
   useEffect(() => {
-    fetchBalances();
-  }, [fetchBalances]);
+    fetchBalances(true);
+  }, [smartWalletPubkey]);
 
   const shortAddress = smartWalletPubkey
     ? `${smartWalletPubkey.toString().slice(0, 4)}...${smartWalletPubkey.toString().slice(-4)}`
@@ -146,7 +165,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
         {
           instructions: [transferInstruction],
           transactionOptions: {
-            clusterSimulation: 'mainnet', // Using mainnet RPC
+            clusterSimulation: CLUSTER_SIMULATION as 'mainnet' | 'devnet',
             // feeToken not set = gasless (paymaster sponsors)
           },
         },
@@ -210,7 +229,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
                 {isPrivateMode ? 'Show' : 'Hide'}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={fetchBalances} disabled={isLoadingBalance}>
+            <TouchableOpacity onPress={() => fetchBalances(true)} disabled={isLoadingBalance}>
               <Text style={styles.refreshText}>{isLoadingBalance ? 'Loading...' : 'Refresh'}</Text>
             </TouchableOpacity>
           </View>
@@ -240,11 +259,11 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
         <Text style={styles.statusText}>Gasless mode</Text>
       </View>
 
-      {/* Swap Button */}
+      {/* Swap Button - Mainnet Only */}
       {onSwap && (
         <TouchableOpacity style={styles.swapButton} onPress={onSwap} activeOpacity={0.8}>
           <Text style={styles.swapButtonText}>Swap Tokens</Text>
-          <Text style={styles.swapButtonSubtext}>SOL - USDC - Gasless</Text>
+          <Text style={styles.swapButtonSubtext}>{IS_DEVNET ? 'Mainnet only' : 'SOL ↔ USDC - Gasless'}</Text>
         </TouchableOpacity>
       )}
 
@@ -567,7 +586,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   paywallButton: {
-    backgroundColor: '#0ea5e9',
+    backgroundColor: '#000',
     borderRadius: 12,
     padding: 16,
     marginTop: 16,
@@ -579,7 +598,7 @@ const styles = StyleSheet.create({
   },
   paywallButtonSub: {
     fontSize: 12,
-    color: '#e0f2fe',
+    color: '#888',
     marginTop: 4,
   },
 });
