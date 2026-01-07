@@ -4,7 +4,7 @@ A React Native (Expo) starter template demonstrating a passkey-based wallet auth
 
 ## Demo
 
-**[Download Android APK](https://expo.dev/accounts/solana-bridge/projects/seedless/builds/8c0916af-80c7-4f73-a57c-3a752da5917b)**
+**[Download Android APK](https://expo.dev/accounts/solana-bridge/projects/seedless/builds/58386687-b1e2-4d43-a6cc-4efcba8f27ac)**
 
 ## Screenshots
 
