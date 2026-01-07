@@ -9,44 +9,44 @@ A React Native (Expo) starter template demonstrating a passkey-based wallet auth
 ## Screenshots
 
 ### Passkey Authentication
-<p align="center">
+<p align="left">
   <img src="./assets/screenshots/01-home-screen.jpg" width="180" alt="Home Screen" />
   <img src="./assets/screenshots/02-creating-account.jpg" width="180" alt="Creating Account" />
   <img src="./assets/screenshots/03-passkey-prompt.jpg" width="180" alt="Passkey Prompt" />
 </p>
 
 ### Wallet & Balance Display
-<p align="center">
+<p align="left">
   <img src="./assets/screenshots/04-wallet-balance-hidden.jpg" width="180" alt="Balance Hidden" />
   <img src="./assets/screenshots/05-wallet-balance-visible.jpg" width="180" alt="Balance Visible" />
 </p>
 
 ### Gasless SOL Transfer
-<p align="center">
+<p align="left">
   <img src="./assets/screenshots/06-send-sol-form.jpg" width="180" alt="Send SOL Form" />
   <img src="./assets/screenshots/07-send-transaction.jpg" width="180" alt="Transaction Preview" />
   <img src="./assets/screenshots/08-transaction-passkey.jpg" width="180" alt="Transaction Passkey" />
 </p>
 
 ### Jupiter Token Swap (Mainnet)
-<p align="center">
+<p align="left">
   <img src="./assets/screenshots/09-jupiter-swap.jpg" width="180" alt="Jupiter Swap" />
 </p>
 
 ### Stealth Addresses
-<p align="center">
+<p align="left">
   <img src="./assets/screenshots/10-stealth-home.jpg" width="180" alt="Stealth Home" />
   <img src="./assets/screenshots/11-stealth-payment-request.jpg" width="180" alt="Payment Request QR" />
 </p>
 
 ### Burner Wallets
-<p align="center">
+<p align="left">
   <img src="./assets/screenshots/12-burner-home.jpg" width="180" alt="Burner Home" />
   <img src="./assets/screenshots/13-burner-with-balance.jpg" width="180" alt="Burner With Balance" />
 </p>
 
 ### X402 Paywall Demo
-<p align="center">
+<p align="left">
   <img src="./assets/screenshots/14-x402-home.jpg" width="180" alt="X402 Content List" />
   <img src="./assets/screenshots/15-x402-payment.jpg" width="180" alt="X402 Payment" />
   <img src="./assets/screenshots/16-x402-unlocked.jpg" width="180" alt="Content Unlocked" />
