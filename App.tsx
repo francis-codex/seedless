@@ -9,8 +9,8 @@ import { AppContent } from './src/AppContent';
 // A React Native starter template demonstrating:
 // - Passkey-based wallet authentication (no seed phrase)
 // - Gasless transactions via Kora paymaster
- 
-  // Built with LazorKit SDK for Solana
+
+//  Built with LazorKit SDK for Solana
  
 export default function App() {
   return (

@@ -111,7 +111,7 @@ export async function getStealthMetaAddress(): Promise<StealthMetaAddress> {
   };
 }
 
-// Create a new one-time receiving address
+// Create a new one-time receiving address 
 export async function generateStealthAddress(label?: string): Promise<StealthAddress> {
   const masterSeed = await getOrCreateMasterSeed();
 
@@ -135,12 +135,12 @@ export async function deriveStealthKeypairForIndex(
   masterSeed: string,
   index: number
 ): Promise<Keypair> {
-  // Use digestStringAsync with string concatenation
+  // Use digestStringAsync with string concatenation 
   const hash = await hashString(masterSeed + ':stealth:' + index.toString());
   return Keypair.fromSeed(hash);
 }
 
-// Get keypair for sweeping funds from a stealth address
+// Get keypair for sweeping funds from a stealth address 
 export async function getStealthKeypair(
   address: string,
   index: number

@@ -1,5 +1,4 @@
 // Solana RPC Configuration
-// Using Helius devnet (private RPC to avoid rate limits)
 export const SOLANA_RPC_URL = 'https://devnet.helius-rpc.com/?api-key=db683a77-edb6-4c80-8cac-944640c07e21';
 
 // LazorKit Portal and Paymaster (devnet)
