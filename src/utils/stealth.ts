@@ -1,4 +1,4 @@
- // Stealth address utilities using deterministic key derivation
+// Stealth address utilities using deterministic key derivation
 // Master seed is stored encrypted in SecureStore, separate from passkey auth
 
 import * as SecureStore from 'expo-secure-store';
@@ -8,12 +8,12 @@ import { Keypair, PublicKey } from '@solana/web3.js';
 const MASTER_SEED_KEY = 'lazor_stealth_master_seed';
 const STEALTH_INDEX_KEY = 'lazor_stealth_index';
 
-// Testing limits
+// No limits - production ready
 export const STEALTH_LIMITS = {
-  MAX_SWEEP_SOL: 0.1,
-  MAX_SWEEP_USDC: 10,
-  MAX_REQUEST_SOL: 0.05,
-  MAX_REQUEST_USDC: 5,
+  MAX_SWEEP_SOL: Infinity,
+  MAX_SWEEP_USDC: Infinity,
+  MAX_REQUEST_SOL: Infinity,
+  MAX_REQUEST_USDC: Infinity,
 } as const;
 
 export interface StealthMetaAddress {
