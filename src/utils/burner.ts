@@ -15,10 +15,10 @@ const connection = new Connection(SOLANA_RPC_URL, {
 const BURNER_LIST_KEY = 'lazor_burner_list';
 const BURNER_KEY_PREFIX = 'lazor_burner_';
 
-// Testing limits for mainnet
+// No limits - production ready
 export const BURNER_LIMITS = {
-    MAX_FUND_SOL: 0.05,
-    MAX_SEND_SOL: 0.02,
+    MAX_FUND_SOL: Infinity,
+    MAX_SEND_SOL: Infinity,
 } as const;
 
 export interface BurnerWallet {
