@@ -389,6 +389,82 @@
             gap: 0.75rem;
         }
 
+        /* Manifesto & Utility Sections */
+        .manifesto-section,
+        .utility-section {
+            padding: 5rem 5%;
+            border-top: 1px solid var(--border);
+        }
+
+        .prose {
+            max-width: 700px;
+        }
+
+        .prose h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+        }
+
+        .prose h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 2.5rem 0 1rem;
+            color: var(--text);
+        }
+
+        .prose p {
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            line-height: 1.7;
+        }
+
+        .prose ul {
+            color: var(--text-secondary);
+            margin-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .prose li {
+            margin-bottom: 0.5rem;
+        }
+
+        .prose .highlight {
+            color: var(--text);
+            font-weight: 500;
+        }
+
+        .utility-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1px;
+            background: var(--border);
+            border: 1px solid var(--border);
+            margin-top: 2rem;
+        }
+
+        @media (max-width: 700px) {
+            .utility-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .utility-card {
+            background: var(--bg);
+            padding: 2rem;
+        }
+
+        .utility-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+
+        .utility-card p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
         /* CTA */
         .cta-section {
             padding: 6rem 5%;
@@ -467,11 +543,11 @@
         <div class="nav-links">
             <a href="#features">Features</a>
             <a href="#docs">Docs</a>
-            <a href="#tech">Tech</a>
-            <a href="https://bags.fm/launch/FYt532fCsCuoHd9aaX5QN7pZLUTiSXwEjhBmZijgBAGS" target="_blank">$SEEDLESS</a>
+            <a href="#manifesto">$SEED</a>
             <a href="https://x.com/seedless_wallet" target="_blank">Twitter</a>
             <a href="https://github.com/francis-codex/seedless" target="_blank">GitHub</a>
-            <a href="#download" class="btn btn-primary">Download</a>
+            <a href="https://bags.fm/launch/FYt532fCsCuoHd9aaX5QN7pZLUTiSXwEjhBmZijgBAGS" class="btn btn-primary"
+                target="_blank">Buy $SEED</a>
         </div>
     </nav>
 
@@ -857,6 +933,84 @@ async function destroyBurner(burnerId) {
             <div class="tech-badge">Solana Web3.js</div>
             <div class="tech-badge">TypeScript</div>
             <div class="tech-badge">SPL Token</div>
+        </div>
+    </section>
+
+    <!-- $SEED Manifesto -->
+    <section id="manifesto" class="manifesto-section">
+        <div class="prose">
+            <h2>$SEED Manifesto</h2>
+
+            <h3>The Problem</h3>
+            <p>Seed phrases were a mistake we all accepted.</p>
+            <p>12 words written on paper. Hidden in a drawer. Lost in a house fire. Forgotten after three months. This
+                was never going to scale. We just got used to it because there was no alternative.</p>
+            <p>And gas fees? Asking users to hold SOL just to send SOL? That's not onboarding. That's a barrier.</p>
+            <p>Seedless Wallet exists because crypto UX is still broken — and we're fixing it.</p>
+
+            <h3>What We're Building</h3>
+            <p>Seedless is a Solana wallet built for normal people:</p>
+            <ul>
+                <li><span class="highlight">Passkey authentication.</span> Your face or fingerprint. No 12 words.</li>
+                <li><span class="highlight">Gasless transactions.</span> Send, swap, and sign without holding SOL for
+                    fees.</li>
+                <li><span class="highlight">Privacy built-in.</span> Stealth addresses and burner wallets. Defaults, not
+                    add-ons.</li>
+                <li><span class="highlight">Jupiter swaps.</span> Best prices across all DEXes. Zero gas.</li>
+            </ul>
+            <p>This is what a wallet should've been from day one.</p>
+
+            <h3>Why $SEED Matters</h3>
+            <p>$SEED is how we align incentives with the community:</p>
+            <ul>
+                <li><span class="highlight">Launched on Bags.fm</span> — community-driven from the start. No insider
+                    allocations.</li>
+                <li><span class="highlight">Revenue share</span> — a portion of swap fees goes back to holders.</li>
+                <li><span class="highlight">Early access</span> — holders get new features first.</li>
+            </ul>
+            <p>We don't control the supply. We don't control the price. Conviction does.</p>
+            <p>$SEED isn't speculation. It's participation.</p>
+
+            <h3>How Funds Will Be Used</h3>
+            <p>Everything raised goes into shipping:</p>
+            <ul>
+                <li>iOS build — currently Android only, iOS is next</li>
+                <li>Solana Seeker support — mobile-native Solana hardware</li>
+                <li>Transaction history — full on-chain activity view</li>
+                <li>Multi-token support — beyond SOL and USDC</li>
+                <li>Better recovery flows — because passkeys need backup options too</li>
+            </ul>
+            <p>The goal is simple: make Seedless the default wallet for anyone who thinks seed phrases are stupid.</p>
+        </div>
+    </section>
+
+    <!-- $SEED Token Utility -->
+    <section id="utility" class="utility-section">
+        <div class="section-header">
+            <h2 class="section-title">$SEED Token Utility</h2>
+            <p class="section-desc">Four utilities. No fluff.</p>
+        </div>
+        <div class="utility-grid">
+            <div class="utility-card">
+                <h3>1. Protocol Revenue Share</h3>
+                <p>A cut of revenue generated across Seedless Wallet goes back to $SEED holders. Starting with swap fees
+                    through Jupiter integration. Hold the token, qualify for distributions.</p>
+            </div>
+            <div class="utility-card">
+                <h3>2. Premium Access & Early Features</h3>
+                <p>Token holders get first access. New features, beta releases, experimental builds — holders see it
+                    before anyone else. Rewarding the people who showed up early.</p>
+            </div>
+            <div class="utility-card">
+                <h3>3. Reputation & Standing</h3>
+                <p>Holding $SEED builds your standing: community visibility, priority feedback channels, early access
+                    decisions, and input on product direction. Social reputation for believers.</p>
+            </div>
+            <div class="utility-card">
+                <h3>4. Community Rewards</h3>
+                <p>Earn standing through building on Seedless, creating content, bringing new users, or helping in
+                    community channels. Future drops favor holders and contributors equally.</p>
+            </div>
         </div>
     </section>
 
