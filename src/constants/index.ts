@@ -44,3 +44,21 @@ export const IS_DEVNET = false;
 
 // Cluster for LazorKit SDK transactions - MAINNET
 export const CLUSTER_SIMULATION = 'mainnet';
+
+// Request timeouts (ms)
+export const REQUEST_TIMEOUTS = {
+  DEFAULT: 30000,
+  SWAP: 60000,
+  RPC: 15000,
+} as const;
+
+// Error messages for consistent UX
+export const ERROR_MESSAGES = {
+  NETWORK_ERROR: 'Network error. Check your connection and try again.',
+  WALLET_NOT_FOUND: 'Wallet not found. Please set up your wallet first.',
+  INSUFFICIENT_BALANCE: 'Insufficient balance for this transaction.',
+  SWAP_FAILED: 'Swap failed. Please try again.',
+  TRANSACTION_TIMEOUT: 'Transaction timed out. Check your wallet for status.',
+  INVALID_ADDRESS: 'Invalid wallet address.',
+  PASSKEY_FAILED: 'Passkey authentication failed. Please try again.',
+} as const;
