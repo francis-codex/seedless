@@ -203,3 +203,21 @@ export function isValidAddress(address: string): boolean {
     return false;
   }
 }
+
+// Validate stealth meta-address format
+export function isValidMetaAddress(metaAddress: StealthMetaAddress): boolean {
+  return isValidAddress(metaAddress.scanPubkey) && isValidAddress(metaAddress.spendPubkey);
+}
+
+// Check if an address belongs to our stealth wallet
+export async function isOwnedStealthAddress(address: string): Promise<boolean> {
+  try {
+    const addresses = await getAllStealthAddresses();
+    return addresses.some((a) => a.address === address);
+  } catch {
+    return false;
+  }
+}
+
+// Derivation status for UI feedback
+export type StealthDerivationStatus = 'idle' | 'deriving' | 'ready' | 'error';
