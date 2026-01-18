@@ -5,7 +5,27 @@ import {
   DEFAULT_SLIPPAGE_BPS,
   COMPUTE_BUDGET_PROGRAM_ID,
   SOLANA_RPC_URL,
+  REQUEST_TIMEOUTS,
 } from '../constants';
+
+// Swap status for UI state management
+export type SwapStatus = 'idle' | 'quoting' | 'preparing' | 'signing' | 'confirming' | 'success' | 'error';
+
+// Timeout wrapper for fetch requests
+async function fetchWithTimeout(url: string, options: RequestInit, timeout: number = REQUEST_TIMEOUTS.SWAP): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 // Connection for fetching Address Lookup Tables
 const connection = new Connection(SOLANA_RPC_URL, {
