@@ -206,3 +206,24 @@ export function shortenAddress(address: string): string {
     if (address.length <= 12) return address;
     return `${address.slice(0, 4)}...${address.slice(-4)}`;
 }
+
+// Burner wallet status for UI
+export type BurnerStatus = 'idle' | 'creating' | 'sending' | 'sweeping' | 'destroying';
+
+// Get total count of burner wallets
+export async function getBurnerCount(): Promise<number> {
+    const burners = await listBurners();
+    return burners.length;
+}
+
+// Check if a burner wallet exists
+export async function burnerExists(burnerId: string): Promise<boolean> {
+    const burners = await listBurners();
+    return burners.some((b) => b.id === burnerId);
+}
+
+// Get total balance across all burners
+export async function getTotalBurnerBalance(): Promise<number> {
+    const burners = await listBurnersWithBalances();
+    return burners.reduce((sum, b) => sum + b.balance, 0);
+}
