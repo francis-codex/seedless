@@ -164,3 +164,11 @@ export function isAmountWithinLimits(amount: number, token: PaymentToken): boole
 export function getPaymentLimit(token: PaymentToken): number {
     return getMaxAmount(token);
 }
+
+// Validate Solana Pay URL format
+export function isValidSolanaPayUrl(url: string): boolean {
+    return parseSolanaPayUrl(url) !== null;
+}
+
+// Payment request status for UI
+export type PaymentRequestStatus = 'idle' | 'generating' | 'ready' | 'scanned' | 'completed' | 'expired';
