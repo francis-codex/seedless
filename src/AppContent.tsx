@@ -10,6 +10,15 @@ import { PaywallScreen } from './screens/PaywallScreen';
 
 type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'paywall';
 
+// Navigation state for tracking screen transitions
+export type NavigationState = {
+  current: Screen;
+  previous: Screen | null;
+};
+
+// Default screen when wallet connects
+const DEFAULT_SCREEN: Screen = 'wallet';
+
 // AppContent - Handles navigation based on wallet connection state
 // Uses the hook's isConnected state for persistence across app restarts
 // When user reconnects, the session is automatically restored
