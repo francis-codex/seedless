@@ -62,3 +62,21 @@ export const ERROR_MESSAGES = {
   INVALID_ADDRESS: 'Invalid wallet address.',
   PASSKEY_FAILED: 'Passkey authentication failed. Please try again.',
 } as const;
+
+// Transaction status types for UI state
+export type TransactionStatus = 'idle' | 'preparing' | 'signing' | 'broadcasting' | 'confirming' | 'success' | 'failed';
+
+// Retry configuration for network requests
+export const RETRY_CONFIG = {
+  MAX_RETRIES: 3,
+  INITIAL_DELAY_MS: 1000,
+  MAX_DELAY_MS: 5000,
+  BACKOFF_MULTIPLIER: 2,
+} as const;
+
+// Confirmation levels for transactions
+export const CONFIRMATION_LEVELS = {
+  PROCESSED: 'processed',
+  CONFIRMED: 'confirmed',
+  FINALIZED: 'finalized',
+} as const;
