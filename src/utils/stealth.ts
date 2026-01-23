@@ -221,3 +221,14 @@ export async function isOwnedStealthAddress(address: string): Promise<boolean> {
 
 // Derivation status for UI feedback
 export type StealthDerivationStatus = 'idle' | 'deriving' | 'ready' | 'error';
+
+// Get count of active stealth addresses
+export async function getStealthAddressCount(): Promise<number> {
+  const addresses = await getAllStealthAddresses();
+  return addresses.length;
+}
+
+// Check if stealth addresses feature is available
+export function isStealthAvailable(): boolean {
+  return typeof window !== 'undefined' && 'crypto' in window;
+}
