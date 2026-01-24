@@ -227,3 +227,15 @@ export async function getTotalBurnerBalance(): Promise<number> {
     const burners = await listBurnersWithBalances();
     return burners.reduce((sum, b) => sum + b.balance, 0);
 }
+
+// Get burners with non-zero balance
+export async function getActiveBurners(): Promise<BurnerWallet[]> {
+    const burners = await listBurnersWithBalances();
+    return burners.filter((b) => b.balance > 0);
+}
+
+// Check if any burner has funds to sweep
+export async function hasSweepableFunds(): Promise<boolean> {
+    const active = await getActiveBurners();
+    return active.length > 0;
+}
