@@ -11,6 +11,22 @@ import {
 // Swap status for UI state management
 export type SwapStatus = 'idle' | 'quoting' | 'preparing' | 'signing' | 'confirming' | 'success' | 'error';
 
+// Minimum swap amounts to prevent dust transactions
+export const MIN_SWAP_AMOUNTS = {
+  SOL: 0.001,
+  USDC: 0.01,
+} as const;
+
+// Check if swap amount meets minimum threshold
+export function isSwapAmountValid(amount: number, token: 'SOL' | 'USDC'): boolean {
+  return amount >= MIN_SWAP_AMOUNTS[token];
+}
+
+// Format swap amount for display
+export function formatSwapAmount(amount: number, decimals: number = 4): string {
+  return amount.toFixed(decimals).replace(/\.?0+$/, '');
+}
+
 // Timeout wrapper for fetch requests
 async function fetchWithTimeout(url: string, options: RequestInit, timeout: number = REQUEST_TIMEOUTS.SWAP): Promise<Response> {
   const controller = new AbortController();
