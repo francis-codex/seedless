@@ -172,3 +172,11 @@ export function isValidSolanaPayUrl(url: string): boolean {
 
 // Payment request status for UI
 export type PaymentRequestStatus = 'idle' | 'generating' | 'ready' | 'scanned' | 'completed' | 'expired';
+
+// Payment request expiration (5 minutes default)
+export const PAYMENT_REQUEST_TTL_MS = 5 * 60 * 1000;
+
+// Check if a payment request has expired
+export function isPaymentExpired(createdAt: number): boolean {
+  return Date.now() - createdAt > PAYMENT_REQUEST_TTL_MS;
+}
