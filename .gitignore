@@ -37,3 +37,4 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+SURVIVAL_PLAN.md
