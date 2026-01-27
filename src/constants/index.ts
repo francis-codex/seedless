@@ -80,3 +80,9 @@ export const CONFIRMATION_LEVELS = {
   CONFIRMED: 'confirmed',
   FINALIZED: 'finalized',
 } as const;
+
+// Session timeout for passkey auth (15 minutes)
+export const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
+
+// App version for tracking
+export const APP_VERSION = '0.1.0-beta';
