@@ -232,3 +232,13 @@ export async function getStealthAddressCount(): Promise<number> {
 export function isStealthAvailable(): boolean {
   return typeof window !== 'undefined' && 'crypto' in window;
 }
+
+// Get the most recent stealth address
+export async function getLatestStealthAddress(): Promise<string | null> {
+  const addresses = await getAllStealthAddresses();
+  if (addresses.length === 0) return null;
+  return addresses[addresses.length - 1].address;
+}
+
+// Stealth address scan status
+export type StealthScanStatus = 'idle' | 'scanning' | 'complete' | 'error';
