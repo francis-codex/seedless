@@ -240,3 +240,14 @@ export const X402_LIMITS = {
     MAX_PAYMENT_SOL: 0.01,
     MAX_PAYMENT_USDC: 1,
 } as const;
+
+// Check if payment amount is within safe limits
+export function isPaymentWithinLimits(amount: string, asset: string): boolean {
+    const value = parseFloat(amount);
+    if (asset === 'SOL') return value <= X402_LIMITS.MAX_PAYMENT_SOL;
+    if (asset === 'USDC') return value <= X402_LIMITS.MAX_PAYMENT_USDC;
+    return false;
+}
+
+// Payment status tracking
+export type X402PaymentStatus = 'idle' | 'pending' | 'confirming' | 'success' | 'failed' | 'timeout';
