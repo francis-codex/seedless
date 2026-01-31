@@ -86,3 +86,7 @@ export const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 
 // App version for tracking
 export const APP_VERSION = '0.1.0-beta';
+
+// Supported token list for quick validation
+export const SUPPORTED_TOKENS = ['SOL', 'USDC'] as const;
+export type SupportedToken = typeof SUPPORTED_TOKENS[number];
