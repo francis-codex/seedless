@@ -27,6 +27,20 @@ export function formatSwapAmount(amount: number, decimals: number = 4): string {
   return amount.toFixed(decimals).replace(/\.?0+$/, '');
 }
 
+// Calculate price impact warning threshold
+export const PRICE_IMPACT_THRESHOLDS = {
+  LOW: 1,      // 1% - green
+  MEDIUM: 3,   // 3% - yellow
+  HIGH: 5,     // 5% - red warning
+} as const;
+
+// Get price impact severity level
+export function getPriceImpactLevel(impactPercent: number): 'low' | 'medium' | 'high' {
+  if (impactPercent <= PRICE_IMPACT_THRESHOLDS.LOW) return 'low';
+  if (impactPercent <= PRICE_IMPACT_THRESHOLDS.MEDIUM) return 'medium';
+  return 'high';
+}
+
 // Timeout wrapper for fetch requests
 async function fetchWithTimeout(url: string, options: RequestInit, timeout: number = REQUEST_TIMEOUTS.SWAP): Promise<Response> {
   const controller = new AbortController();
