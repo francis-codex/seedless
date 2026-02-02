@@ -242,3 +242,12 @@ export async function getLatestStealthAddress(): Promise<string | null> {
 
 // Stealth address scan status
 export type StealthScanStatus = 'idle' | 'scanning' | 'complete' | 'error';
+
+// Maximum stealth addresses per wallet
+export const MAX_STEALTH_ADDRESSES = 100;
+
+// Check if we can generate more stealth addresses
+export async function canGenerateMoreStealth(): Promise<boolean> {
+  const count = await getStealthAddressCount();
+  return count < MAX_STEALTH_ADDRESSES;
+}
