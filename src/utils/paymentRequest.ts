@@ -180,3 +180,17 @@ export const PAYMENT_REQUEST_TTL_MS = 5 * 60 * 1000;
 export function isPaymentExpired(createdAt: number): boolean {
   return Date.now() - createdAt > PAYMENT_REQUEST_TTL_MS;
 }
+
+// Get remaining time for a payment request in seconds
+export function getPaymentTimeRemaining(createdAt: number): number {
+  const elapsed = Date.now() - createdAt;
+  const remaining = PAYMENT_REQUEST_TTL_MS - elapsed;
+  return Math.max(0, Math.floor(remaining / 1000));
+}
+
+// Format remaining time for display (e.g., "4:32")
+export function formatTimeRemaining(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
