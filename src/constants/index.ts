@@ -90,3 +90,14 @@ export const APP_VERSION = '0.1.0-beta';
 // Supported token list for quick validation
 export const SUPPORTED_TOKENS = ['SOL', 'USDC'] as const;
 export type SupportedToken = typeof SUPPORTED_TOKENS[number];
+
+// Transaction batch limits for bulk operations
+export const BATCH_LIMITS = {
+  MAX_INSTRUCTIONS_PER_TX: 10,
+  MAX_ACCOUNTS_PER_TX: 64,
+  MAX_TX_SIZE_BYTES: 1232,
+} as const;
+
+// Minimum balances to keep for rent exemption
+export const MIN_RENT_BALANCE_SOL = 0.00203928;
+export const MIN_RENT_BALANCE_LAMPORTS = 2039280;
