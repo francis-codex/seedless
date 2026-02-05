@@ -251,3 +251,16 @@ export async function canGenerateMoreStealth(): Promise<boolean> {
   const count = await getStealthAddressCount();
   return count < MAX_STEALTH_ADDRESSES;
 }
+
+// Validate stealth address label format
+export function isValidStealthLabel(label: string): boolean {
+  if (!label || label.trim().length === 0) return false;
+  if (label.length > 32) return false;
+  // Only allow alphanumeric, spaces, and basic punctuation
+  return /^[a-zA-Z0-9\s\-_\.]+$/.test(label);
+}
+
+// Sanitize label for storage
+export function sanitizeStealthLabel(label: string): string {
+  return label.trim().slice(0, 32);
+}
