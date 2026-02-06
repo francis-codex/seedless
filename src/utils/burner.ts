@@ -248,3 +248,16 @@ export async function getBurnerCount(): Promise<number> {
 
 // Burner sweep status for UI
 export type BurnerSweepStatus = 'idle' | 'sweeping' | 'confirming' | 'success' | 'failed';
+
+// Get the oldest burner wallet (first created)
+export async function getOldestBurner(): Promise<BurnerWallet | null> {
+  const burners = await listBurners();
+  if (burners.length === 0) return null;
+  return burners.reduce((oldest, b) => b.createdAt < oldest.createdAt ? b : oldest);
+}
+
+// Get burner by public key
+export async function getBurnerByAddress(publicKey: string): Promise<BurnerWallet | null> {
+  const burners = await listBurners();
+  return burners.find(b => b.publicKey === publicKey) || null;
+}
