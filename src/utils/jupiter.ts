@@ -309,3 +309,15 @@ export async function prepareSwap(
     addressLookupTableAccounts,
   };
 }
+
+// Format route path for display (e.g., "SOL → USDC via Raydium")
+export function formatRoutePath(quote: QuoteResponse): string {
+  if (!quote.routePlan || quote.routePlan.length === 0) return 'Direct swap';
+  const dexes = quote.routePlan.map(r => r.swapInfo.label).join(' → ');
+  return `via ${dexes}`;
+}
+
+// Check if quote is still valid (not expired)
+export function isQuoteValid(quoteTimestamp: number, maxAgeMs: number = 30000): boolean {
+  return Date.now() - quoteTimestamp < maxAgeMs;
+}
