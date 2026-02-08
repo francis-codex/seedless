@@ -194,3 +194,27 @@ export function formatTimeRemaining(seconds: number): string {
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
+
+// Minimum payment amounts to prevent dust
+export const MIN_PAYMENT_AMOUNTS = {
+  SOL: 0.001,
+  USDC: 0.01,
+} as const;
+
+// Check if payment amount meets minimum threshold
+export function isPaymentAmountValid(amount: number, token: PaymentToken): boolean {
+  return amount >= MIN_PAYMENT_AMOUNTS[token];
+}
+
+// Get human-readable payment status
+export function getPaymentStatusLabel(status: PaymentRequestStatus): string {
+  const labels: Record<PaymentRequestStatus, string> = {
+    idle: 'Ready',
+    generating: 'Generating...',
+    ready: 'Waiting for payment',
+    scanned: 'QR scanned',
+    completed: 'Payment received',
+    expired: 'Expired',
+  };
+  return labels[status];
+}
