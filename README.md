@@ -316,6 +316,13 @@ eas build --platform android
 - Ensure polyfills are imported at the very top of index.ts
 - Run `npx expo install expo-crypto` if crypto errors persist
 
-## License
+## links
+
+- site: [jabari.up.railway.app](https://jabari.up.railway.app)
+- docs: [seedless.up.railway.app](https://seedless.up.railway.app)
+- org: [github.com/jabari-labs](https://github.com/jabari-labs)
+- twitter: [@seedless_wallet](https://x.com/seedless_wallet)
+
+## license
 
 MIT
