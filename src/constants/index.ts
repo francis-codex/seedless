@@ -101,3 +101,11 @@ export const BATCH_LIMITS = {
 // Minimum balances to keep for rent exemption
 export const MIN_RENT_BALANCE_SOL = 0.00203928;
 export const MIN_RENT_BALANCE_LAMPORTS = 2039280;
+
+// Default priority fee levels (microlamports per compute unit)
+export const PRIORITY_FEE_LEVELS = {
+  LOW: 1000,
+  MEDIUM: 50000,
+  HIGH: 200000,
+  TURBO: 1000000,
+} as const;
