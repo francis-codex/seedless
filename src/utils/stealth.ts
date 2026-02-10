@@ -264,3 +264,15 @@ export function isValidStealthLabel(label: string): boolean {
 export function sanitizeStealthLabel(label: string): string {
   return label.trim().slice(0, 32);
 }
+
+// Get stealth address by index
+export async function getStealthAddressByIndex(index: number): Promise<StealthAddress | null> {
+  const addresses = await getAllStealthAddresses();
+  return addresses.find(a => a.index === index) || null;
+}
+
+// Check if stealth wallet has any addresses
+export async function hasStealthAddresses(): Promise<boolean> {
+  const count = await getStealthAddressCount();
+  return count > 0;
+}
