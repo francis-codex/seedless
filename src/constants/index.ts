@@ -109,3 +109,9 @@ export const PRIORITY_FEE_LEVELS = {
   HIGH: 200000,
   TURBO: 1000000,
 } as const;
+
+// Wallet connection states
+export type WalletConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+// Maximum transaction history to store locally
+export const MAX_TX_HISTORY = 50;
