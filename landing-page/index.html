@@ -7,6 +7,7 @@
     <title>Seedless Wallet - No Seed Phrases. No Gas Fees.</title>
     <meta name="description"
         content="A Solana wallet powered by passkeys. Authenticate with biometrics, send transactions without gas fees.">
+    <link rel="icon" type="image/png" href="favicon.png">
     <style>
         * {
             margin: 0;
@@ -512,6 +513,176 @@
             font-size: 0.85rem;
         }
 
+        /* Roadmap Section */
+        .roadmap-section {
+            padding: 5rem 5%;
+            border-top: 1px solid var(--border);
+        }
+
+        .roadmap-timeline {
+            position: relative;
+            max-width: 900px;
+            margin-top: 3rem;
+        }
+
+        .roadmap-timeline::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--border);
+        }
+
+        .roadmap-phase {
+            position: relative;
+            padding-left: 2.5rem;
+            padding-bottom: 3rem;
+        }
+
+        .roadmap-phase:last-child {
+            padding-bottom: 0;
+        }
+
+        .roadmap-phase::before {
+            content: '';
+            position: absolute;
+            left: -5px;
+            top: 0;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--text);
+            border: 2px solid var(--bg);
+        }
+
+        .roadmap-phase.upcoming::before {
+            background: var(--bg);
+            border: 2px solid var(--text-secondary);
+        }
+
+        .phase-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .phase-tag {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+        }
+
+        .phase-tag.live {
+            background: #22c55e;
+            border-color: #22c55e;
+            color: #000;
+        }
+
+        .phase-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .phase-items {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+        }
+
+        @media (max-width: 600px) {
+            .phase-items {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .phase-item {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            padding: 1rem 1.25rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .phase-item strong {
+            color: var(--text);
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+
+        /* Holder Benefits Section */
+        .benefits-section {
+            padding: 5rem 5%;
+            border-top: 1px solid var(--border);
+            background: var(--bg-secondary);
+        }
+
+        .benefits-highlight {
+            font-size: 1.1rem;
+            color: var(--text);
+            max-width: 700px;
+            margin-bottom: 2.5rem;
+            line-height: 1.7;
+        }
+
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1px;
+            background: var(--border);
+            border: 1px solid var(--border);
+            max-width: 1000px;
+        }
+
+        @media (max-width: 900px) {
+            .benefits-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .benefits-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .benefit-card {
+            background: var(--bg);
+            padding: 2rem;
+        }
+
+        .benefit-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text);
+        }
+
+        .benefit-card p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .benefit-tag {
+            display: inline-block;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .nav-links {
@@ -542,6 +713,7 @@
         <div class="logo">Seedless Wallet</div>
         <div class="nav-links">
             <a href="#features">Features</a>
+            <a href="#roadmap">Roadmap</a>
             <a href="#docs">Docs</a>
             <a href="#manifesto">$SEED</a>
             <a href="https://x.com/seedless_wallet" target="_blank">Twitter</a>
@@ -612,6 +784,161 @@
             <div class="feature-card">
                 <h3>X402 Micropayments</h3>
                 <p>Pay-per-view content with HTTP 402 standard. Instant crypto payments.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Roadmap Section -->
+    <section id="roadmap" class="roadmap-section">
+        <div class="section-header">
+            <h2 class="section-title">Roadmap</h2>
+            <p class="section-desc">What we're building and when.</p>
+        </div>
+        <div class="roadmap-timeline">
+            <!-- Phase 1 -->
+            <div class="roadmap-phase">
+                <div class="phase-header">
+                    <span class="phase-tag">Q1 2026</span>
+                    <h3 class="phase-title">Mainnet Launch</h3>
+                </div>
+                <div class="phase-items">
+                    <div class="phase-item">
+                        <strong>Mainnet Live</strong>
+                        Post-LazorKit audit. Passkey wallet fully functional on Solana mainnet.
+                    </div>
+                    <div class="phase-item">
+                        <strong>Gasless Transactions</strong>
+                        Send, swap, and sign without holding SOL for fees.
+                    </div>
+                    <div class="phase-item">
+                        <strong>Jupiter Swaps</strong>
+                        Best-price token swaps. Completely gas-free.
+                    </div>
+                    <div class="phase-item">
+                        <strong>Stealth Addresses</strong>
+                        Privacy by default. One-time receiving addresses.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Phase 2 -->
+            <div class="roadmap-phase">
+                <div class="phase-header">
+                    <span class="phase-tag">Q1 2026</span>
+                    <h3 class="phase-title">Mobile Expansion</h3>
+                </div>
+                <div class="phase-items">
+                    <div class="phase-item">
+                        <strong>Solana Seeker Launch</strong>
+                        Native support for Solana Mobile's Seeker device. Android dApp Store.
+                    </div>
+                    <div class="phase-item">
+                        <strong>iOS Release</strong>
+                        Full iOS support following Android launch.
+                    </div>
+                    <div class="phase-item">
+                        <strong>Multi-Device Passkey</strong>
+                        Sync your wallet across devices. One identity, multiple access points.
+                    </div>
+                    <div class="phase-item">
+                        <strong>Transaction History</strong>
+                        Full on-chain activity view. Track every transaction.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Phase 3 -->
+            <div class="roadmap-phase upcoming">
+                <div class="phase-header">
+                    <span class="phase-tag">Late Q1 2026</span>
+                    <h3 class="phase-title">Community and Governance</h3>
+                </div>
+                <div class="phase-items">
+                    <div class="phase-item">
+                        <strong>Superteam Bounties</strong>
+                        Content and product review bounties live on Superteam Earn. Launching immediately after mainnet.
+                    </div>
+                    <div class="phase-item">
+                        <strong>Governance Voting</strong>
+                        $SEED holders vote on feature priority and protocol direction.
+                    </div>
+                    <div class="phase-item">
+                        <strong>Revenue Model</strong>
+                        Small swap fees introduced. Protocol revenue distributed to holders.
+                    </div>
+                    <div class="phase-item">
+                        <strong>Fee Rebates</strong>
+                        Hold $SEED, get percentage back on transaction fees.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Phase 4 -->
+            <div class="roadmap-phase upcoming">
+                <div class="phase-header">
+                    <span class="phase-tag">Q2 2026</span>
+                    <h3 class="phase-title">Ecosystem Growth</h3>
+                </div>
+                <div class="phase-items">
+                    <div class="phase-item">
+                        <strong>Browser Extension</strong>
+                        Desktop access for everyone. Chrome and Firefox support.
+                    </div>
+                    <div class="phase-item">
+                        <strong>NFT Support</strong>
+                        View, send, and receive NFTs directly in wallet.
+                    </div>
+                    <div class="phase-item">
+                        <strong>Fiat Integration</strong>
+                        Hold stablecoins, spend local currency. Automatic conversion when you pay. Launching with Paj Cash.
+                    </div>
+                    <div class="phase-item">
+                        <strong>Altude Partnership</strong>
+                        Redundant gasless infrastructure. Less dependency on single provider.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- $SEED Holder Benefits -->
+    <section id="benefits" class="benefits-section">
+        <div class="section-header">
+            <h2 class="section-title">$SEED Holder Benefits</h2>
+            <p class="benefits-highlight">
+                Hold $SEED. Get rewarded. Simple as that. The more you hold, the more you unlock.
+            </p>
+        </div>
+        <div class="benefits-grid">
+            <div class="benefit-card">
+                <span class="benefit-tag">Active Now</span>
+                <h3>Tiered Perks</h3>
+                <p>Bronze, Silver, Gold tiers based on holdings. Each tier unlocks exclusive features and priority access.</p>
+            </div>
+            <div class="benefit-card">
+                <span class="benefit-tag">Active Now</span>
+                <h3>Early Access</h3>
+                <p>New features drop for holders first. Beta releases, experimental builds - you see it before anyone else.</p>
+            </div>
+            <div class="benefit-card">
+                <span class="benefit-tag">Active Now</span>
+                <h3>Referral Rewards</h3>
+                <p>Bring users, earn $SEED. Every successful referral puts tokens in your wallet.</p>
+            </div>
+            <div class="benefit-card">
+                <span class="benefit-tag">Coming Soon</span>
+                <h3>Governance Voting</h3>
+                <p>Vote on which features get built next. Your tokens, your voice in protocol direction.</p>
+            </div>
+            <div class="benefit-card">
+                <span class="benefit-tag">Coming Soon</span>
+                <h3>Fee Rebates</h3>
+                <p>When revenue model launches, holders get percentage back on swap fees paid in $SEED.</p>
+            </div>
+            <div class="benefit-card">
+                <span class="benefit-tag">Coming Soon</span>
+                <h3>Revenue Share</h3>
+                <p>As protocol grows, a portion of swap fees distributed back to stakers. Hold and earn.</p>
             </div>
         </div>
     </section>
@@ -1032,7 +1359,7 @@ async function destroyBurner(burnerId) {
             <a href="https://docs.lazorkit.com" target="_blank">LazorKit Docs</a>
             <a href="https://portal.jup.ag" target="_blank">Jupiter API</a>
         </div>
-        <p class="footer-copy">2025 Seedless Wallet. Built on Solana.</p>
+        <p class="footer-copy">2026 Seedless Wallet. Built on Solana.</p>
     </footer>
 
     <script>
