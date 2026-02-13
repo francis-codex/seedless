@@ -1,9 +1,10 @@
 // Solana RPC Configuration - MAINNET
-export const SOLANA_RPC_URL = 'https://mainnet.helius-rpc.com/?api-key=db683a77-edb6-4c80-8cac-944640c07e21';
+export const SOLANA_RPC_URL = 'https://mainnet.helius-rpc.com/?api-key=4bdebac7-7691-4af0-bbe3-bc95b8e6b18f';
 
 // LazorKit Portal and Paymaster (MAINNET)
 export const PORTAL_URL = 'https://portal.lazor.sh';
 export const PAYMASTER_URL = 'https://kora.lazorkit.com';
+export const PAYMASTER_API_KEY = ''; // Get from LazorKit
 
 // USDC Token Mint Address (Mainnet)
 export const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';

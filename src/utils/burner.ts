@@ -240,12 +240,6 @@ export async function hasSweepableFunds(): Promise<boolean> {
     return active.length > 0;
 }
 
-// Get burner count for UI display
-export async function getBurnerCount(): Promise<number> {
-    const burners = await listBurners();
-    return burners.length;
-}
-
 // Burner sweep status for UI
 export type BurnerSweepStatus = 'idle' | 'sweeping' | 'confirming' | 'success' | 'failed';
 

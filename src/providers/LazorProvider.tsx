@@ -1,6 +1,6 @@
 import React from 'react';
 import { LazorKitProvider } from '@lazorkit/wallet-mobile-adapter';
-import { SOLANA_RPC_URL, PORTAL_URL, PAYMASTER_URL } from '../constants';
+import { SOLANA_RPC_URL, PORTAL_URL, PAYMASTER_URL, PAYMASTER_API_KEY } from '../constants';
 
 interface LazorProviderProps {
   children: React.JSX.Element | React.JSX.Element[];
@@ -20,6 +20,7 @@ export function LazorProvider({ children }: LazorProviderProps) {
       portalUrl={PORTAL_URL}
       configPaymaster={{
         paymasterUrl: PAYMASTER_URL,
+        apiKey: PAYMASTER_API_KEY || undefined,
       }}
     >
       {children}
