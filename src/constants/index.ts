@@ -134,3 +134,6 @@ export const getTxExplorerUrl = (signature: string): string =>
 // Build account explorer link
 export const getAccountExplorerUrl = (address: string): string =>
   `${EXPLORER_URL}/account/${address}`;
+
+// Minimum SOL for transaction (rent + fee buffer)
+export const MIN_SOL_FOR_TX = 0.003;
