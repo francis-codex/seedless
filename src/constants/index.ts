@@ -116,3 +116,21 @@ export type WalletConnectionState = 'disconnected' | 'connecting' | 'connected' 
 
 // Maximum transaction history to store locally
 export const MAX_TX_HISTORY = 50;
+
+// Display format helpers for UI
+export const DISPLAY_DECIMALS = {
+  SOL: 4,
+  USDC: 2,
+  USD: 2,
+} as const;
+
+// Solana explorer base URL for transaction links
+export const EXPLORER_URL = 'https://solscan.io';
+
+// Build transaction explorer link
+export const getTxExplorerUrl = (signature: string): string =>
+  `${EXPLORER_URL}/tx/${signature}`;
+
+// Build account explorer link
+export const getAccountExplorerUrl = (address: string): string =>
+  `${EXPLORER_URL}/account/${address}`;
