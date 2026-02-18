@@ -143,3 +143,6 @@ export const TOKEN_ACCOUNT_RENT = 0.00203928;
 
 // Swap quote refresh interval (ms)
 export const QUOTE_REFRESH_INTERVAL = 10000;
+
+// Maximum slippage allowed (5%)
+export const MAX_SLIPPAGE_BPS = 500;
