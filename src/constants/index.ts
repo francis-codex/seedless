@@ -146,3 +146,6 @@ export const QUOTE_REFRESH_INTERVAL = 10000;
 
 // Maximum slippage allowed (5%)
 export const MAX_SLIPPAGE_BPS = 500;
+
+// Passkey credential timeout (2 minutes)
+export const PASSKEY_TIMEOUT_MS = 120000;
