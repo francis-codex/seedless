@@ -149,3 +149,6 @@ export const MAX_SLIPPAGE_BPS = 500;
 
 // Passkey credential timeout (2 minutes)
 export const PASSKEY_TIMEOUT_MS = 120000;
+
+// Balance polling interval (ms)
+export const BALANCE_POLL_INTERVAL = 30000;
