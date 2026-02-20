@@ -1419,16 +1419,13 @@ async function destroyBurner(burnerId) {
     </section>
 
     <section id="waitlist" class="waitlist-section">
-        <h2>Join the Waitlist</h2>
-        <p>Mainnet launching soon. Get early access when we go live.</p>
-        <form class="waitlist-form" id="waitlistForm" action="https://formspree.io/f/YOUR_FORM_ID" method="POST">
-            <input type="email" name="email" placeholder="Enter your email" required>
-            <button type="submit">Join Waitlist</button>
-        </form>
-        <p class="waitlist-note">Limited spots. Early supporters get priority access.</p>
-        <div class="waitlist-success" id="waitlistSuccess">
-            You're on the list. We'll reach out when mainnet is live.
+        <h2>Join the Beta</h2>
+        <p>Mainnet launching soon. Join our Telegram for updates and early access.</p>
+        <div class="hero-buttons">
+            <a href="https://t.me/+ShXX2hovQH9hMGU0" class="btn btn-primary" target="_blank">Join Telegram</a>
+            <a href="https://github.com/francis-codex/seedless" class="btn btn-secondary" target="_blank">View Source</a>
         </div>
+        <p class="waitlist-note">Request mainnet access in the group when we go live.</p>
     </section>
 
     <footer>
@@ -1457,31 +1454,6 @@ async function destroyBurner(burnerId) {
                 }, 2000);
             });
         }
-
-        // Waitlist form handling
-        const waitlistForm = document.getElementById('waitlistForm');
-        const waitlistSuccess = document.getElementById('waitlistSuccess');
-
-        waitlistForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(waitlistForm);
-
-            try {
-                const response = await fetch(waitlistForm.action, {
-                    method: 'POST',
-                    body: formData,
-                    headers: { 'Accept': 'application/json' }
-                });
-
-                if (response.ok) {
-                    waitlistForm.style.display = 'none';
-                    waitlistSuccess.style.display = 'block';
-                    document.querySelector('.waitlist-note').style.display = 'none';
-                }
-            } catch (error) {
-                console.error('Error:', error);
-            }
-        });
 
         // Smooth scrolling
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
