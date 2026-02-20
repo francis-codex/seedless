@@ -683,6 +683,83 @@
             margin-bottom: 0.75rem;
         }
 
+        /* Waitlist Section */
+        .waitlist-section {
+            padding: 6rem 5%;
+            border-top: 1px solid var(--border);
+            background: var(--bg-secondary);
+        }
+
+        .waitlist-section h2 {
+            font-size: 2rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .waitlist-section > p {
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            max-width: 500px;
+        }
+
+        .waitlist-form {
+            display: flex;
+            gap: 0.75rem;
+            max-width: 450px;
+            flex-wrap: wrap;
+        }
+
+        .waitlist-form input[type="email"] {
+            flex: 1;
+            min-width: 200px;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+            font-size: 0.95rem;
+        }
+
+        .waitlist-form input[type="email"]::placeholder {
+            color: var(--text-muted);
+        }
+
+        .waitlist-form input[type="email"]:focus {
+            outline: none;
+            border-color: var(--text-secondary);
+        }
+
+        .waitlist-form button {
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            border: none;
+            background: var(--text);
+            color: var(--bg);
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .waitlist-form button:hover {
+            opacity: 0.8;
+        }
+
+        .waitlist-note {
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .waitlist-success {
+            display: none;
+            padding: 1rem;
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid #22c55e;
+            border-radius: 6px;
+            color: #22c55e;
+            max-width: 450px;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .nav-links {
@@ -730,7 +807,7 @@
             swap tokens at the best prices.
         </p>
         <div class="hero-buttons">
-            <a href="#download" class="btn btn-primary">Download APK</a>
+            <a href="#waitlist" class="btn btn-primary">Join Waitlist</a>
             <a href="https://github.com/francis-codex/seedless" class="btn btn-secondary" target="_blank">View
                 Source</a>
         </div>
@@ -1341,14 +1418,16 @@ async function destroyBurner(burnerId) {
         </div>
     </section>
 
-    <section id="download" class="cta-section">
-        <h2>Get Started</h2>
-        <p>Download the app or clone the source to build your own.</p>
-        <div class="hero-buttons">
-            <a href="https://expo.dev/accounts/solana-bridge/projects/seedless/builds/58386687-b1e2-4d43-a6cc-4efcba8f27ac"
-                class="btn btn-primary" target="_blank">Download Android APK</a>
-            <a href="https://github.com/francis-codex/seedless" class="btn btn-secondary" target="_blank">Clone on
-                GitHub</a>
+    <section id="waitlist" class="waitlist-section">
+        <h2>Join the Waitlist</h2>
+        <p>Mainnet launching soon. Get early access when we go live.</p>
+        <form class="waitlist-form" id="waitlistForm" action="https://formspree.io/f/YOUR_FORM_ID" method="POST">
+            <input type="email" name="email" placeholder="Enter your email" required>
+            <button type="submit">Join Waitlist</button>
+        </form>
+        <p class="waitlist-note">Limited spots. Early supporters get priority access.</p>
+        <div class="waitlist-success" id="waitlistSuccess">
+            You're on the list. We'll reach out when mainnet is live.
         </div>
     </section>
 
@@ -1378,6 +1457,31 @@ async function destroyBurner(burnerId) {
                 }, 2000);
             });
         }
+
+        // Waitlist form handling
+        const waitlistForm = document.getElementById('waitlistForm');
+        const waitlistSuccess = document.getElementById('waitlistSuccess');
+
+        waitlistForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(waitlistForm);
+
+            try {
+                const response = await fetch(waitlistForm.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                if (response.ok) {
+                    waitlistForm.style.display = 'none';
+                    waitlistSuccess.style.display = 'block';
+                    document.querySelector('.waitlist-note').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
 
         // Smooth scrolling
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
