@@ -152,3 +152,6 @@ export const PASSKEY_TIMEOUT_MS = 120000;
 
 // Balance polling interval (ms)
 export const BALANCE_POLL_INTERVAL = 30000;
+
+// Airdrop claim window duration (7 days in ms)
+export const AIRDROP_CLAIM_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
