@@ -155,3 +155,6 @@ export const BALANCE_POLL_INTERVAL = 30000;
 
 // Airdrop claim window duration (7 days in ms)
 export const AIRDROP_CLAIM_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Max token accounts to fetch per request
+export const MAX_TOKEN_ACCOUNTS = 100;
