@@ -164,10 +164,31 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
       return;
     }
 
+    // Validate recipient address
+    let recipientPubkey: PublicKey;
+    try {
+      recipientPubkey = new PublicKey(recipient);
+    } catch {
+      Alert.alert('Invalid address', 'Enter a valid Solana wallet address');
+      return;
+    }
+
+    // Validate amount
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      Alert.alert('Invalid amount', 'Enter a valid amount greater than 0');
+      return;
+    }
+
+    // Check balance before sending
+    if (solBalance !== null && parsedAmount > solBalance) {
+      Alert.alert('Insufficient balance', `You only have ${solBalance.toFixed(4)} SOL`);
+      return;
+    }
+
     setIsSending(true);
     try {
-      const recipientPubkey = new PublicKey(recipient);
-      const lamports = parseFloat(amount) * LAMPORTS_PER_SOL;
+      const lamports = Math.round(parsedAmount * LAMPORTS_PER_SOL);
 
       // Create transfer instruction
       const transferInstruction = SystemProgram.transfer({

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import * as Linking from 'expo-linking';
-import { SOL_MINT, USDC_MINT, TOKEN_DECIMALS } from '../constants';
+import { SOL_MINT, USDC_MINT, TOKEN_DECIMALS, CLUSTER_SIMULATION } from '../constants';
 import { prepareSwap, QuoteResponse } from '../utils/jupiter';
 
 interface SwapScreenProps {
@@ -64,7 +64,8 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
 
   // Fetch quote from Jupiter
   const fetchQuote = useCallback(async () => {
-    if (!amount || parseFloat(amount) <= 0) {
+    const parsedAmount = parseFloat(amount);
+    if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
       Alert.alert('Invalid amount', 'Enter a valid amount to swap');
       return;
     }
@@ -123,7 +124,7 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
           instructions,
           transactionOptions: {
             addressLookupTableAccounts,
-            clusterSimulation: 'mainnet',
+            clusterSimulation: CLUSTER_SIMULATION as 'mainnet' | 'devnet',
             // No feeToken = gasless (Kora sponsors)
           },
         },
@@ -140,8 +141,6 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
           },
         }
       );
-
-      console.log('Swap signature:', signature);
 
       // Reset form
       setAmount('');

@@ -230,7 +230,7 @@ export async function getStealthAddressCount(): Promise<number> {
 
 // Check if stealth addresses feature is available
 export function isStealthAvailable(): boolean {
-  return typeof window !== 'undefined' && 'crypto' in window;
+  return true; // expo-crypto is always available in React Native
 }
 
 // Get the most recent stealth address

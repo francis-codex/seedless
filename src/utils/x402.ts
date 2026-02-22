@@ -97,7 +97,7 @@ export function createPaymentHeader(proof: PaymentProof): string {
     return Buffer.from(JSON.stringify(proof)).toString('base64');
 }
 
-// Simulate a 402 paywall server response (for demo purposes)
+// Simulate a 402 paywall server response (demo only - no real SOL charged)
 // In production, this comes from actual X402-enabled servers
 export function simulatePaywallResponse(): X402Response {
     return {
@@ -105,10 +105,10 @@ export function simulatePaywallResponse(): X402Response {
         requirements: {
             scheme: 'exact',
             network: 'solana',
-            maxAmountRequired: '0.001',
+            maxAmountRequired: '0',
             resource: '/api/premium-content',
-            description: 'Premium article access',
-            payTo: 'GkXn6PUbcvpwAzVAP16bLjpMvjYXGsmQJwY1bL5X8VTr', // Demo address
+            description: 'Premium article access (demo - no charge)',
+            payTo: '11111111111111111111111111111111', // System program - demo only
             asset: 'SOL',
         },
     };

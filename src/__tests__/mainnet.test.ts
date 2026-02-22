@@ -8,12 +8,13 @@
 
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 
-// Inline constants (to avoid module resolution issues)
-const SOLANA_RPC_URL = 'https://mainnet.helius-rpc.com/?api-key=db683a77-edb6-4c80-8cac-944640c07e21';
+// Constants from environment
+const HELIUS_API_KEY = process.env.EXPO_PUBLIC_HELIUS_API_KEY || '';
+const SOLANA_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 const PAYMASTER_URL = 'https://kora.lazorkit.com';
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const JUPITER_API_URL = 'https://api.jup.ag';
-const JUPITER_API_KEY = '90349292-c128-4906-acf3-0b709e7e0f3b';
+const JUPITER_API_KEY = process.env.EXPO_PUBLIC_JUPITER_API_KEY || '';
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
 const IS_DEVNET = false;
 const CLUSTER_SIMULATION = 'mainnet';

@@ -239,9 +239,8 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
 
             {/* Limits Info */}
             <View style={styles.limitsCard}>
-                <Text style={styles.limitsTitle}>Testing Limits</Text>
-                <Text style={styles.limitsText}>Max fund: {BURNER_LIMITS.MAX_FUND_SOL} SOL</Text>
-                <Text style={styles.limitsText}>Max send: {BURNER_LIMITS.MAX_SEND_SOL} SOL per tx</Text>
+                <Text style={styles.limitsTitle}>Limits</Text>
+                <Text style={styles.limitsText}>Max per transaction: {BURNER_LIMITS.MAX_SEND_SOL} SOL</Text>
             </View>
 
             {/* Create Modal */}

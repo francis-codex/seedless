@@ -1,10 +1,11 @@
 // Solana RPC Configuration - MAINNET
-export const SOLANA_RPC_URL = 'https://mainnet.helius-rpc.com/?api-key=4bdebac7-7691-4af0-bbe3-bc95b8e6b18f';
+const HELIUS_API_KEY = process.env.EXPO_PUBLIC_HELIUS_API_KEY || '';
+export const SOLANA_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 
 // LazorKit Portal and Paymaster (MAINNET)
 export const PORTAL_URL = 'https://portal.lazor.sh';
 export const PAYMASTER_URL = 'https://kora.lazorkit.com';
-export const PAYMASTER_API_KEY = ''; // Get from LazorKit
+export const PAYMASTER_API_KEY = process.env.EXPO_PUBLIC_PAYMASTER_API_KEY || '';
 
 // USDC Token Mint Address (Mainnet)
 export const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -23,7 +24,7 @@ export const APP_SCHEME = 'lazorwallet';
 
 // Jupiter Swap API - MAINNET
 export const JUPITER_API_URL = 'https://api.jup.ag';
-export const JUPITER_API_KEY = '90349292-c128-4906-acf3-0b709e7e0f3b';
+export const JUPITER_API_KEY = process.env.EXPO_PUBLIC_JUPITER_API_KEY || '';
 
 // Native SOL mint address (wrapped SOL for Jupiter)
 export const SOL_MINT = 'So11111111111111111111111111111111111111112';
@@ -158,3 +159,12 @@ export const AIRDROP_CLAIM_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Max token accounts to fetch per request
 export const MAX_TOKEN_ACCOUNTS = 100;
+
+// Max burner wallets per user
+export const MAX_BURNER_WALLETS = 10;
+
+// Burner wallet limits (SOL)
+export const BURNER_LIMITS = {
+  MAX_FUND_SOL: 10,
+  MAX_SEND_SOL: 10,
+} as const;

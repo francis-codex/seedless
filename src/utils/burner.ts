@@ -5,7 +5,9 @@
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import { Keypair, Connection, PublicKey, LAMPORTS_PER_SOL, SystemProgram, Transaction } from '@solana/web3.js';
-import { SOLANA_RPC_URL } from '../constants';
+import { SOLANA_RPC_URL, MAX_BURNER_WALLETS, BURNER_LIMITS as LIMITS } from '../constants';
+
+export const BURNER_LIMITS = LIMITS;
 
 const connection = new Connection(SOLANA_RPC_URL, {
     commitment: 'confirmed',
@@ -14,12 +16,6 @@ const connection = new Connection(SOLANA_RPC_URL, {
 
 const BURNER_LIST_KEY = 'lazor_burner_list';
 const BURNER_KEY_PREFIX = 'lazor_burner_';
-
-// No limits - production ready
-export const BURNER_LIMITS = {
-    MAX_FUND_SOL: Infinity,
-    MAX_SEND_SOL: Infinity,
-} as const;
 
 export interface BurnerWallet {
     id: string;
@@ -53,6 +49,11 @@ async function generateBurnerId(): Promise<string> {
 }
 
 export async function createBurner(label: string): Promise<BurnerWallet> {
+    const existing = await listBurners();
+    if (existing.length >= MAX_BURNER_WALLETS) {
+        throw new Error(`Maximum of ${MAX_BURNER_WALLETS} burner wallets reached`);
+    }
+
     const keypair = Keypair.generate();
     const id = await generateBurnerId();
 
@@ -115,8 +116,20 @@ export async function sendFromBurner(
     recipient: string,
     amount: number
 ): Promise<string> {
+    if (isNaN(amount) || amount <= 0) {
+        throw new Error('Invalid amount');
+    }
+
     if (amount > BURNER_LIMITS.MAX_SEND_SOL) {
         throw new Error(`Amount exceeds limit of ${BURNER_LIMITS.MAX_SEND_SOL} SOL`);
+    }
+
+    // Validate recipient address
+    let recipientPubkey: PublicKey;
+    try {
+        recipientPubkey = new PublicKey(recipient);
+    } catch {
+        throw new Error('Invalid recipient address');
     }
 
     const keypair = await getBurnerKeypair(burnerId);
@@ -124,8 +137,7 @@ export async function sendFromBurner(
         throw new Error('Burner wallet not found');
     }
 
-    const recipientPubkey = new PublicKey(recipient);
-    const lamports = Math.floor(amount * LAMPORTS_PER_SOL);
+    const lamports = Math.round(amount * LAMPORTS_PER_SOL);
 
     const { blockhash } = await connection.getLatestBlockhash();
     const transaction = new Transaction({
