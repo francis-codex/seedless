@@ -184,117 +184,10 @@
             font-size: 0.9rem;
         }
 
-        /* Docs Section */
+        /* How It Works Section */
         .docs-section {
             padding: 4rem 5%;
             border-top: 1px solid var(--border);
-        }
-
-        .docs-container {
-            display: grid;
-            grid-template-columns: 240px 1fr;
-            gap: 3rem;
-            max-width: 1200px;
-        }
-
-        .docs-sidebar {
-            position: sticky;
-            top: 80px;
-            height: fit-content;
-        }
-
-        .docs-nav {
-            list-style: none;
-        }
-
-        .docs-nav-item {
-            margin-bottom: 0.25rem;
-        }
-
-        .docs-nav-link {
-            display: block;
-            padding: 0.5rem 0.75rem;
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            border-radius: 4px;
-            transition: all 0.2s;
-        }
-
-        .docs-nav-link:hover,
-        .docs-nav-link.active {
-            color: var(--text);
-            background: var(--bg-secondary);
-        }
-
-        .docs-nav-section {
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            padding: 1rem 0.75rem 0.5rem;
-        }
-
-        .docs-content {
-            max-width: 800px;
-        }
-
-        .doc-section {
-            margin-bottom: 4rem;
-            padding-bottom: 4rem;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .doc-section:last-child {
-            border-bottom: none;
-        }
-
-        .doc-section h2 {
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-        }
-
-        .doc-section h3 {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin: 2rem 0 1rem;
-        }
-
-        .doc-section p {
-            color: var(--text-secondary);
-            margin-bottom: 1rem;
-        }
-
-        .doc-section ul {
-            color: var(--text-secondary);
-            margin-left: 1.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .doc-section li {
-            margin-bottom: 0.5rem;
-        }
-
-        pre {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 1rem;
-            overflow-x: auto;
-            margin: 1rem 0;
-            font-size: 0.85rem;
-        }
-
-        code {
-            font-family: 'SF Mono', 'Consolas', monospace;
-        }
-
-        :not(pre)>code {
-            background: var(--bg-secondary);
-            padding: 0.2rem 0.4rem;
-            border-radius: 4px;
-            font-size: 0.85em;
         }
 
         /* Tech Stack */
@@ -766,17 +659,6 @@
                 display: none;
             }
 
-            .docs-container {
-                grid-template-columns: 1fr;
-            }
-
-            .docs-sidebar {
-                position: static;
-                border-bottom: 1px solid var(--border);
-                padding-bottom: 2rem;
-                margin-bottom: 2rem;
-            }
-
             footer {
                 flex-direction: column;
                 text-align: center;
@@ -791,7 +673,7 @@
         <div class="nav-links">
             <a href="#features">Features</a>
             <a href="#roadmap">Roadmap</a>
-            <a href="#docs">Docs</a>
+            <a href="#docs">How It Works</a>
             <a href="#manifesto">$SEED</a>
             <a href="https://x.com/seedless_wallet" target="_blank">Twitter</a>
             <a href="https://github.com/francis-codex/seedless" target="_blank">GitHub</a>
@@ -1022,305 +904,25 @@
 
     <section id="docs" class="docs-section">
         <div class="section-header">
-            <h2 class="section-title">Documentation</h2>
-            <p class="section-desc">Learn how to build with Seedless Wallet.</p>
+            <h2 class="section-title">How It Works</h2>
+            <p class="section-desc">Three steps. No seed phrases. No gas fees.</p>
         </div>
-        <div class="docs-container">
-            <aside class="docs-sidebar">
-                <ul class="docs-nav">
-                    <li class="docs-nav-section">Getting Started</li>
-                    <li class="docs-nav-item"><a href="#doc-passkey" class="docs-nav-link active">Passkey Wallet</a>
-                    </li>
-                    <li class="docs-nav-item"><a href="#doc-gasless" class="docs-nav-link">Gasless Transactions</a></li>
-                    <li class="docs-nav-section">Advanced</li>
-                    <li class="docs-nav-item"><a href="#doc-jupiter" class="docs-nav-link">Jupiter Swaps</a></li>
-                    <li class="docs-nav-item"><a href="#doc-privacy" class="docs-nav-link">Privacy Features</a></li>
-                    <li class="docs-nav-item"><a href="#doc-x402" class="docs-nav-link">X402 Paywall</a></li>
-                </ul>
-            </aside>
-            <div class="docs-content">
-                <!-- Tutorial 1: Passkey Wallet -->
-                <div id="doc-passkey" class="doc-section">
-                    <h2>Creating a Passkey Wallet</h2>
-                    <p>Implement passkey-based wallet authentication using LazorKit SDK in React Native.</p>
-
-                    <h3>Prerequisites</h3>
-                    <ul>
-                        <li>Node.js 20+</li>
-                        <li>Expo CLI</li>
-                        <li>iOS Simulator or Android Emulator</li>
-                    </ul>
-
-                    <h3>Install Dependencies</h3>
-                    <pre><code>npm install @lazorkit/wallet-mobile-adapter @coral-xyz/anchor @solana/web3.js
-npm install react-native-get-random-values react-native-url-polyfill buffer
-npx expo install expo-crypto expo-web-browser expo-linking</code></pre>
-
-                    <h3>Configure Polyfills</h3>
-                    <p>Add polyfills at the top of your entry file:</p>
-                    <pre><code>// index.ts
-import 'react-native-get-random-values';
-import 'react-native-url-polyfill/auto';
-import { Buffer } from 'buffer';
-global.Buffer = global.Buffer || Buffer;</code></pre>
-
-                    <h3>Create the Provider</h3>
-                    <pre><code>import { LazorKitProvider } from '@lazorkit/wallet-mobile-adapter';
-
-function LazorProvider({ children }) {
-  return (
-    &lt;LazorKitProvider
-      rpcUrl="https://api.devnet.solana.com"
-      portalUrl="https://portal.lazor.sh"
-      configPaymaster={{
-        paymasterUrl: "https://kora.devnet.lazorkit.com",
-      }}
-    &gt;
-      {children}
-    &lt;/LazorKitProvider&gt;
-  );
-}</code></pre>
-
-                    <h3>Connect with Passkey</h3>
-                    <pre><code>import { useWallet } from '@lazorkit/wallet-mobile-adapter';
-import * as Linking from 'expo-linking';
-
-const { connect, isConnecting } = useWallet();
-
-const handleConnect = async () => {
-  const redirectUrl = Linking.createURL('callback');
-  
-  await connect({
-    redirectUrl,
-    onSuccess: () => console.log('Connected'),
-    onFail: (error) => console.error(error),
-  });
-};</code></pre>
-                </div>
-
-                <!-- Tutorial 2: Gasless Transactions -->
-                <div id="doc-gasless" class="doc-section">
-                    <h2>Gasless Transactions</h2>
-                    <p>Send SOL transfers without paying transaction fees. The Kora paymaster sponsors the fees.</p>
-
-                    <h3>How It Works</h3>
-                    <p>Traditional flow: User pays fee in SOL, then transaction executes.</p>
-                    <p>Gasless flow: User creates transaction, paymaster pays fee, transaction executes.</p>
-
-                    <h3>Send Gasless Transfer</h3>
-                    <pre><code>import { useWallet } from '@lazorkit/wallet-mobile-adapter';
-import { PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import * as Linking from 'expo-linking';
-
-const { smartWalletPubkey, signAndSendTransaction } = useWallet();
-
-const handleSend = async (recipient, amount) => {
-  const recipientPubkey = new PublicKey(recipient);
-  const lamports = parseFloat(amount) * LAMPORTS_PER_SOL;
-
-  const transferInstruction = SystemProgram.transfer({
-    fromPubkey: smartWalletPubkey,
-    toPubkey: recipientPubkey,
-    lamports,
-  });
-
-  const redirectUrl = Linking.createURL('sign-callback');
-
-  const signature = await signAndSendTransaction(
-    {
-      instructions: [transferInstruction],
-      transactionOptions: {
-        clusterSimulation: 'mainnet',
-        // feeToken omitted = gasless
-      },
-    },
-    {
-      redirectUrl,
-      onSuccess: () => console.log('Sent'),
-      onFail: (error) => console.error(error),
-    }
-  );
-};</code></pre>
-
-                    <h3>Pay Fees in USDC (Optional)</h3>
-                    <pre><code>const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
-
-await signAndSendTransaction({
-  instructions: [transferInstruction],
-  transactionOptions: {
-    clusterSimulation: 'mainnet',
-    feeToken: USDC_MINT,  // User pays in USDC
-  },
-});</code></pre>
-                </div>
-
-                <!-- Tutorial 3: Jupiter Swaps -->
-                <div id="doc-jupiter" class="doc-section">
-                    <h2>Jupiter Gasless Swaps</h2>
-                    <p>Integrate Jupiter swap aggregator with LazorKit's gasless infrastructure.</p>
-
-                    <h3>The Approach</h3>
-                    <p>Use Jupiter's <code>/swap-instructions</code> endpoint to get raw instructions, then pass them
-                        through LazorKit's gasless flow.</p>
-
-                    <h3>Get Quote</h3>
-                    <pre><code>async function getQuote(inputMint, outputMint, amount) {
-  const params = new URLSearchParams({
-    inputMint,
-    outputMint,
-    amount,
-    slippageBps: '100',
-  });
-
-  const response = await fetch(
-    `https://api.jup.ag/swap/v1/quote?${params}`,
-    { headers: { 'x-api-key': JUPITER_API_KEY } }
-  );
-
-  return response.json();
-}</code></pre>
-
-                    <h3>Filter Compute Budget Instructions</h3>
-                    <p>Critical for Kora compatibility. Remove Jupiter's compute budget instructions:</p>
-                    <pre><code>const COMPUTE_BUDGET_PROGRAM_ID = 'ComputeBudget111111111111111111111111111111';
-
-function filterComputeBudget(instructions) {
-  return instructions.filter(
-    ix => !ix.programId.equals(new PublicKey(COMPUTE_BUDGET_PROGRAM_ID))
-  );
-}</code></pre>
-
-                    <h3>Execute Swap</h3>
-                    <pre><code>const { quote, instructions, addressLookupTableAccounts } = 
-  await prepareSwap(SOL_MINT, USDC_MINT, amountInLamports, smartWalletPubkey);
-
-await signAndSendTransaction({
-  instructions,
-  transactionOptions: {
-    addressLookupTableAccounts,
-    clusterSimulation: 'mainnet',
-  },
-});</code></pre>
-                </div>
-
-                <!-- Tutorial 4: Privacy Features -->
-                <div id="doc-privacy" class="doc-section">
-                    <h2>Privacy Features</h2>
-                    <p>Implement stealth addresses and burner wallets for private transactions.</p>
-
-                    <h3>Stealth Addresses</h3>
-                    <p>Generate one-time receiving addresses derived from a master seed.</p>
-                    <pre><code>import * as SecureStore from 'expo-secure-store';
-import * as Crypto from 'expo-crypto';
-import { Keypair } from '@solana/web3.js';
-
-async function generateStealthAddress(index) {
-  const masterSeed = await getOrCreateMasterSeed();
-  
-  const input = Buffer.concat([
-    Buffer.from(masterSeed, 'hex'),
-    Buffer.from('stealth'),
-    Buffer.from(index.toString()),
-  ]);
-  
-  const hash = await Crypto.digest(
-    Crypto.CryptoDigestAlgorithm.SHA256, 
-    input
-  );
-  
-  const keypair = Keypair.fromSeed(new Uint8Array(hash));
-  return keypair.publicKey.toBase58();
-}</code></pre>
-
-                    <h3>Burner Wallets</h3>
-                    <p>Completely isolated identities with no on-chain link.</p>
-                    <pre><code>async function createBurner(label) {
-  const keypair = Keypair.generate();
-  const id = await generateBurnerId();
-
-  // Store encrypted
-  await SecureStore.setItemAsync(
-    `burner_${id}`, 
-    Buffer.from(keypair.secretKey).toString('base64')
-  );
-
-  return {
-    id,
-    label,
-    publicKey: keypair.publicKey.toBase58(),
-  };
-}
-
-async function destroyBurner(burnerId) {
-  await SecureStore.deleteItemAsync(`burner_${burnerId}`);
-}</code></pre>
-                </div>
-
-                <!-- Tutorial 5: X402 Paywall -->
-                <div id="doc-x402" class="doc-section">
-                    <h2>X402 Paywall Integration</h2>
-                    <p>Implement pay-per-view content using HTTP 402 micropayments.</p>
-
-                    <h3>How X402 Works</h3>
-                    <ul>
-                        <li>Client requests protected resource</li>
-                        <li>Server responds: 402 Payment Required</li>
-                        <li>Client makes payment on Solana</li>
-                        <li>Client retries with X-PAYMENT header</li>
-                        <li>Server verifies payment, returns content</li>
-                    </ul>
-
-                    <h3>Parse Payment Requirements</h3>
-                    <pre><code>function parsePaymentRequired(body) {
-  if (body.payTo && body.maxAmountRequired) {
-    return {
-      scheme: body.scheme || 'exact',
-      network: 'solana',
-      maxAmountRequired: body.maxAmountRequired,
-      payTo: body.payTo,
-    };
-  }
-  return null;
-}</code></pre>
-
-                    <h3>Pay for Content</h3>
-                    <pre><code>async function payForContent(requirements) {
-  const paymentInstruction = SystemProgram.transfer({
-    fromPubkey: smartWalletPubkey,
-    toPubkey: new PublicKey(requirements.payTo),
-    lamports: Math.ceil(
-      parseFloat(requirements.maxAmountRequired) * LAMPORTS_PER_SOL
-    ),
-  });
-
-  const signature = await signAndSendTransaction({
-    instructions: [paymentInstruction],
-    transactionOptions: { clusterSimulation: 'mainnet' },
-  });
-
-  return signature;
-}</code></pre>
-
-                    <h3>Retry with Proof</h3>
-                    <pre><code>async function accessContent(url, signature) {
-  const proof = {
-    signature,
-    network: 'solana',
-    payload: {
-      timestamp: Date.now(),
-    },
-  };
-
-  const response = await fetch(url, {
-    headers: {
-      'X-PAYMENT': btoa(JSON.stringify(proof)),
-    },
-  });
-
-  return response.json();
-}</code></pre>
-                </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <h3>1. Authenticate</h3>
+                <p>Create your wallet with FaceID, TouchID, or fingerprint. Your biometrics are your keys. Nothing to write down, nothing to lose.</p>
             </div>
+            <div class="feature-card">
+                <h3>2. Transact</h3>
+                <p>Send SOL, swap tokens via Jupiter, or receive payments privately. All transactions are sponsored - zero gas fees.</p>
+            </div>
+            <div class="feature-card">
+                <h3>3. Stay Private</h3>
+                <p>Use stealth addresses for anonymous receiving. Spin up burner wallets with zero on-chain link. Privacy is the default.</p>
+            </div>
+        </div>
+        <div style="margin-top: 2rem;">
+            <a href="https://github.com/francis-codex/seedless" class="btn btn-secondary" target="_blank">View Source on GitHub</a>
         </div>
     </section>
 
@@ -1466,26 +1068,6 @@ async function destroyBurner(burnerId) {
             });
         });
 
-        // Active nav link highlighting
-        const navLinks = document.querySelectorAll('.docs-nav-link');
-        const sections = document.querySelectorAll('.doc-section');
-
-        window.addEventListener('scroll', () => {
-            let current = '';
-            sections.forEach(section => {
-                const sectionTop = section.offsetTop;
-                if (scrollY >= sectionTop - 100) {
-                    current = section.getAttribute('id');
-                }
-            });
-
-            navLinks.forEach(link => {
-                link.classList.remove('active');
-                if (link.getAttribute('href') === '#' + current) {
-                    link.classList.add('active');
-                }
-            });
-        });
     </script>
 </body>
 
