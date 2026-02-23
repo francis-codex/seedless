@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "scheme": "lazorwallet",
+    "scheme": "seedless",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
