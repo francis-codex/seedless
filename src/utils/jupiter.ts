@@ -118,7 +118,7 @@ export async function getQuote(
     slippageBps: slippageBps.toString(),
   });
 
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `${JUPITER_API_URL}/swap/v1/quote?${params}`,
     {
       headers: {
@@ -145,7 +145,7 @@ export async function getSwapInstructions(
   quote: QuoteResponse,
   userPublicKey: PublicKey
 ): Promise<SwapInstructionsResponse> {
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `${JUPITER_API_URL}/swap/v1/swap-instructions`,
     {
       method: 'POST',
