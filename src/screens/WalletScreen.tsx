@@ -15,7 +15,7 @@ import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import { Connection, PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { getAccount, getAssociatedTokenAddress } from '@solana/spl-token';
 import * as Linking from 'expo-linking';
-import { SOLANA_RPC_URL, USDC_MINT, CLUSTER_SIMULATION, IS_DEVNET } from '../constants';
+import { SOLANA_RPC_URL, USDC_MINT, CLUSTER_SIMULATION, IS_DEVNET, MIN_SOL_FOR_TX } from '../constants';
 
 interface WalletScreenProps {
   onDisconnect: () => void;
@@ -351,14 +351,27 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
         />
 
         <Text style={styles.label}>Amount</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="0.00"
-          placeholderTextColor="#999"
-          value={amount}
-          onChangeText={setAmount}
-          keyboardType="decimal-pad"
-        />
+        <View style={styles.amountRow}>
+          <TextInput
+            style={[styles.input, styles.amountInput]}
+            placeholder="0.00"
+            placeholderTextColor="#999"
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="decimal-pad"
+          />
+          <TouchableOpacity
+            style={styles.maxButton}
+            onPress={() => {
+              if (solBalance !== null && solBalance > MIN_SOL_FOR_TX) {
+                setAmount((solBalance - MIN_SOL_FOR_TX).toFixed(4));
+              }
+            }}
+            activeOpacity={0.6}
+          >
+            <Text style={styles.maxButtonText}>Max</Text>
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           style={[styles.sendButton, isSending && styles.sendButtonDisabled]}
@@ -563,6 +576,27 @@ const styles = StyleSheet.create({
     color: '#000',
     marginBottom: 16,
     backgroundColor: '#fafafa',
+  },
+  amountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  amountInput: {
+    flex: 1,
+    marginBottom: 16,
+  },
+  maxButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: '#000',
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  maxButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
   },
   sendButton: {
     backgroundColor: '#000',
