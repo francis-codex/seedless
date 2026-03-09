@@ -81,7 +81,7 @@ export function HomeScreen({ onConnected }: HomeScreenProps) {
         </TouchableOpacity>
 
         <Text style={styles.poweredBy}>
-          Powered by LazorKit + Kora
+          Seedless Labs, Inc.
         </Text>
       </View>
     </View>
