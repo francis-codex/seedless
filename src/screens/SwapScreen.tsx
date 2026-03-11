@@ -59,7 +59,8 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
   // Flip swap direction
   const flipDirection = () => {
     setDirection((prev) => (prev === 'SOL_TO_USDC' ? 'USDC_TO_SOL' : 'SOL_TO_USDC'));
-    setQuote(null); // Clear quote when direction changes
+    setQuote(null);
+    setAmount('');
   };
 
   // Fetch quote from Jupiter
