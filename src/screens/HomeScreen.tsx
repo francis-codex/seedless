@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import * as Linking from 'expo-linking';
+import { APP_VERSION } from '../constants';
 
 interface HomeScreenProps {
   onConnected: () => void;
@@ -81,7 +82,7 @@ export function HomeScreen({ onConnected }: HomeScreenProps) {
         </TouchableOpacity>
 
         <Text style={styles.poweredBy}>
-          Seedless Labs, Inc.
+          Seedless Labs, Inc. | v{APP_VERSION}
         </Text>
       </View>
     </View>
