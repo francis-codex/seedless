@@ -89,7 +89,7 @@ React Native (Expo) / TypeScript / LazorKit SDK / Kora Paymaster / Solana Web3.j
 - [Landing Page](https://seedless.up.railway.app)
 - [Roadmap](https://seedless.up.railway.app/#roadmap)
 - [Twitter](https://x.com/seedless_wallet)
-- [Jabari Labs](https://github.com/jabari-labs)
+- [Seedless Labs](https://github.com/seedless-labs)
 
 ## License
 
