@@ -20,7 +20,7 @@ export const FEE_OPTIONS = {
 } as const;
 
 // App deep link scheme for passkey callbacks
-export const APP_SCHEME = 'lazorwallet';
+export const APP_SCHEME = 'seedless';
 
 // Jupiter Swap API - MAINNET
 export const JUPITER_API_URL = 'https://api.jup.ag';
