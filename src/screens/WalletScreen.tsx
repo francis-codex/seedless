@@ -223,8 +223,8 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
       Alert.alert('Sent', `Signature: ${signature.slice(0, 16)}...`);
       setRecipient('');
       setAmount('');
-      // Refresh balances after successful send
-      handleRefresh();
+      // Refresh balances after successful send (delay for RPC to reflect changes)
+      setTimeout(() => handleRefresh(), 2000);
     } catch (error: any) {
       console.error('Transfer failed:', error);
       Alert.alert('Failed', error.message || 'Transaction failed');
