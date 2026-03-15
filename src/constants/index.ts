@@ -26,6 +26,14 @@ export const APP_SCHEME = 'seedless';
 export const JUPITER_API_URL = 'https://api.jup.ag';
 export const JUPITER_API_KEY = process.env.EXPO_PUBLIC_JUPITER_API_KEY || '';
 
+// Bags.fm API
+export const BAGS_API_URL = 'https://public-api-v2.bags.fm/api/v1';
+export const BAGS_API_KEY = process.env.EXPO_PUBLIC_BAGS_API_KEY || '';
+
+// SEED token mint (launched on Bags.fm)
+export const SEED_MINT = 'FYt532fCsCuoHd9aaX5QN7pZLUTiSXwEjhBmZijgBAGS';
+export const SEED_DECIMALS = 9;
+
 // Native SOL mint address (wrapped SOL for Jupiter)
 export const SOL_MINT = 'So11111111111111111111111111111111111111112';
 
