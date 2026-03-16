@@ -23,6 +23,8 @@ interface WalletScreenProps {
   onStealth?: () => void;
   onBurner?: () => void;
   onPaywall?: () => void;
+  onBags?: () => void;
+  onLaunch?: () => void;
 }
 
 
@@ -37,7 +39,7 @@ const connection = new Connection(SOLANA_RPC_URL, {
   disableRetryOnRateLimit: true,
 });
 
-export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPaywall }: WalletScreenProps) {
+export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPaywall, onBags, onLaunch }: WalletScreenProps) {
   const { smartWalletPubkey, disconnect, signAndSendTransaction, isSigning } = useWallet();
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
@@ -325,6 +327,22 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
           )}
         </View>
       </View>
+
+      {/* SEED Rewards - Bags.fm Fee Sharing */}
+      {onBags && (
+        <TouchableOpacity style={styles.bagsButton} onPress={onBags} activeOpacity={0.8}>
+          <Text style={styles.bagsButtonText}>SEED Rewards</Text>
+          <Text style={styles.bagsButtonSub}>Fee sharing + claim earnings</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Launch Token via Bags */}
+      {onLaunch && (
+        <TouchableOpacity style={styles.launchTokenButton} onPress={onLaunch} activeOpacity={0.8}>
+          <Text style={styles.launchTokenButtonText}>Launch Token</Text>
+          <Text style={styles.launchTokenButtonSub}>Create + list on Bags.fm</Text>
+        </TouchableOpacity>
+      )}
 
       {/* X402 Paywall Demo */}
       {onPaywall && (
@@ -657,6 +675,38 @@ const styles = StyleSheet.create({
   privacyButtonSub: {
     fontSize: 12,
     color: '#666',
+    marginTop: 4,
+  },
+  launchTokenButton: {
+    backgroundColor: '#7c3aed',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+  },
+  launchTokenButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  launchTokenButtonSub: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 4,
+  },
+  bagsButton: {
+    backgroundColor: '#16a34a',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+  },
+  bagsButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  bagsButtonSub: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
     marginTop: 4,
   },
   paywallButton: {

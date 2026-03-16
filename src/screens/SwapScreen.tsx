@@ -11,36 +11,42 @@ import {
 } from 'react-native';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import * as Linking from 'expo-linking';
-import { SOL_MINT, USDC_MINT, TOKEN_DECIMALS, CLUSTER_SIMULATION } from '../constants';
+import { SOL_MINT, USDC_MINT, SEED_MINT, TOKEN_DECIMALS, SEED_DECIMALS, CLUSTER_SIMULATION } from '../constants';
 import { prepareSwap, QuoteResponse } from '../utils/jupiter';
+import { getBagsQuote, createBagsSwapTransaction, BagsQuoteResponse } from '../utils/bags';
 
 interface SwapScreenProps {
   onBack: () => void;
 }
 
-type SwapDirection = 'SOL_TO_USDC' | 'USDC_TO_SOL';
+type SwapPair = 'SOL_TO_USDC' | 'USDC_TO_SOL' | 'SOL_TO_SEED' | 'SEED_TO_SOL';
+type SwapSource = 'jupiter' | 'bags';
+
+const SWAP_PAIRS: Record<SwapPair, { input: string; output: string; inputMint: string; outputMint: string; inputDecimals: number; outputDecimals: number }> = {
+  SOL_TO_USDC: { input: 'SOL', output: 'USDC', inputMint: SOL_MINT, outputMint: USDC_MINT, inputDecimals: TOKEN_DECIMALS.SOL, outputDecimals: TOKEN_DECIMALS.USDC },
+  USDC_TO_SOL: { input: 'USDC', output: 'SOL', inputMint: USDC_MINT, outputMint: SOL_MINT, inputDecimals: TOKEN_DECIMALS.USDC, outputDecimals: TOKEN_DECIMALS.SOL },
+  SOL_TO_SEED: { input: 'SOL', output: 'SEED', inputMint: SOL_MINT, outputMint: SEED_MINT, inputDecimals: TOKEN_DECIMALS.SOL, outputDecimals: SEED_DECIMALS },
+  SEED_TO_SOL: { input: 'SEED', output: 'SOL', inputMint: SEED_MINT, outputMint: SOL_MINT, inputDecimals: SEED_DECIMALS, outputDecimals: TOKEN_DECIMALS.SOL },
+};
 
 export function SwapScreen({ onBack }: SwapScreenProps) {
   const { smartWalletPubkey, signAndSendTransaction } = useWallet();
 
   // Form state
   const [amount, setAmount] = useState('');
-  const [direction, setDirection] = useState<SwapDirection>('SOL_TO_USDC');
+  const [pair, setPair] = useState<SwapPair>('SOL_TO_SEED');
+  const [swapSource, setSwapSource] = useState<SwapSource>('bags');
 
   // Quote state
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
+  const [bagsQuote, setBagsQuote] = useState<BagsQuoteResponse | null>(null);
   const [isLoadingQuote, setIsLoadingQuote] = useState(false);
 
   // Swap state
   const [isSwapping, setIsSwapping] = useState(false);
 
-  // Get input/output token info based on direction
-  const inputToken = direction === 'SOL_TO_USDC' ? 'SOL' : 'USDC';
-  const outputToken = direction === 'SOL_TO_USDC' ? 'USDC' : 'SOL';
-  const inputMint = direction === 'SOL_TO_USDC' ? SOL_MINT : USDC_MINT;
-  const outputMint = direction === 'SOL_TO_USDC' ? USDC_MINT : SOL_MINT;
-  const inputDecimals = TOKEN_DECIMALS[inputToken];
-  const outputDecimals = TOKEN_DECIMALS[outputToken];
+  // Get input/output token info based on pair
+  const { input: inputToken, output: outputToken, inputMint, outputMint, inputDecimals, outputDecimals } = SWAP_PAIRS[pair];
 
   // Convert human-readable amount to smallest units
   const toSmallestUnit = (humanAmount: string, decimals: number): string => {
@@ -56,14 +62,17 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
     return (num / Math.pow(10, decimals)).toFixed(decimals === 6 ? 2 : 4);
   };
 
-  // Flip swap direction
-  const flipDirection = () => {
-    setDirection((prev) => (prev === 'SOL_TO_USDC' ? 'USDC_TO_SOL' : 'SOL_TO_USDC'));
+  // Cycle through swap pairs
+  const cyclePair = () => {
+    const pairs: SwapPair[] = ['SOL_TO_SEED', 'SEED_TO_SOL', 'SOL_TO_USDC', 'USDC_TO_SOL'];
+    const currentIndex = pairs.indexOf(pair);
+    setPair(pairs[(currentIndex + 1) % pairs.length]);
     setQuote(null);
+    setBagsQuote(null);
     setAmount('');
   };
 
-  // Fetch quote from Jupiter
+  // Fetch quote from selected source
   const fetchQuote = useCallback(async () => {
     const parsedAmount = parseFloat(amount);
     if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -78,74 +87,115 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
 
     setIsLoadingQuote(true);
     setQuote(null);
+    setBagsQuote(null);
 
     try {
       const amountInSmallestUnit = toSmallestUnit(amount, inputDecimals);
 
-      // We use prepareSwap but only need the quote for preview
-      const result = await prepareSwap(
-        inputMint,
-        outputMint,
-        amountInSmallestUnit,
-        smartWalletPubkey
-      );
-
-      setQuote(result.quote);
+      if (swapSource === 'bags') {
+        const result = await getBagsQuote(inputMint, outputMint, amountInSmallestUnit);
+        setBagsQuote(result);
+      } else {
+        const result = await prepareSwap(
+          inputMint,
+          outputMint,
+          amountInSmallestUnit,
+          smartWalletPubkey
+        );
+        setQuote(result.quote);
+      }
     } catch (error: any) {
       console.error('Quote failed:', error);
       Alert.alert('Quote failed', error.message || 'Could not get quote');
     } finally {
       setIsLoadingQuote(false);
     }
-  }, [amount, inputMint, outputMint, inputDecimals, smartWalletPubkey]);
+  }, [amount, inputMint, outputMint, inputDecimals, smartWalletPubkey, swapSource]);
+
+  // Get the active quote's output amount
+  const activeQuote = swapSource === 'bags' ? bagsQuote : quote;
+  const outAmount = activeQuote?.outAmount || '0';
 
   // Execute the swap
   const executeSwap = useCallback(async () => {
-    if (!quote || !smartWalletPubkey) return;
+    if ((!quote && !bagsQuote) || !smartWalletPubkey) return;
 
     setIsSwapping(true);
 
     try {
       const amountInSmallestUnit = toSmallestUnit(amount, inputDecimals);
-
-      // Prepare swap gets fresh instructions (quote might be slightly stale)
-      const { instructions, addressLookupTableAccounts } = await prepareSwap(
-        inputMint,
-        outputMint,
-        amountInSmallestUnit,
-        smartWalletPubkey
-      );
-
-      // Create redirect URL for passkey callback
       const redirectUrl = Linking.createURL('swap-callback');
 
-      // Execute via LazorKit - Kora handles gas
-      const signature = await signAndSendTransaction(
-        {
-          instructions,
-          transactionOptions: {
-            addressLookupTableAccounts,
-            clusterSimulation: CLUSTER_SIMULATION as 'mainnet' | 'devnet',
-            // No feeToken = gasless (Kora sponsors)
+      if (swapSource === 'bags' && bagsQuote) {
+        // Bags swap: get serialized transaction, deserialize, sign via LazorKit
+        const swapTx = await createBagsSwapTransaction(
+          inputMint,
+          outputMint,
+          amountInSmallestUnit,
+          bagsQuote.slippageBps,
+          smartWalletPubkey.toString()
+        );
+
+        const { Transaction } = await import('@solana/web3.js');
+        const txBuffer = Buffer.from(swapTx.transaction, 'base64');
+        const tx = Transaction.from(txBuffer);
+
+        await signAndSendTransaction(
+          {
+            instructions: tx.instructions,
+            transactionOptions: {
+              clusterSimulation: CLUSTER_SIMULATION as 'mainnet' | 'devnet',
+            },
           },
-        },
-        {
-          redirectUrl,
-          onSuccess: () => {
-            Alert.alert(
-              'Swap complete',
-              `Swapped ${amount} ${inputToken} for ${toHumanAmount(quote.outAmount, outputDecimals)} ${outputToken}`
-            );
+          {
+            redirectUrl,
+            onSuccess: () => {
+              Alert.alert(
+                'Swap complete',
+                `Swapped ${amount} ${inputToken} for ${toHumanAmount(bagsQuote.outAmount, outputDecimals)} ${outputToken} via Bags`
+              );
+            },
+            onFail: (error) => {
+              Alert.alert('Swap failed', error.message);
+            },
+          }
+        );
+      } else {
+        // Jupiter swap
+        const { instructions, addressLookupTableAccounts } = await prepareSwap(
+          inputMint,
+          outputMint,
+          amountInSmallestUnit,
+          smartWalletPubkey
+        );
+
+        await signAndSendTransaction(
+          {
+            instructions,
+            transactionOptions: {
+              addressLookupTableAccounts,
+              clusterSimulation: CLUSTER_SIMULATION as 'mainnet' | 'devnet',
+            },
           },
-          onFail: (error) => {
-            Alert.alert('Swap failed', error.message);
-          },
-        }
-      );
+          {
+            redirectUrl,
+            onSuccess: () => {
+              Alert.alert(
+                'Swap complete',
+                `Swapped ${amount} ${inputToken} for ${toHumanAmount(quote!.outAmount, outputDecimals)} ${outputToken} via Jupiter`
+              );
+            },
+            onFail: (error) => {
+              Alert.alert('Swap failed', error.message);
+            },
+          }
+        );
+      }
 
       // Reset form
       setAmount('');
       setQuote(null);
+      setBagsQuote(null);
     } catch (error: any) {
       console.error('Swap failed:', error);
       Alert.alert('Swap failed', error.message || 'Transaction failed');
@@ -154,6 +204,7 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
     }
   }, [
     quote,
+    bagsQuote,
     amount,
     inputMint,
     outputMint,
@@ -163,6 +214,7 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
     outputDecimals,
     smartWalletPubkey,
     signAndSendTransaction,
+    swapSource,
   ]);
 
   return (
@@ -173,6 +225,22 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Swap</Text>
         <View style={{ width: 50 }} />
+      </View>
+
+      {/* Source Toggle */}
+      <View style={styles.sourceToggle}>
+        <TouchableOpacity
+          style={[styles.sourceOption, swapSource === 'bags' && styles.sourceOptionActive]}
+          onPress={() => { setSwapSource('bags'); setQuote(null); setBagsQuote(null); }}
+        >
+          <Text style={[styles.sourceOptionText, swapSource === 'bags' && styles.sourceOptionTextActive]}>Bags</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.sourceOption, swapSource === 'jupiter' && styles.sourceOptionActive]}
+          onPress={() => { setSwapSource('jupiter'); setQuote(null); setBagsQuote(null); }}
+        >
+          <Text style={[styles.sourceOptionText, swapSource === 'jupiter' && styles.sourceOptionTextActive]}>Jupiter</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.swapCard}>
@@ -187,7 +255,8 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
               value={amount}
               onChangeText={(text) => {
                 setAmount(text);
-                setQuote(null); // Clear quote when amount changes
+                setQuote(null);
+                setBagsQuote(null);
               }}
               keyboardType="decimal-pad"
             />
@@ -197,8 +266,8 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
           </View>
         </View>
 
-        {/* Flip Button */}
-        <TouchableOpacity style={styles.flipButton} onPress={flipDirection}>
+        {/* Cycle Pair Button */}
+        <TouchableOpacity style={styles.flipButton} onPress={cyclePair}>
           <Text style={styles.flipButtonText}>↓↑</Text>
         </TouchableOpacity>
 
@@ -207,7 +276,7 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
           <Text style={styles.tokenLabel}>You receive</Text>
           <View style={styles.inputRow}>
             <Text style={styles.outputAmount}>
-              {quote ? toHumanAmount(quote.outAmount, outputDecimals) : '—'}
+              {activeQuote ? toHumanAmount(outAmount, outputDecimals) : '—'}
             </Text>
             <View style={styles.tokenBadge}>
               <Text style={styles.tokenBadgeText}>{outputToken}</Text>
@@ -216,18 +285,24 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
         </View>
 
         {/* Quote Info */}
-        {quote && (
+        {activeQuote && (
           <View style={styles.quoteInfo}>
             <View style={styles.quoteRow}>
               <Text style={styles.quoteLabel}>Price Impact</Text>
-              <Text style={styles.quoteValue}>{parseFloat(quote.priceImpactPct).toFixed(4)}%</Text>
+              <Text style={styles.quoteValue}>{parseFloat(activeQuote.priceImpactPct).toFixed(4)}%</Text>
             </View>
             <View style={styles.quoteRow}>
-              <Text style={styles.quoteLabel}>Route</Text>
-              <Text style={styles.quoteValue}>
-                {quote.routePlan.map((r) => r.swapInfo.label).join(' → ')}
-              </Text>
+              <Text style={styles.quoteLabel}>Source</Text>
+              <Text style={styles.quoteValue}>{swapSource === 'bags' ? 'Bags.fm' : 'Jupiter'}</Text>
             </View>
+            {quote && quote.routePlan && (
+              <View style={styles.quoteRow}>
+                <Text style={styles.quoteLabel}>Route</Text>
+                <Text style={styles.quoteValue}>
+                  {quote.routePlan.map((r) => r.swapInfo.label).join(' → ')}
+                </Text>
+              </View>
+            )}
             <View style={styles.quoteRow}>
               <Text style={styles.quoteLabel}>Gas Fee</Text>
               <Text style={styles.quoteValueGreen}>Free (Kora)</Text>
@@ -238,7 +313,7 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
 
       {/* Action Buttons */}
       <View style={styles.buttonContainer}>
-        {!quote ? (
+        {!activeQuote ? (
           <TouchableOpacity
             style={[styles.button, isLoadingQuote && styles.buttonDisabled]}
             onPress={fetchQuote}
@@ -261,7 +336,7 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
             {isSwapping ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text style={styles.buttonText}>Swap (Gasless)</Text>
+              <Text style={styles.buttonText}>Swap via {swapSource === 'bags' ? 'Bags' : 'Jupiter'} (Gasless)</Text>
             )}
           </TouchableOpacity>
         )}
@@ -270,7 +345,8 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
       {/* Info */}
       <View style={styles.infoSection}>
         <Text style={styles.infoTitle}>How it works</Text>
-        <Text style={styles.infoItem}>• Best prices via Jupiter aggregation</Text>
+        <Text style={styles.infoItem}>• Swap via Bags.fm or Jupiter aggregation</Text>
+        <Text style={styles.infoItem}>• SOL, USDC, and SEED token pairs</Text>
         <Text style={styles.infoItem}>• Sign with Face ID / fingerprint</Text>
         <Text style={styles.infoItem}>• Gas sponsored by Kora paymaster</Text>
       </View>
@@ -301,6 +377,30 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#000',
+  },
+  sourceToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+  },
+  sourceOption: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  sourceOptionActive: {
+    backgroundColor: '#000',
+  },
+  sourceOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
+  sourceOptionTextActive: {
+    color: '#fff',
   },
   swapCard: {
     backgroundColor: '#f5f5f5',

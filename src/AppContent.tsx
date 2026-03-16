@@ -7,8 +7,10 @@ import { SwapScreen } from './screens/SwapScreen';
 import { StealthScreen } from './screens/StealthScreen';
 import { BurnerScreen } from './screens/BurnerScreen';
 import { PaywallScreen } from './screens/PaywallScreen';
+import { BagsScreen } from './screens/BagsScreen';
+import { LaunchScreen } from './screens/LaunchScreen';
 
-type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'paywall';
+type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'paywall' | 'bags' | 'launch';
 
 // Navigation state for tracking screen transitions
 export type NavigationState = {
@@ -46,6 +48,10 @@ export function AppContent() {
         return <BurnerScreen onBack={() => setCurrentScreen('wallet')} />;
       case 'paywall':
         return <PaywallScreen onBack={() => setCurrentScreen('wallet')} />;
+      case 'bags':
+        return <BagsScreen onBack={() => setCurrentScreen('wallet')} />;
+      case 'launch':
+        return <LaunchScreen onBack={() => setCurrentScreen('wallet')} />;
       default:
         return (
           <WalletScreen
@@ -54,6 +60,8 @@ export function AppContent() {
             onStealth={() => setCurrentScreen('stealth')}
             onBurner={() => setCurrentScreen('burner')}
             onPaywall={() => setCurrentScreen('paywall')}
+            onBags={() => setCurrentScreen('bags')}
+            onLaunch={() => setCurrentScreen('launch')}
           />
         );
     }
