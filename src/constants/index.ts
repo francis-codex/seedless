@@ -95,7 +95,7 @@ export const CONFIRMATION_LEVELS = {
 export const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 
 // App version for tracking
-export const APP_VERSION = '0.2.0-beta';
+export const APP_VERSION = '0.2.1-beta';
 
 // Supported token list for quick validation
 export const SUPPORTED_TOKENS = ['SOL', 'USDC'] as const;
