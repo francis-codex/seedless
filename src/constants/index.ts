@@ -1,14 +1,26 @@
-// Solana RPC Configuration - MAINNET
-const HELIUS_API_KEY = process.env.EXPO_PUBLIC_HELIUS_API_KEY || '';
-export const SOLANA_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+// ============================================================
+// NETWORK TOGGLE — flip this ONE flag to switch mainnet/devnet
+// ============================================================
+const USE_DEVNET = true; // <-- set false for mainnet
 
-// LazorKit Portal and Paymaster (MAINNET)
+// Solana RPC Configuration
+const HELIUS_API_KEY = process.env.EXPO_PUBLIC_HELIUS_API_KEY || '';
+const HELIUS_DEVNET_KEY = '4bdebac7-7691-4af0-bbe3-bc95b8e6b18f';
+export const SOLANA_RPC_URL = USE_DEVNET
+  ? `https://devnet.helius-rpc.com/?api-key=${HELIUS_DEVNET_KEY}`
+  : `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+
+// LazorKit Portal and Paymaster
 export const PORTAL_URL = 'https://portal.lazor.sh';
-export const PAYMASTER_URL = 'https://kora.lazorkit.com';
+export const PAYMASTER_URL = USE_DEVNET
+  ? 'https://kora.devnet.lazorkit.com'
+  : 'https://kora.lazorkit.com';
 export const PAYMASTER_API_KEY = process.env.EXPO_PUBLIC_PAYMASTER_API_KEY || '';
 
-// USDC Token Mint Address (Mainnet)
-export const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+// USDC Token Mint Address
+export const USDC_MINT = USE_DEVNET
+  ? '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU' // devnet USDC
+  : 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
 // Fee payment options
 // Gasless = paymaster sponsors fees (default)
@@ -49,11 +61,11 @@ export const DEFAULT_SLIPPAGE_BPS = 100;
 // Compute Budget Program ID - we filter these out for Kora compatibility
 export const COMPUTE_BUDGET_PROGRAM_ID = 'ComputeBudget111111111111111111111111111111';
 
-// Network indicator - MAINNET
-export const IS_DEVNET = false;
+// Network indicator
+export const IS_DEVNET = USE_DEVNET;
 
-// Cluster for LazorKit SDK transactions - MAINNET
-export const CLUSTER_SIMULATION = 'mainnet';
+// Cluster for LazorKit SDK transactions
+export const CLUSTER_SIMULATION = USE_DEVNET ? 'devnet' : 'mainnet';
 
 // Request timeouts (ms)
 export const REQUEST_TIMEOUTS = {
@@ -134,15 +146,18 @@ export const DISPLAY_DECIMALS = {
 } as const;
 
 // Solana explorer base URL for transaction links
-export const EXPLORER_URL = 'https://solscan.io';
+export const EXPLORER_URL = USE_DEVNET
+  ? 'https://solscan.io/?cluster=devnet'
+  : 'https://solscan.io';
 
 // Build transaction explorer link
+const EXPLORER_CLUSTER = USE_DEVNET ? '?cluster=devnet' : '';
 export const getTxExplorerUrl = (signature: string): string =>
-  `${EXPLORER_URL}/tx/${signature}`;
+  `https://solscan.io/tx/${signature}${EXPLORER_CLUSTER}`;
 
 // Build account explorer link
 export const getAccountExplorerUrl = (address: string): string =>
-  `${EXPLORER_URL}/account/${address}`;
+  `https://solscan.io/account/${address}${EXPLORER_CLUSTER}`;
 
 // Minimum SOL for transaction (rent + fee buffer)
 export const MIN_SOL_FOR_TX = 0.003;
