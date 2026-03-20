@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import { HomeScreen } from './screens/HomeScreen';
 import { WalletScreen } from './screens/WalletScreen';
 import { SwapScreen } from './screens/SwapScreen';
 import { StealthScreen } from './screens/StealthScreen';
 import { BurnerScreen } from './screens/BurnerScreen';
-import { PaywallScreen } from './screens/PaywallScreen';
 import { BagsScreen } from './screens/BagsScreen';
 import { LaunchScreen } from './screens/LaunchScreen';
+import { IS_DEVNET } from './constants';
 
-type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'paywall' | 'bags' | 'launch';
+type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'bags' | 'launch';
 
 // Navigation state for tracking screen transitions
 export type NavigationState = {
@@ -33,21 +33,25 @@ export function AppContent() {
   if (isLoading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#000" />
+        <Text style={styles.loadingTitle}>Seedless</Text>
+        <ActivityIndicator size="small" color="#000" style={{ marginTop: 16 }} />
       </View>
     );
   }
 
   if (isConnected) {
-    switch (currentScreen) {
+    // Determine effective screen — block mainnet-only screens on devnet
+    const effectiveScreen = (IS_DEVNET && (currentScreen === 'swap' || currentScreen === 'bags' || currentScreen === 'launch'))
+      ? 'wallet'
+      : currentScreen;
+
+    switch (effectiveScreen) {
       case 'swap':
         return <SwapScreen onBack={() => setCurrentScreen('wallet')} />;
       case 'stealth':
         return <StealthScreen onBack={() => setCurrentScreen('wallet')} />;
       case 'burner':
         return <BurnerScreen onBack={() => setCurrentScreen('wallet')} />;
-      case 'paywall':
-        return <PaywallScreen onBack={() => setCurrentScreen('wallet')} />;
       case 'bags':
         return <BagsScreen onBack={() => setCurrentScreen('wallet')} />;
       case 'launch':
@@ -59,7 +63,6 @@ export function AppContent() {
             onSwap={() => setCurrentScreen('swap')}
             onStealth={() => setCurrentScreen('stealth')}
             onBurner={() => setCurrentScreen('burner')}
-            onPaywall={() => setCurrentScreen('paywall')}
             onBags={() => setCurrentScreen('bags')}
             onLaunch={() => setCurrentScreen('launch')}
           />
@@ -76,6 +79,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#fff',
+  },
+  loadingTitle: {
+    fontSize: 28,
+    fontWeight: '700' as const,
+    color: '#000',
+    letterSpacing: -0.5,
   },
 });
 

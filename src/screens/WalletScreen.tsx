@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -22,7 +22,6 @@ interface WalletScreenProps {
   onSwap?: () => void;
   onStealth?: () => void;
   onBurner?: () => void;
-  onPaywall?: () => void;
   onBags?: () => void;
   onLaunch?: () => void;
 }
@@ -39,7 +38,7 @@ const connection = new Connection(SOLANA_RPC_URL, {
   disableRetryOnRateLimit: true,
 });
 
-export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPaywall, onBags, onLaunch }: WalletScreenProps) {
+export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags, onLaunch }: WalletScreenProps) {
   const { smartWalletPubkey, disconnect, signAndSendTransaction, isSigning } = useWallet();
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
@@ -84,6 +83,28 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
     } else {
       // Hiding balances - no auth needed
       setIsPrivateMode(true);
+    }
+  };
+
+  // Devnet SOL airdrop — uses public Solana faucet (per-wallet limit, not per-project)
+  const [isAirdropping, setIsAirdropping] = useState(false);
+  const handleAirdrop = async () => {
+    if (!smartWalletPubkey || !IS_DEVNET) return;
+    setIsAirdropping(true);
+    try {
+      const devnetConnection = new Connection('https://api.devnet.solana.com', 'confirmed');
+      const sig = await devnetConnection.requestAirdrop(smartWalletPubkey, 1 * LAMPORTS_PER_SOL);
+      await devnetConnection.confirmTransaction(sig, 'confirmed');
+      Alert.alert('Airdrop Success', '1 SOL added to your wallet');
+      setTimeout(() => handleRefresh(), 2000);
+    } catch (error: any) {
+      console.error('Airdrop failed:', error);
+      Alert.alert(
+        'Airdrop Failed',
+        'The devnet faucet is busy. Copy your wallet address and get SOL manually at faucet.solana.com, or share your address in the Seedless TG group and we\'ll send you some.',
+      );
+    } finally {
+      setIsAirdropping(false);
     }
   };
 
@@ -149,18 +170,18 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
     }
   }, [smartWalletPubkey]);
 
-  const shortAddress = smartWalletPubkey
-    ? `${smartWalletPubkey.toString().slice(0, 4)}...${smartWalletPubkey.toString().slice(-4)}`
-    : '';
+  const fullAddress = useMemo(() => smartWalletPubkey?.toString() || '', [smartWalletPubkey]);
+  const shortAddress = useMemo(() =>
+    fullAddress ? `${fullAddress.slice(0, 4)}...${fullAddress.slice(-4)}` : '',
+    [fullAddress]
+  );
 
-  const fullAddress = smartWalletPubkey?.toString() || '';
-
-  const handleDisconnect = async () => {
+  const handleDisconnect = useCallback(async () => {
     await disconnect();
     onDisconnect();
-  };
+  }, [disconnect, onDisconnect]);
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     if (!smartWalletPubkey || !recipient || !amount) {
       Alert.alert('Missing fields', 'Enter recipient and amount');
       return;
@@ -233,7 +254,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
     } finally {
       setIsSending(false);
     }
-  };
+  }, [smartWalletPubkey, recipient, amount, solBalance, signAndSendTransaction]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -243,6 +264,13 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
           <Text style={styles.disconnectText}>Disconnect</Text>
         </TouchableOpacity>
       </View>
+
+      {IS_DEVNET && (
+        <View style={styles.devnetBanner}>
+          <Text style={styles.devnetBannerText}>DEVNET BETA</Text>
+          <Text style={styles.devnetBannerSub}>Test tokens only - not real funds</Text>
+        </View>
+      )}
 
       <View style={styles.addressSection}>
         <Text style={styles.addressLabel}>Address</Text>
@@ -296,16 +324,31 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
         )}
       </View>
 
+      {IS_DEVNET && (
+        <TouchableOpacity
+          style={[styles.airdropButton, isAirdropping && styles.sendButtonDisabled]}
+          onPress={handleAirdrop}
+          disabled={isAirdropping}
+          activeOpacity={0.8}
+        >
+          {isAirdropping ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={styles.airdropButtonText}>Airdrop 1 SOL (Devnet)</Text>
+          )}
+        </TouchableOpacity>
+      )}
+
       <View style={styles.statusBar}>
         <View style={styles.statusDot} />
         <Text style={styles.statusText}>Gasless mode</Text>
       </View>
 
       {/* Swap Button - Mainnet Only */}
-      {onSwap && (
+      {onSwap && !IS_DEVNET && (
         <TouchableOpacity style={styles.swapButton} onPress={onSwap} activeOpacity={0.8}>
           <Text style={styles.swapButtonText}>Swap Tokens</Text>
-          <Text style={styles.swapButtonSubtext}>{IS_DEVNET ? 'Mainnet only' : 'SOL ↔ USDC - Gasless'}</Text>
+          <Text style={styles.swapButtonSubtext}>SOL ↔ USDC - Gasless</Text>
         </TouchableOpacity>
       )}
 
@@ -328,27 +371,19 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onPayw
         </View>
       </View>
 
-      {/* SEED Rewards - Bags.fm Fee Sharing */}
-      {onBags && (
+      {/* SEED Rewards - Bags.fm Fee Sharing (Mainnet Only) */}
+      {onBags && !IS_DEVNET && (
         <TouchableOpacity style={styles.bagsButton} onPress={onBags} activeOpacity={0.8}>
           <Text style={styles.bagsButtonText}>SEED Rewards</Text>
           <Text style={styles.bagsButtonSub}>Fee sharing + claim earnings</Text>
         </TouchableOpacity>
       )}
 
-      {/* Launch Token via Bags */}
-      {onLaunch && (
+      {/* Launch Token via Bags (Mainnet Only) */}
+      {onLaunch && !IS_DEVNET && (
         <TouchableOpacity style={styles.launchTokenButton} onPress={onLaunch} activeOpacity={0.8}>
           <Text style={styles.launchTokenButtonText}>Launch Token</Text>
           <Text style={styles.launchTokenButtonSub}>Create + list on Bags.fm</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* X402 Paywall Demo */}
-      {onPaywall && (
-        <TouchableOpacity style={styles.paywallButton} onPress={onPaywall} activeOpacity={0.8}>
-          <Text style={styles.paywallButtonText}>X402 Paywall</Text>
-          <Text style={styles.paywallButtonSub}>Pay-per-view content demo</Text>
         </TouchableOpacity>
       )}
 
@@ -709,20 +744,35 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
     marginTop: 4,
   },
-  paywallButton: {
-    backgroundColor: '#000',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 16,
+  devnetBanner: {
+    backgroundColor: '#fef3c7',
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+    alignItems: 'center',
   },
-  paywallButtonText: {
+  devnetBannerText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#92400e',
+  },
+  devnetBannerSub: {
+    fontSize: 12,
+    color: '#b45309',
+    marginTop: 2,
+  },
+  airdropButton: {
+    backgroundColor: '#2563eb',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  airdropButtonText: {
     fontSize: 15,
     fontWeight: '600',
     color: '#fff',
-  },
-  paywallButtonSub: {
-    fontSize: 12,
-    color: '#888',
-    marginTop: 4,
   },
 });
