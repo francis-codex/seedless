@@ -89,20 +89,20 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
     const loadAddresses = async () => {
         try {
             const allAddresses = await getAllStealthAddresses();
-            const addressesWithBalances: AddressWithBalance[] = [];
-            let total = 0;
 
-            for (const addr of allAddresses) {
-                try {
-                    const pubkey = new PublicKey(addr.address);
-                    const balance = await connection.getBalance(pubkey);
-                    const solBalance = balance / LAMPORTS_PER_SOL;
-                    total += solBalance;
-                    addressesWithBalances.push({ ...addr, balance: solBalance });
-                } catch {
-                    addressesWithBalances.push({ ...addr, balance: 0 });
-                }
-            }
+            // Fetch all balances in parallel
+            const balances = await Promise.all(
+                allAddresses.map(addr =>
+                    connection.getBalance(new PublicKey(addr.address)).catch(() => 0)
+                )
+            );
+
+            let total = 0;
+            const addressesWithBalances: AddressWithBalance[] = allAddresses.map((addr, i) => {
+                const solBalance = balances[i] / LAMPORTS_PER_SOL;
+                total += solBalance;
+                return { ...addr, balance: solBalance };
+            });
 
             setAddresses(addressesWithBalances);
             setTotalBalance(total);
