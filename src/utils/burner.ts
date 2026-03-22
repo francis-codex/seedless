@@ -17,6 +17,12 @@ const connection = new Connection(SOLANA_RPC_URL, {
 const BURNER_LIST_KEY = 'lazor_burner_list';
 const BURNER_KEY_PREFIX = 'lazor_burner_';
 
+// Scope storage keys to connected wallet so each passkey gets its own burners
+function scopeKey(key: string, walletId?: string): string {
+    if (!walletId) return key;
+    return `${key}_${walletId.slice(0, 16)}`;
+}
+
 export interface BurnerWallet {
     id: string;
     label: string;
@@ -28,8 +34,8 @@ export interface BurnerWalletWithBalance extends BurnerWallet {
     balance: number;
 }
 
-export async function listBurners(): Promise<BurnerWallet[]> {
-    const listJson = await SecureStore.getItemAsync(BURNER_LIST_KEY);
+export async function listBurners(walletId?: string): Promise<BurnerWallet[]> {
+    const listJson = await SecureStore.getItemAsync(scopeKey(BURNER_LIST_KEY, walletId));
     if (!listJson) return [];
 
     try {
@@ -39,8 +45,8 @@ export async function listBurners(): Promise<BurnerWallet[]> {
     }
 }
 
-async function saveBurnerList(burners: BurnerWallet[]): Promise<void> {
-    await SecureStore.setItemAsync(BURNER_LIST_KEY, JSON.stringify(burners));
+async function saveBurnerList(burners: BurnerWallet[], walletId?: string): Promise<void> {
+    await SecureStore.setItemAsync(scopeKey(BURNER_LIST_KEY, walletId), JSON.stringify(burners));
 }
 
 async function generateBurnerId(): Promise<string> {
@@ -48,8 +54,8 @@ async function generateBurnerId(): Promise<string> {
     return Buffer.from(randomBytes).toString('hex');
 }
 
-export async function createBurner(label: string): Promise<BurnerWallet> {
-    const existing = await listBurners();
+export async function createBurner(label: string, walletId?: string): Promise<BurnerWallet> {
+    const existing = await listBurners(walletId);
     if (existing.length >= MAX_BURNER_WALLETS) {
         throw new Error(`Maximum of ${MAX_BURNER_WALLETS} burner wallets reached`);
     }
@@ -70,9 +76,9 @@ export async function createBurner(label: string): Promise<BurnerWallet> {
         createdAt: Date.now(),
     };
 
-    const burners = await listBurners();
+    const burners = await listBurners(walletId);
     burners.push(burner);
-    await saveBurnerList(burners);
+    await saveBurnerList(burners, walletId);
 
     return burner;
 }
@@ -99,8 +105,8 @@ export async function getBurnerBalance(publicKey: string): Promise<number> {
     }
 }
 
-export async function listBurnersWithBalances(): Promise<BurnerWalletWithBalance[]> {
-    const burners = await listBurners();
+export async function listBurnersWithBalances(walletId?: string): Promise<BurnerWalletWithBalance[]> {
+    const burners = await listBurners(walletId);
     const result: BurnerWalletWithBalance[] = [];
 
     for (const burner of burners) {
@@ -161,7 +167,8 @@ export async function sendFromBurner(
 // Destroy burner and optionally sweep remaining funds first
 export async function destroyBurner(
     burnerId: string,
-    sweepTo?: string
+    sweepTo?: string,
+    walletId?: string
 ): Promise<string | null> {
     const keypair = await getBurnerKeypair(burnerId);
     let sweepSignature: string | null = null;
@@ -197,20 +204,20 @@ export async function destroyBurner(
     // Delete private key and remove from list
     await SecureStore.deleteItemAsync(`${BURNER_KEY_PREFIX}${burnerId}`);
 
-    const burners = await listBurners();
+    const burners = await listBurners(walletId);
     const updatedBurners = burners.filter((b) => b.id !== burnerId);
-    await saveBurnerList(updatedBurners);
+    await saveBurnerList(updatedBurners, walletId);
 
     return sweepSignature;
 }
 
-export async function updateBurnerLabel(burnerId: string, newLabel: string): Promise<void> {
-    const burners = await listBurners();
+export async function updateBurnerLabel(burnerId: string, newLabel: string, walletId?: string): Promise<void> {
+    const burners = await listBurners(walletId);
     const index = burners.findIndex((b) => b.id === burnerId);
 
     if (index !== -1) {
         burners[index].label = newLabel;
-        await saveBurnerList(burners);
+        await saveBurnerList(burners, walletId);
     }
 }
 
@@ -223,32 +230,32 @@ export function shortenAddress(address: string): string {
 export type BurnerStatus = 'idle' | 'creating' | 'sending' | 'sweeping' | 'destroying';
 
 // Get total count of burner wallets
-export async function getBurnerCount(): Promise<number> {
-    const burners = await listBurners();
+export async function getBurnerCount(walletId?: string): Promise<number> {
+    const burners = await listBurners(walletId);
     return burners.length;
 }
 
 // Check if a burner wallet exists
-export async function burnerExists(burnerId: string): Promise<boolean> {
-    const burners = await listBurners();
+export async function burnerExists(burnerId: string, walletId?: string): Promise<boolean> {
+    const burners = await listBurners(walletId);
     return burners.some((b) => b.id === burnerId);
 }
 
 // Get total balance across all burners
-export async function getTotalBurnerBalance(): Promise<number> {
-    const burners = await listBurnersWithBalances();
+export async function getTotalBurnerBalance(walletId?: string): Promise<number> {
+    const burners = await listBurnersWithBalances(walletId);
     return burners.reduce((sum, b) => sum + b.balance, 0);
 }
 
 // Get burners with non-zero balance
-export async function getActiveBurners(): Promise<BurnerWallet[]> {
-    const burners = await listBurnersWithBalances();
+export async function getActiveBurners(walletId?: string): Promise<BurnerWallet[]> {
+    const burners = await listBurnersWithBalances(walletId);
     return burners.filter((b) => b.balance > 0);
 }
 
 // Check if any burner has funds to sweep
-export async function hasSweepableFunds(): Promise<boolean> {
-    const active = await getActiveBurners();
+export async function hasSweepableFunds(walletId?: string): Promise<boolean> {
+    const active = await getActiveBurners(walletId);
     return active.length > 0;
 }
 
@@ -263,7 +270,7 @@ export async function getOldestBurner(): Promise<BurnerWallet | null> {
 }
 
 // Get burner by public key
-export async function getBurnerByAddress(publicKey: string): Promise<BurnerWallet | null> {
-  const burners = await listBurners();
+export async function getBurnerByAddress(publicKey: string, walletId?: string): Promise<BurnerWallet | null> {
+  const burners = await listBurners(walletId);
   return burners.find(b => b.publicKey === publicKey) || null;
 }

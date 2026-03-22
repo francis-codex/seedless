@@ -8,6 +8,9 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  RefreshControl,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -203,10 +206,16 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
       return;
     }
 
-    // Check balance before sending
-    if (solBalance !== null && parsedAmount > solBalance) {
-      Alert.alert('Insufficient balance', `You only have ${solBalance.toFixed(4)} SOL`);
-      return;
+    // Check balance before sending — account for rent-exempt minimum
+    if (solBalance !== null) {
+      if (parsedAmount > solBalance) {
+        Alert.alert('Insufficient balance', `You only have ${solBalance.toFixed(4)} SOL`);
+        return;
+      }
+      if (parsedAmount > solBalance - MIN_SOL_FOR_TX) {
+        Alert.alert('Insufficient balance', `You need to keep at least ${MIN_SOL_FOR_TX} SOL for rent. Max you can send: ${(solBalance - MIN_SOL_FOR_TX).toFixed(4)} SOL`);
+        return;
+      }
     }
 
     setIsSending(true);
@@ -250,14 +259,37 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
       setTimeout(() => handleRefresh(), 2000);
     } catch (error: any) {
       console.error('Transfer failed:', error);
-      Alert.alert('Failed', error.message || 'Transaction failed');
+      const msg = error.message || 'Transaction failed';
+      // Parse known LazorKit/Solana errors into friendly messages
+      let friendly = msg;
+      if (msg.includes('0x2')) {
+        friendly = 'Insufficient funds. Make sure you have enough SOL to cover the amount plus rent.';
+      } else if (msg.includes('0x1783') || msg.includes('TransactionTooOld')) {
+        friendly = 'Transaction expired. The signing took too long. Please try again.';
+      } else if (msg.includes('0x7d6') || msg.includes('ConstraintSeeds')) {
+        friendly = 'Wallet setup error. Try disconnecting and reconnecting your wallet.';
+      } else if (msg.includes('33 bytes')) {
+        friendly = 'Passkey error. Make sure biometrics (fingerprint or Face ID) are set up on your device.';
+      }
+      Alert.alert('Failed', friendly);
     } finally {
       setIsSending(false);
     }
   }, [smartWalletPubkey, recipient, amount, solBalance, signAndSendTransaction]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      refreshControl={
+        <RefreshControl refreshing={isLoadingBalance} onRefresh={handleRefresh} />
+      }
+    >
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Wallet</Text>
         <TouchableOpacity onPress={handleDisconnect}>
@@ -410,7 +442,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
             placeholder="0.00"
             placeholderTextColor="#999"
             value={amount}
-            onChangeText={setAmount}
+            onChangeText={(text) => setAmount(text.replace(',', '.'))}
             keyboardType="decimal-pad"
           />
           <TouchableOpacity
@@ -447,6 +479,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
         <Text style={styles.infoItem}>Instant confirmation</Text>
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

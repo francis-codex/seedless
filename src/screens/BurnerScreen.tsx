@@ -30,6 +30,7 @@ interface BurnerScreenProps {
 
 export function BurnerScreen({ onBack }: BurnerScreenProps) {
     const { smartWalletPubkey } = useWallet();
+    const walletId = smartWalletPubkey?.toBase58();
 
     const [burners, setBurners] = useState<BurnerWalletWithBalance[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -49,7 +50,7 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
     const loadBurners = useCallback(async () => {
         setIsLoading(true);
         try {
-            const burnersWithBalances = await listBurnersWithBalances();
+            const burnersWithBalances = await listBurnersWithBalances(walletId);
             setBurners(burnersWithBalances);
         } catch (error) {
             console.error('Failed to load burners:', error);
@@ -70,7 +71,7 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
 
         setIsCreating(true);
         try {
-            const burner = await createBurner(newBurnerLabel.trim());
+            const burner = await createBurner(newBurnerLabel.trim(), walletId);
             setBurners((prev) => [...prev, { ...burner, balance: 0 }]);
             setShowCreateModal(false);
             setNewBurnerLabel('');
@@ -138,7 +139,7 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                     onPress: async () => {
                         try {
                             const mainAddress = smartWalletPubkey?.toBase58();
-                            await destroyBurner(burner.id, mainAddress);
+                            await destroyBurner(burner.id, mainAddress, walletId);
                             setBurners((prev) => prev.filter((b) => b.id !== burner.id));
                             Alert.alert('Destroyed', 'Burner deleted');
                         } catch (error: any) {
