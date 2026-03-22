@@ -66,10 +66,12 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
     const [paymentLabel, setPaymentLabel] = useState('');
     const [generatedQrUrl, setGeneratedQrUrl] = useState('');
 
+    const walletId = smartWalletPubkey?.toBase58();
+
     const initialize = useCallback(async () => {
         setIsLoading(true);
         try {
-            const initialized = await isStealthInitialized();
+            const initialized = await isStealthInitialized(walletId);
             if (!initialized) {
                 await getOrCreateMasterSeed();
             }
@@ -88,7 +90,7 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
 
     const loadAddresses = async () => {
         try {
-            const allAddresses = await getAllStealthAddresses();
+            const allAddresses = await getAllStealthAddresses(walletId);
 
             // Fetch all balances in parallel
             const balances = await Promise.all(
@@ -117,7 +119,7 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
 
     const handleGenerateAddress = async () => {
         try {
-            const newAddress = await generateStealthAddress();
+            const newAddress = await generateStealthAddress(undefined, walletId);
             setAddresses((prev) => [...prev, { ...newAddress, balance: 0 }]);
             Alert.alert('Created', `New stealth address: ${shortenAddress(newAddress.address)}`);
         } catch (error) {
@@ -187,7 +189,7 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                         try {
                             // For each funded address, create a transfer to main wallet
                             for (const addr of fundedAddresses) {
-                                const keypair = await getStealthKeypair(addr.address, addr.index);
+                                const keypair = await getStealthKeypair(addr.address, addr.index, walletId);
                                 if (!keypair) {
                                     console.error(`Could not derive keypair for ${addr.address}`);
                                     continue;

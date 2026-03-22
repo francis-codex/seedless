@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import * as Linking from 'expo-linking';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { APP_VERSION } from '../constants';
 
 interface HomeScreenProps {
@@ -26,6 +27,26 @@ export function HomeScreen({ onConnected }: HomeScreenProps) {
 
   const handleConnect = async () => {
     try {
+      // Check biometric enrollment before attempting passkey auth
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+
+      if (!hasHardware) {
+        Alert.alert(
+          'Biometrics Required',
+          'This device does not support biometric authentication. Seedless requires Face ID, fingerprint, or device passcode to create a passkey wallet.'
+        );
+        return;
+      }
+
+      if (!isEnrolled) {
+        Alert.alert(
+          'Set Up Biometrics',
+          'Please set up fingerprint or Face ID in your device settings before connecting. Seedless uses biometrics to secure your wallet.'
+        );
+        return;
+      }
+
       // Create deep link URL for callback after passkey auth
       const redirectUrl = Linking.createURL('callback');
 
@@ -35,12 +56,26 @@ export function HomeScreen({ onConnected }: HomeScreenProps) {
           onConnected();
         },
         onFail: (error) => {
-          Alert.alert('Connection Failed', error.message);
+          const msg = error.message || 'Connection failed';
+          let friendly = msg;
+          if (msg.includes('33 bytes') || msg.includes('got 0')) {
+            friendly = 'Passkey error. Please set up fingerprint or Face ID in your device settings first.';
+          } else if (msg.includes('ConstraintSeeds') || msg.includes('0x7d6')) {
+            friendly = 'Wallet creation failed. Please try again with a different account name.';
+          }
+          Alert.alert('Connection Failed', friendly);
         },
       });
     } catch (error: any) {
       console.error('Connection failed:', error);
-      Alert.alert('Error', error.message || 'Failed to connect');
+      const msg = error.message || 'Failed to connect';
+      let friendly = msg;
+      if (msg.includes('33 bytes') || msg.includes('got 0')) {
+        friendly = 'Passkey error. Please make sure biometrics (fingerprint or Face ID) are set up on your device, then try again.';
+      } else if (msg.includes('ConstraintSeeds') || msg.includes('0x7d6')) {
+        friendly = 'Wallet creation failed. Please try again with a different account name.';
+      }
+      Alert.alert('Connection Failed', friendly);
     }
   };
 
@@ -77,7 +112,7 @@ export function HomeScreen({ onConnected }: HomeScreenProps) {
           {isConnecting ? (
             <ActivityIndicator color="#000" size="small" />
           ) : (
-            <Text style={styles.buttonText}>Connect</Text>
+            <Text style={styles.buttonText}>Create / Connect Wallet</Text>
           )}
         </TouchableOpacity>
 

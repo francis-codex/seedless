@@ -8,6 +8,12 @@ import { Keypair, PublicKey } from '@solana/web3.js';
 const MASTER_SEED_KEY = 'lazor_stealth_master_seed';
 const STEALTH_INDEX_KEY = 'lazor_stealth_index';
 
+// Scope storage keys to connected wallet so each passkey gets its own addresses
+function scopeKey(key: string, walletId?: string): string {
+  if (!walletId) return key;
+  return `${key}_${walletId.slice(0, 16)}`;
+}
+
 // No limits - production ready
 export const STEALTH_LIMITS = {
   MAX_SWEEP_SOL: Infinity,
@@ -75,10 +81,13 @@ export async function getOrCreateMasterSeed(): Promise<string> {
   }
 }
 
-export async function isStealthInitialized(): Promise<boolean> {
+export async function isStealthInitialized(walletId?: string): Promise<boolean> {
   try {
     const seed = await SecureStore.getItemAsync(MASTER_SEED_KEY);
-    return seed !== null;
+    if (!seed) return false;
+    // Check if this wallet has generated any addresses
+    const indexStr = await SecureStore.getItemAsync(scopeKey(STEALTH_INDEX_KEY, walletId));
+    return indexStr !== null;
   } catch {
     return false;
   }
@@ -111,16 +120,17 @@ export async function getStealthMetaAddress(): Promise<StealthMetaAddress> {
   };
 }
 
-// Create a new one-time receiving address 
-export async function generateStealthAddress(label?: string): Promise<StealthAddress> {
+// Create a new one-time receiving address
+export async function generateStealthAddress(label?: string, walletId?: string): Promise<StealthAddress> {
   const masterSeed = await getOrCreateMasterSeed();
 
-  const indexStr = await SecureStore.getItemAsync(STEALTH_INDEX_KEY);
+  const indexKey = scopeKey(STEALTH_INDEX_KEY, walletId);
+  const indexStr = await SecureStore.getItemAsync(indexKey);
   const index = indexStr ? parseInt(indexStr, 10) : 0;
 
-  await SecureStore.setItemAsync(STEALTH_INDEX_KEY, (index + 1).toString());
+  await SecureStore.setItemAsync(indexKey, (index + 1).toString());
 
-  const keypair = await deriveStealthKeypairForIndex(masterSeed, index);
+  const keypair = await deriveStealthKeypairForIndex(masterSeed, index, walletId);
 
   return {
     index,
@@ -133,21 +143,24 @@ export async function generateStealthAddress(label?: string): Promise<StealthAdd
 // Derive keypair for a specific index (for sweeping)
 export async function deriveStealthKeypairForIndex(
   masterSeed: string,
-  index: number
+  index: number,
+  walletId?: string
 ): Promise<Keypair> {
-  // Use digestStringAsync with string concatenation 
-  const hash = await hashString(masterSeed + ':stealth:' + index.toString());
+  // Include walletId in derivation so each passkey wallet gets unique stealth addresses
+  const scope = walletId ? `:${walletId}` : '';
+  const hash = await hashString(masterSeed + scope + ':stealth:' + index.toString());
   return Keypair.fromSeed(hash);
 }
 
 // Get keypair for sweeping funds from a stealth address 
 export async function getStealthKeypair(
   address: string,
-  index: number
+  index: number,
+  walletId?: string
 ): Promise<Keypair | null> {
   try {
     const masterSeed = await getOrCreateMasterSeed();
-    const keypair = await deriveStealthKeypairForIndex(masterSeed, index);
+    const keypair = await deriveStealthKeypairForIndex(masterSeed, index, walletId);
 
     if (keypair.publicKey.toBase58() !== address) {
       return null;
@@ -160,16 +173,16 @@ export async function getStealthKeypair(
 }
 
 // Get all previously generated stealth addresses
-export async function getAllStealthAddresses(): Promise<StealthAddress[]> {
+export async function getAllStealthAddresses(walletId?: string): Promise<StealthAddress[]> {
   try {
     const masterSeed = await getOrCreateMasterSeed();
-    const indexStr = await SecureStore.getItemAsync(STEALTH_INDEX_KEY);
+    const indexStr = await SecureStore.getItemAsync(scopeKey(STEALTH_INDEX_KEY, walletId));
     const maxIndex = indexStr ? parseInt(indexStr, 10) : 0;
 
     const addresses: StealthAddress[] = [];
 
     for (let i = 0; i < maxIndex; i++) {
-      const keypair = await deriveStealthKeypairForIndex(masterSeed, i);
+      const keypair = await deriveStealthKeypairForIndex(masterSeed, i, walletId);
       addresses.push({
         index: i,
         address: keypair.publicKey.toBase58(),
@@ -185,8 +198,8 @@ export async function getAllStealthAddresses(): Promise<StealthAddress[]> {
 }
 
 // Reset index counter (testing only)
-export async function resetStealthIndex(): Promise<void> {
-  await SecureStore.deleteItemAsync(STEALTH_INDEX_KEY);
+export async function resetStealthIndex(walletId?: string): Promise<void> {
+  await SecureStore.deleteItemAsync(scopeKey(STEALTH_INDEX_KEY, walletId));
 }
 
 export function formatMetaAddress(metaAddress: StealthMetaAddress): string {
@@ -210,9 +223,9 @@ export function isValidMetaAddress(metaAddress: StealthMetaAddress): boolean {
 }
 
 // Check if an address belongs to our stealth wallet
-export async function isOwnedStealthAddress(address: string): Promise<boolean> {
+export async function isOwnedStealthAddress(address: string, walletId?: string): Promise<boolean> {
   try {
-    const addresses = await getAllStealthAddresses();
+    const addresses = await getAllStealthAddresses(walletId);
     return addresses.some((a) => a.address === address);
   } catch {
     return false;
@@ -223,8 +236,8 @@ export async function isOwnedStealthAddress(address: string): Promise<boolean> {
 export type StealthDerivationStatus = 'idle' | 'deriving' | 'ready' | 'error';
 
 // Get count of active stealth addresses
-export async function getStealthAddressCount(): Promise<number> {
-  const addresses = await getAllStealthAddresses();
+export async function getStealthAddressCount(walletId?: string): Promise<number> {
+  const addresses = await getAllStealthAddresses(walletId);
   return addresses.length;
 }
 
@@ -234,8 +247,8 @@ export function isStealthAvailable(): boolean {
 }
 
 // Get the most recent stealth address
-export async function getLatestStealthAddress(): Promise<string | null> {
-  const addresses = await getAllStealthAddresses();
+export async function getLatestStealthAddress(walletId?: string): Promise<string | null> {
+  const addresses = await getAllStealthAddresses(walletId);
   if (addresses.length === 0) return null;
   return addresses[addresses.length - 1].address;
 }
@@ -247,8 +260,8 @@ export type StealthScanStatus = 'idle' | 'scanning' | 'complete' | 'error';
 export const MAX_STEALTH_ADDRESSES = 100;
 
 // Check if we can generate more stealth addresses
-export async function canGenerateMoreStealth(): Promise<boolean> {
-  const count = await getStealthAddressCount();
+export async function canGenerateMoreStealth(walletId?: string): Promise<boolean> {
+  const count = await getStealthAddressCount(walletId);
   return count < MAX_STEALTH_ADDRESSES;
 }
 
@@ -266,13 +279,13 @@ export function sanitizeStealthLabel(label: string): string {
 }
 
 // Get stealth address by index
-export async function getStealthAddressByIndex(index: number): Promise<StealthAddress | null> {
-  const addresses = await getAllStealthAddresses();
+export async function getStealthAddressByIndex(index: number, walletId?: string): Promise<StealthAddress | null> {
+  const addresses = await getAllStealthAddresses(walletId);
   return addresses.find(a => a.index === index) || null;
 }
 
 // Check if stealth wallet has any addresses
-export async function hasStealthAddresses(): Promise<boolean> {
-  const count = await getStealthAddressCount();
+export async function hasStealthAddresses(walletId?: string): Promise<boolean> {
+  const count = await getStealthAddressCount(walletId);
   return count > 0;
 }
