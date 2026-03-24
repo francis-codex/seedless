@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seedless on Seeker</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .card {
+    width: 1200px;
+    height: 675px;
+    background: linear-gradient(160deg, #1a1a2e 0%, #0d0d1a 30%, #0a0a14 50%, #0d0d1a 70%, #1a1a2e 100%);
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  /* Pink-blue glow matching logo */
+  .glow-pink {
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(236,72,153,0.12) 0%, rgba(236,72,153,0.04) 40%, transparent 70%);
+    top: 30%;
+    left: 25%;
+    transform: translate(-50%, -50%);
+  }
+  .glow-blue {
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(96,165,250,0.12) 0%, rgba(96,165,250,0.04) 40%, transparent 70%);
+    top: 50%;
+    right: 15%;
+    transform: translate(50%, -50%);
+  }
+  .glow-purple {
+    position: absolute;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(168,130,255,0.15) 0%, transparent 70%);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .content { position: relative; z-index: 1; }
+  .label {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    background: linear-gradient(90deg, #ec4899, #a78bfa, #60a5fa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-transform: uppercase;
+    letter-spacing: 5px;
+    margin-bottom: 28px;
+  }
+  h1 {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 76px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -1px;
+    margin-bottom: 12px;
+  }
+  h1 span {
+    background: linear-gradient(90deg, #ec4899, #a78bfa, #60a5fa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .sub {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 22px;
+    color: rgba(255,255,255,0.4);
+    font-weight: 300;
+    margin-bottom: 48px;
+  }
+  .icons-row {
+    display: flex;
+    gap: 48px;
+    align-items: center;
+    justify-content: center;
+  }
+  .icon-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .icon-item svg { opacity: 0.8; }
+  .icon-item span {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 13px;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+  .divider {
+    width: 1px;
+    height: 48px;
+    background: linear-gradient(180deg, transparent, rgba(168,130,255,0.2), transparent);
+  }
+  /* Bottom bar */
+  .bottom {
+    position: absolute;
+    bottom: 32px;
+    left: 80px;
+    right: 80px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 1;
+  }
+  .bottom-left {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    color: #444;
+  }
+  .bottom-right {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    color: #444;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="glow-pink"></div>
+  <div class="glow-blue"></div>
+  <div class="glow-purple"></div>
+  <div class="content">
+    <div class="label">Builder Grant Applied</div>
+    <h1>Seedless <span>on</span> Seeker</h1>
+    <div class="sub">Your face is your wallet.</div>
+    <div class="icons-row">
+      <div class="icon-item">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ec4899" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span>Passkeys</span>
+      </div>
+      <div class="divider"></div>
+      <div class="icon-item">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <span>Gasless</span>
+      </div>
+      <div class="divider"></div>
+      <div class="icon-item">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+        <span>Mobile</span>
+      </div>
+      <div class="divider"></div>
+      <div class="icon-item">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>Audited</span>
+      </div>
+    </div>
+  </div>
+  <div class="bottom">
+    <div class="bottom-left">seedlesslabs.xyz</div>
+    <div class="bottom-right">@seedless_wallet</div>
+  </div>
+</div>
+</body>
+</html>
