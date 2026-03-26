@@ -3,6 +3,7 @@ import {
     View,
     Text,
     TouchableOpacity,
+    TouchableWithoutFeedback,
     StyleSheet,
     TextInput,
     ActivityIndicator,
@@ -57,7 +58,7 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [walletId]);
 
     useEffect(() => {
         loadBurners();
@@ -116,12 +117,23 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
         setIsSending(true);
         try {
             const signature = await sendFromBurner(selectedBurner.id, sendRecipient, amount);
-            Alert.alert('Sent', `Tx: ${signature.slice(0, 16)}...`);
+            Alert.alert('Transaction Successful', `Sent ${amount} SOL.\n\nTx: ${signature.slice(0, 20)}...`);
             setShowSendModal(false);
             await loadBurners();
         } catch (error: any) {
             console.error('Send failed:', error);
-            Alert.alert('Failed', error.message || 'Transaction failed');
+            const msg = error.message || 'Transaction failed';
+            let friendly = msg;
+            if (msg.includes('insufficient lamports') || msg.includes('0x1')) {
+                friendly = 'Insufficient balance. Make sure you have enough SOL to cover the amount plus fees.';
+            } else if (msg.includes('Transaction too large') || msg.includes('1232')) {
+                friendly = 'Transaction too large. Try sending a smaller amount.';
+            } else if (msg.includes('Simulation failed') || msg.includes('simulation failed')) {
+                friendly = 'Transaction failed. Check your balance and try again.';
+            } else if (msg.includes('0x2')) {
+                friendly = 'Insufficient funds for this transaction.';
+            }
+            Alert.alert('Failed', friendly);
         } finally {
             setIsSending(false);
         }
@@ -245,81 +257,89 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
             </View>
 
             {/* Create Modal */}
-            <Modal visible={showCreateModal} animationType="slide" transparent>
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Create Burner</Text>
+            <Modal visible={showCreateModal} animationType="slide" transparent onRequestClose={() => setShowCreateModal(false)}>
+                <TouchableWithoutFeedback onPress={() => setShowCreateModal(false)}>
+                    <View style={styles.modalOverlay}>
+                        <TouchableWithoutFeedback onPress={() => {}}>
+                            <View style={styles.modalContent}>
+                                <Text style={styles.modalTitle}>Create Burner</Text>
 
-                        <TextInput
-                            style={styles.modalInput}
-                            placeholder="Label (e.g., Trading, Airdrop)"
-                            placeholderTextColor="#999"
-                            value={newBurnerLabel}
-                            onChangeText={setNewBurnerLabel}
-                        />
+                                <TextInput
+                                    style={styles.modalInput}
+                                    placeholder="Label (e.g., Trading, Airdrop)"
+                                    placeholderTextColor="#999"
+                                    value={newBurnerLabel}
+                                    onChangeText={setNewBurnerLabel}
+                                />
 
-                        <TouchableOpacity
-                            style={[styles.modalButton, isCreating && styles.buttonDisabled]}
-                            onPress={handleCreateBurner}
-                            disabled={isCreating}
-                        >
-                            {isCreating ? (
-                                <ActivityIndicator size="small" color="#fff" />
-                            ) : (
-                                <Text style={styles.modalButtonText}>Create</Text>
-                            )}
-                        </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.modalButton, isCreating && styles.buttonDisabled]}
+                                    onPress={handleCreateBurner}
+                                    disabled={isCreating}
+                                >
+                                    {isCreating ? (
+                                        <ActivityIndicator size="small" color="#fff" />
+                                    ) : (
+                                        <Text style={styles.modalButtonText}>Create</Text>
+                                    )}
+                                </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.closeButton} onPress={() => setShowCreateModal(false)}>
-                            <Text style={styles.closeButtonText}>Cancel</Text>
-                        </TouchableOpacity>
+                                <TouchableOpacity style={styles.closeButton} onPress={() => setShowCreateModal(false)}>
+                                    <Text style={styles.closeButtonText}>Cancel</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </TouchableWithoutFeedback>
                     </View>
-                </View>
+                </TouchableWithoutFeedback>
             </Modal>
 
             {/* Send Modal */}
-            <Modal visible={showSendModal} animationType="slide" transparent>
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Send from Burner</Text>
-                        <Text style={styles.modalSubtitle}>{selectedBurner?.label}</Text>
-                        <Text style={styles.modalBalance}>Balance: {selectedBurner?.balance.toFixed(4)} SOL</Text>
+            <Modal visible={showSendModal} animationType="slide" transparent onRequestClose={() => setShowSendModal(false)}>
+                <TouchableWithoutFeedback onPress={() => setShowSendModal(false)}>
+                    <View style={styles.modalOverlay}>
+                        <TouchableWithoutFeedback onPress={() => {}}>
+                            <View style={styles.modalContent}>
+                                <Text style={styles.modalTitle}>Send from Burner</Text>
+                                <Text style={styles.modalSubtitle}>{selectedBurner?.label}</Text>
+                                <Text style={styles.modalBalance}>Balance: {selectedBurner?.balance.toFixed(4)} SOL</Text>
 
-                        <TextInput
-                            style={styles.modalInput}
-                            placeholder="Recipient address"
-                            placeholderTextColor="#999"
-                            value={sendRecipient}
-                            onChangeText={setSendRecipient}
-                            autoCapitalize="none"
-                        />
+                                <TextInput
+                                    style={styles.modalInput}
+                                    placeholder="Recipient address"
+                                    placeholderTextColor="#999"
+                                    value={sendRecipient}
+                                    onChangeText={setSendRecipient}
+                                    autoCapitalize="none"
+                                />
 
-                        <TextInput
-                            style={styles.modalInput}
-                            placeholder={`Amount (max ${BURNER_LIMITS.MAX_SEND_SOL} SOL)`}
-                            placeholderTextColor="#999"
-                            value={sendAmount}
-                            onChangeText={setSendAmount}
-                            keyboardType="decimal-pad"
-                        />
+                                <TextInput
+                                    style={styles.modalInput}
+                                    placeholder={`Amount (max ${BURNER_LIMITS.MAX_SEND_SOL} SOL)`}
+                                    placeholderTextColor="#999"
+                                    value={sendAmount}
+                                    onChangeText={setSendAmount}
+                                    keyboardType="decimal-pad"
+                                />
 
-                        <TouchableOpacity
-                            style={[styles.modalButton, isSending && styles.buttonDisabled]}
-                            onPress={handleSend}
-                            disabled={isSending}
-                        >
-                            {isSending ? (
-                                <ActivityIndicator size="small" color="#fff" />
-                            ) : (
-                                <Text style={styles.modalButtonText}>Send</Text>
-                            )}
-                        </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.modalButton, isSending && styles.buttonDisabled]}
+                                    onPress={handleSend}
+                                    disabled={isSending}
+                                >
+                                    {isSending ? (
+                                        <ActivityIndicator size="small" color="#fff" />
+                                    ) : (
+                                        <Text style={styles.modalButtonText}>Send</Text>
+                                    )}
+                                </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.closeButton} onPress={() => setShowSendModal(false)}>
-                            <Text style={styles.closeButtonText}>Cancel</Text>
-                        </TouchableOpacity>
+                                <TouchableOpacity style={styles.closeButton} onPress={() => setShowSendModal(false)}>
+                                    <Text style={styles.closeButtonText}>Cancel</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </TouchableWithoutFeedback>
                     </View>
-                </View>
+                </TouchableWithoutFeedback>
             </Modal>
         </ScrollView>
     );

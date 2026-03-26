@@ -18,7 +18,7 @@ import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import { Connection, PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { getAccount, getAssociatedTokenAddress } from '@solana/spl-token';
 import * as Linking from 'expo-linking';
-import { SOLANA_RPC_URL, USDC_MINT, CLUSTER_SIMULATION, IS_DEVNET, MIN_SOL_FOR_TX } from '../constants';
+import { SOLANA_RPC_URL, USDC_MINT, CLUSTER_SIMULATION, IS_DEVNET, MIN_SOL_FOR_TX, QUICK_AMOUNTS, getTxExplorerUrl } from '../constants';
 
 interface WalletScreenProps {
   onDisconnect: () => void;
@@ -41,15 +41,21 @@ const connection = new Connection(SOLANA_RPC_URL, {
   disableRetryOnRateLimit: true,
 });
 
+// Fallback public RPC for balance fetching when Helius is rate-limited
+const fallbackConnection = new Connection(
+  IS_DEVNET ? 'https://api.devnet.solana.com' : 'https://api.mainnet-beta.solana.com',
+  { commitment: 'confirmed' },
+);
+
 export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags, onLaunch }: WalletScreenProps) {
   const { smartWalletPubkey, disconnect, signAndSendTransaction, isSigning } = useWallet();
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [isSending, setIsSending] = useState(false);
 
-  // Balance state
-  const [solBalance, setSolBalance] = useState<number | null>(null);
-  const [usdcBalance, setUsdcBalance] = useState<number | null>(null);
+  // Balance state — default to 0 so UI never shows "—"
+  const [solBalance, setSolBalance] = useState<number>(0);
+  const [usdcBalance, setUsdcBalance] = useState<number>(0);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [balanceError, setBalanceError] = useState<string | null>(null);
 
@@ -121,35 +127,35 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
     setIsLoadingBalance(true);
     setBalanceError(null);
 
+    // Fetch SOL balance — try Helius first, fallback to public RPC
     try {
-      // Fetch SOL balance
       const solLamports = await connection.getBalance(walletPubkey);
       setSolBalance(solLamports / LAMPORTS_PER_SOL);
-
-      // Fetch USDC balance
+    } catch {
       try {
-        const usdcMint = new PublicKey(USDC_MINT);
-        const ata = await getAssociatedTokenAddress(usdcMint, walletPubkey);
-        const tokenAccount = await getAccount(connection, ata);
-        setUsdcBalance(Number(tokenAccount.amount) / 1_000_000);
-      } catch {
-        setUsdcBalance(0);
+        const solLamports = await fallbackConnection.getBalance(walletPubkey);
+        setSolBalance(solLamports / LAMPORTS_PER_SOL);
+      } catch (error: any) {
+        if (!hasFetchedRef.current) {
+          console.error('Failed to fetch SOL balance:', error);
+        }
+        setBalanceError('Failed to load balance - tap Refresh');
       }
-      hasFetchedRef.current = true;
-    } catch (error: any) {
-      // Only log once, not spam
-      if (!hasFetchedRef.current) {
-        console.error('Failed to fetch balances:', error);
-      }
-      if (error?.message?.includes('429')) {
-        setBalanceError('Rate limited - tap Refresh');
-      } else {
-        setBalanceError('Failed to load balance');
-      }
-    } finally {
-      setIsLoadingBalance(false);
-      isFetchingRef.current = false;
     }
+
+    // Fetch USDC balance independently
+    try {
+      const usdcMint = new PublicKey(USDC_MINT);
+      const ata = await getAssociatedTokenAddress(usdcMint, walletPubkey);
+      const tokenAccount = await getAccount(connection, ata);
+      setUsdcBalance(Number(tokenAccount.amount) / 1_000_000);
+    } catch {
+      setUsdcBalance(0);
+    }
+
+    hasFetchedRef.current = true;
+    setIsLoadingBalance(false);
+    isFetchingRef.current = false;
   };
 
   // Manual refresh handler
@@ -206,16 +212,20 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
       return;
     }
 
+    // Block send if balance hasn't loaded yet
+    if (!hasFetchedRef.current) {
+      Alert.alert('Balance not loaded', 'Please wait for your balance to load or tap Refresh before sending.');
+      return;
+    }
+
     // Check balance before sending — account for rent-exempt minimum
-    if (solBalance !== null) {
-      if (parsedAmount > solBalance) {
-        Alert.alert('Insufficient balance', `You only have ${solBalance.toFixed(4)} SOL`);
-        return;
-      }
-      if (parsedAmount > solBalance - MIN_SOL_FOR_TX) {
-        Alert.alert('Insufficient balance', `You need to keep at least ${MIN_SOL_FOR_TX} SOL for rent. Max you can send: ${(solBalance - MIN_SOL_FOR_TX).toFixed(4)} SOL`);
-        return;
-      }
+    if (parsedAmount > solBalance) {
+      Alert.alert('Insufficient balance', `You only have ${solBalance.toFixed(4)} SOL`);
+      return;
+    }
+    if (parsedAmount > solBalance - MIN_SOL_FOR_TX) {
+      Alert.alert('Insufficient balance', `You need to keep at least ${MIN_SOL_FOR_TX} SOL for rent. Max you can send: ${(solBalance - MIN_SOL_FOR_TX).toFixed(4)} SOL`);
+      return;
     }
 
     setIsSending(true);
@@ -243,16 +253,23 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
         },
         {
           redirectUrl,
-          onSuccess: () => {
-            Alert.alert('Sent', 'Transaction confirmed');
-          },
+          onSuccess: () => {},
           onFail: (error) => {
-            Alert.alert('Failed', error.message);
+            const msg = error.message || '';
+            // Don't throw here — let the catch block handle it uniformly
+            throw new Error(msg);
           },
         }
       );
 
-      Alert.alert('Sent', `Signature: ${signature.slice(0, 16)}...`);
+      Alert.alert(
+        'Transaction Successful',
+        `Sent ${parsedAmount} SOL successfully.\n\nTx: ${signature.slice(0, 20)}...`,
+        [
+          { text: 'OK' },
+          { text: 'View on Explorer', onPress: () => Linking.openURL(getTxExplorerUrl(signature)) },
+        ]
+      );
       setRecipient('');
       setAmount('');
       // Refresh balances after successful send (delay for RPC to reflect changes)
@@ -262,7 +279,11 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
       const msg = error.message || 'Transaction failed';
       // Parse known LazorKit/Solana errors into friendly messages
       let friendly = msg;
-      if (msg.includes('0x2')) {
+      if (msg.includes('Transaction too large') || msg.includes('1232')) {
+        friendly = 'Transaction too large. Try sending a smaller amount or contact support.';
+      } else if (msg.includes('0x1') || msg.includes('insufficient lamports')) {
+        friendly = 'Insufficient balance for this transaction. Make sure you have enough SOL.';
+      } else if (msg.includes('0x2')) {
         friendly = 'Insufficient funds. Make sure you have enough SOL to cover the amount plus rent.';
       } else if (msg.includes('0x1783') || msg.includes('TransactionTooOld')) {
         friendly = 'Transaction expired. The signing took too long. Please try again.';
@@ -270,6 +291,10 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
         friendly = 'Wallet setup error. Try disconnecting and reconnecting your wallet.';
       } else if (msg.includes('33 bytes')) {
         friendly = 'Passkey error. Make sure biometrics (fingerprint or Face ID) are set up on your device.';
+      } else if (msg.includes('timed out') || msg.includes('not allowed') || msg.includes('webauthn')) {
+        friendly = 'Authentication timed out or was cancelled. Please try again.';
+      } else if (msg.includes('Simulation failed') || msg.includes('simulation failed')) {
+        friendly = 'Transaction simulation failed. Check your balance and try again.';
       }
       Alert.alert('Failed', friendly);
     } finally {
@@ -280,7 +305,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
     <ScrollView
       style={styles.container}
@@ -339,20 +364,24 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
 
         <View style={styles.balanceRow}>
           <Text style={styles.balanceAmount}>
-            {isPrivateMode ? '••••••' : (solBalance !== null ? solBalance.toFixed(4) : '—')}
+            {isPrivateMode ? '••••••' : solBalance.toFixed(4)}
           </Text>
           <Text style={styles.balanceToken}>SOL</Text>
         </View>
 
         <View style={styles.balanceRow}>
           <Text style={styles.balanceAmountSecondary}>
-            {isPrivateMode ? '••••••' : (usdcBalance !== null ? usdcBalance.toFixed(2) : '—')}
+            {isPrivateMode ? '••••••' : usdcBalance.toFixed(2)}
           </Text>
           <Text style={styles.balanceTokenSecondary}>USDC</Text>
         </View>
 
         {isPrivateMode && (
           <Text style={styles.privateModeHint}>Tap "Show" and authenticate to reveal</Text>
+        )}
+
+        {balanceError && !isPrivateMode && (
+          <Text style={styles.balanceErrorText}>{balanceError}</Text>
         )}
       </View>
 
@@ -458,6 +487,19 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
           </TouchableOpacity>
         </View>
 
+        <View style={styles.quickAmountRow}>
+          {QUICK_AMOUNTS.map((qa) => (
+            <TouchableOpacity
+              key={qa}
+              style={styles.quickAmountButton}
+              onPress={() => setAmount(String(qa))}
+              activeOpacity={0.6}
+            >
+              <Text style={styles.quickAmountText}>{qa} SOL</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         <TouchableOpacity
           style={[styles.sendButton, isSending && styles.sendButtonDisabled]}
           onPress={handleSend}
@@ -491,6 +533,7 @@ const styles = StyleSheet.create({
   content: {
     padding: 24,
     paddingTop: 60,
+    paddingBottom: 100,
   },
   header: {
     flexDirection: 'row',
@@ -566,6 +609,11 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 8,
     fontStyle: 'italic',
+  },
+  balanceErrorText: {
+    fontSize: 12,
+    color: '#f87171',
+    marginTop: 8,
   },
   balanceRow: {
     flexDirection: 'row',
@@ -683,6 +731,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#fff',
+  },
+  quickAmountRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  quickAmountButton: {
+    flex: 1,
+    paddingVertical: 8,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  quickAmountText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#333',
   },
   sendButton: {
     backgroundColor: '#000',
