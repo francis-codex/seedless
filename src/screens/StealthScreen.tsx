@@ -3,6 +3,7 @@ import {
     View,
     Text,
     TouchableOpacity,
+    TouchableWithoutFeedback,
     StyleSheet,
     TextInput,
     ActivityIndicator,
@@ -12,11 +13,11 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
-import { Connection, PublicKey, LAMPORTS_PER_SOL, SystemProgram } from '@solana/web3.js';
+import { Connection, PublicKey, LAMPORTS_PER_SOL, SystemProgram, Transaction } from '@solana/web3.js';
 import * as Linking from 'expo-linking';
 import QRCode from 'react-native-qrcode-svg';
 
-import { SOLANA_RPC_URL } from '../constants';
+import { SOLANA_RPC_URL, IS_DEVNET } from '../constants';
 import {
     getStealthMetaAddress,
     generateStealthAddress,
@@ -39,6 +40,11 @@ const connection = new Connection(SOLANA_RPC_URL, {
     commitment: 'confirmed',
     disableRetryOnRateLimit: true,
 });
+
+const fallbackConnection = new Connection(
+    IS_DEVNET ? 'https://api.devnet.solana.com' : 'https://api.mainnet-beta.solana.com',
+    { commitment: 'confirmed' },
+);
 
 interface StealthScreenProps {
     onBack: () => void;
@@ -92,11 +98,14 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
         try {
             const allAddresses = await getAllStealthAddresses(walletId);
 
-            // Fetch all balances in parallel
+            // Fetch all balances in parallel — fallback to public RPC
             const balances = await Promise.all(
-                allAddresses.map(addr =>
-                    connection.getBalance(new PublicKey(addr.address)).catch(() => 0)
-                )
+                allAddresses.map(addr => {
+                    const pubkey = new PublicKey(addr.address);
+                    return connection.getBalance(pubkey).catch(() =>
+                        fallbackConnection.getBalance(pubkey).catch(() => 0)
+                    );
+                })
             );
 
             let total = 0;
@@ -208,7 +217,7 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
 
                                 // Create and sign transaction locally (stealth keypair signs)
                                 const { blockhash } = await connection.getLatestBlockhash();
-                                const transaction = new (await import('@solana/web3.js')).Transaction({
+                                const transaction = new Transaction({
                                     recentBlockhash: blockhash,
                                     feePayer: keypair.publicKey,
                                 }).add(
@@ -333,9 +342,10 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
             </View>
 
             {/* Payment Request Modal */}
-            <Modal visible={showPaymentModal} animationType="slide" transparent>
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
+            <Modal visible={showPaymentModal} animationType="slide" transparent onRequestClose={() => setShowPaymentModal(false)}>
+                <TouchableWithoutFeedback onPress={() => setShowPaymentModal(false)}>
+                    <View style={styles.modalOverlay}>
+                        <TouchableWithoutFeedback onPress={() => {}}><View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>Payment Request</Text>
                         <Text style={styles.modalAddress}>{shortenAddress(paymentAddress)}</Text>
 
@@ -403,8 +413,9 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                         <TouchableOpacity style={styles.closeButton} onPress={() => setShowPaymentModal(false)}>
                             <Text style={styles.closeButtonText}>Close</Text>
                         </TouchableOpacity>
+                    </View></TouchableWithoutFeedback>
                     </View>
-                </View>
+                </TouchableWithoutFeedback>
             </Modal>
         </ScrollView>
     );

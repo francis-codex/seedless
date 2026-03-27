@@ -5,7 +5,7 @@
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import { Keypair, Connection, PublicKey, LAMPORTS_PER_SOL, SystemProgram, Transaction } from '@solana/web3.js';
-import { SOLANA_RPC_URL, MAX_BURNER_WALLETS, BURNER_LIMITS as LIMITS } from '../constants';
+import { SOLANA_RPC_URL, IS_DEVNET, MAX_BURNER_WALLETS, BURNER_LIMITS as LIMITS } from '../constants';
 
 export const BURNER_LIMITS = LIMITS;
 
@@ -13,6 +13,11 @@ const connection = new Connection(SOLANA_RPC_URL, {
     commitment: 'confirmed',
     disableRetryOnRateLimit: true,
 });
+
+const fallbackConnection = new Connection(
+    IS_DEVNET ? 'https://api.devnet.solana.com' : 'https://api.mainnet-beta.solana.com',
+    { commitment: 'confirmed' },
+);
 
 const BURNER_LIST_KEY = 'lazor_burner_list';
 const BURNER_KEY_PREFIX = 'lazor_burner_';
@@ -96,25 +101,30 @@ export async function getBurnerKeypair(id: string): Promise<Keypair | null> {
 }
 
 export async function getBurnerBalance(publicKey: string): Promise<number> {
+    const pubkey = new PublicKey(publicKey);
     try {
-        const pubkey = new PublicKey(publicKey);
         const balance = await connection.getBalance(pubkey);
         return balance / LAMPORTS_PER_SOL;
     } catch {
-        return 0;
+        // Fallback to public RPC
+        try {
+            const balance = await fallbackConnection.getBalance(pubkey);
+            return balance / LAMPORTS_PER_SOL;
+        } catch {
+            return 0;
+        }
     }
 }
 
 export async function listBurnersWithBalances(walletId?: string): Promise<BurnerWalletWithBalance[]> {
     const burners = await listBurners(walletId);
-    const result: BurnerWalletWithBalance[] = [];
 
-    for (const burner of burners) {
-        const balance = await getBurnerBalance(burner.publicKey);
-        result.push({ ...burner, balance });
-    }
+    // Fetch all balances in parallel instead of sequentially
+    const balances = await Promise.all(
+        burners.map(b => getBurnerBalance(b.publicKey))
+    );
 
-    return result;
+    return burners.map((burner, i) => ({ ...burner, balance: balances[i] }));
 }
 
 export async function sendFromBurner(
