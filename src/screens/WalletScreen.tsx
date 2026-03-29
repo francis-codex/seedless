@@ -18,7 +18,7 @@ import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import { Connection, PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { getAccount, getAssociatedTokenAddress } from '@solana/spl-token';
 import * as Linking from 'expo-linking';
-import { SOLANA_RPC_URL, USDC_MINT, CLUSTER_SIMULATION, IS_DEVNET, MIN_SOL_FOR_TX, QUICK_AMOUNTS, getTxExplorerUrl } from '../constants';
+import { SOLANA_RPC_URL, USDC_MINT, SEED_MINT, SEED_DECIMALS, CLUSTER_SIMULATION, IS_DEVNET, MIN_SOL_FOR_TX, QUICK_AMOUNTS, getTxExplorerUrl } from '../constants';
 
 interface WalletScreenProps {
   onDisconnect: () => void;
@@ -56,6 +56,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
   // Balance state — default to 0 so UI never shows "—"
   const [solBalance, setSolBalance] = useState<number>(0);
   const [usdcBalance, setUsdcBalance] = useState<number>(0);
+  const [seedBalance, setSeedBalance] = useState<number>(0);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [balanceError, setBalanceError] = useState<string | null>(null);
 
@@ -151,6 +152,16 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
       setUsdcBalance(Number(tokenAccount.amount) / 1_000_000);
     } catch {
       setUsdcBalance(0);
+    }
+
+    // Fetch SEED balance
+    try {
+      const seedMint = new PublicKey(SEED_MINT);
+      const ata = await getAssociatedTokenAddress(seedMint, walletPubkey);
+      const tokenAccount = await getAccount(connection, ata);
+      setSeedBalance(Number(tokenAccount.amount) / Math.pow(10, SEED_DECIMALS));
+    } catch {
+      setSeedBalance(0);
     }
 
     hasFetchedRef.current = true;
@@ -374,6 +385,13 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
             {isPrivateMode ? '••••••' : usdcBalance.toFixed(2)}
           </Text>
           <Text style={styles.balanceTokenSecondary}>USDC</Text>
+        </View>
+
+        <View style={styles.balanceRow}>
+          <Text style={styles.balanceAmountSecondary}>
+            {isPrivateMode ? '••••••' : seedBalance.toFixed(2)}
+          </Text>
+          <Text style={styles.balanceTokenSecondary}>SEED</Text>
         </View>
 
         {isPrivateMode && (
