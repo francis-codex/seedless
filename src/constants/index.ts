@@ -123,6 +123,19 @@ export const BATCH_LIMITS = {
   MAX_TX_SIZE_BYTES: 1232,
 } as const;
 
+// Validate a Solana address (base58, 32 bytes)
+export const isValidSolanaAddress = (address: string): boolean => {
+  try {
+    if (!address || address.length < 32 || address.length > 44) return false;
+    const decoded = Buffer.from(
+      address.replace(/[^A-HJ-NP-Za-km-z1-9]/g, ''),
+    );
+    return decoded.length > 0 && !/[0OIl]/.test(address);
+  } catch {
+    return false;
+  }
+};
+
 // Minimum balances to keep for rent exemption
 export const MIN_RENT_BALANCE_SOL = 0.00203928;
 export const MIN_RENT_BALANCE_LAMPORTS = 2039280;
