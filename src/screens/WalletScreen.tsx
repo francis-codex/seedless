@@ -18,7 +18,7 @@ import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import { Connection, PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { getAccount, getAssociatedTokenAddress } from '@solana/spl-token';
 import * as Linking from 'expo-linking';
-import { SOLANA_RPC_URL, USDC_MINT, SEED_MINT, SEED_DECIMALS, CLUSTER_SIMULATION, IS_DEVNET, MIN_SOL_FOR_TX, QUICK_AMOUNTS, getTxExplorerUrl } from '../constants';
+import { SOLANA_RPC_URL, USDC_MINT, SEED_MINT, SEED_DECIMALS, CLUSTER_SIMULATION, IS_DEVNET, MIN_SOL_FOR_TX, QUICK_AMOUNTS, getTxExplorerUrl, isValidSolanaAddress } from '../constants';
 
 interface WalletScreenProps {
   onDisconnect: () => void;
@@ -208,9 +208,13 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
     }
 
     // Validate recipient address
+    if (!isValidSolanaAddress(recipient.trim())) {
+      Alert.alert('Invalid address', 'Enter a valid Solana wallet address');
+      return;
+    }
     let recipientPubkey: PublicKey;
     try {
-      recipientPubkey = new PublicKey(recipient);
+      recipientPubkey = new PublicKey(recipient.trim());
     } catch {
       Alert.alert('Invalid address', 'Enter a valid Solana wallet address');
       return;
