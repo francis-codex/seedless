@@ -107,7 +107,7 @@ export const CONFIRMATION_LEVELS = {
 export const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 
 // App version for tracking
-export const APP_VERSION = '0.3.0-beta';
+export const APP_VERSION = '0.3.1-beta';
 
 // Quick send amount presets
 export const QUICK_AMOUNTS = [0.5, 1, 5, 10] as const;
