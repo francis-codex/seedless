@@ -212,10 +212,6 @@ export function filterComputeBudgetInstructions(
     // Keep instruction only if it's NOT from the Compute Budget program
     const isComputeBudget = instruction.programId.equals(computeBudgetProgramId);
 
-    if (isComputeBudget) {
-      console.log('Filtered out compute budget instruction (Kora will handle this)');
-    }
-
     return !isComputeBudget;
   });
 }
@@ -267,12 +263,9 @@ export async function prepareSwap(
   addressLookupTableAccounts: AddressLookupTableAccount[];
 }> {
   // Step 1: Get quote
-  console.log('Getting quote from Jupiter...');
   const quote = await getQuote(inputMint, outputMint, amountInSmallestUnit, slippageBps);
-  console.log(`Quote received: ${quote.inAmount} → ${quote.outAmount}`);
 
   // Step 2: Get swap instructions
-  console.log('Getting swap instructions...');
   const swapInstructions = await getSwapInstructions(quote, userPublicKey);
 
   // Step 3: Deserialize all instructions
@@ -292,16 +285,12 @@ export async function prepareSwap(
   }
 
   // Step 4: Filter out compute budget instructions (CRITICAL for Kora)
-  console.log('Filtering compute budget instructions for Kora compatibility...');
   const filteredInstructions = filterComputeBudgetInstructions(allInstructions);
-  console.log(`Instructions: ${allInstructions.length} total, ${filteredInstructions.length} after filtering`);
 
   // Step 5: Fetch Address Lookup Tables
-  console.log('Fetching address lookup tables...');
   const addressLookupTableAccounts = await fetchAddressLookupTables(
     swapInstructions.addressLookupTableAddresses
   );
-  console.log(`Fetched ${addressLookupTableAccounts.length} lookup tables`);
 
   return {
     quote,
