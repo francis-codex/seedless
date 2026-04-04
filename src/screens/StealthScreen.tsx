@@ -127,6 +127,8 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
     }, [initialize]);
 
     const handleGenerateAddress = async () => {
+        if (isLoading) return;
+        setIsLoading(true);
         try {
             const newAddress = await generateStealthAddress(undefined, walletId);
             setAddresses((prev) => [...prev, { ...newAddress, balance: 0 }]);
@@ -134,6 +136,8 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
         } catch (error) {
             console.error('Failed to generate address:', error);
             Alert.alert('Error', 'Failed to generate stealth address');
+        } finally {
+            setIsLoading(false);
         }
     };
 
