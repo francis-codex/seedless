@@ -2,6 +2,8 @@
 
 A passkey-native Solana wallet. No seed phrases. No gas fees. Just biometrics.
 
+> Currently in **Phase 3 Beta** on Solana devnet. Mainnet launch pending infrastructure partner audit.
+
 ## Download
 
 **[Android APK](https://expo.dev/accounts/solana-bridge/projects/seedless/builds/58386687-b1e2-4d43-a6cc-4efcba8f27ac)**
@@ -53,6 +55,8 @@ A passkey-native Solana wallet. No seed phrases. No gas fees. Just biometrics.
 - **Stealth addresses** - One-time receiving addresses for private payments
 - **Burner wallets** - Disposable identities with zero on-chain link
 - **Private mode** - Hide balances, biometric auth to reveal
+- **SEED token tracking** - Native balance display for the SEED token
+- **Address validation** - Input validation before transactions to prevent errors
 
 ## Setup
 
@@ -83,6 +87,15 @@ npx expo start
 ## Tech Stack
 
 React Native (Expo) / TypeScript / LazorKit SDK / Kora Paymaster / Solana Web3.js / Jupiter API
+
+## Beta Phases
+
+| Phase | Focus | Status |
+|-------|-------|--------|
+| Phase 1 | Core wallet, passkeys, gasless sends | Completed |
+| Phase 2 | Jupiter swaps, stealth addresses, burner wallets | Completed |
+| Phase 3 | UX polish, balance display, error handling | Active |
+| Mainnet | Production launch on Solana mainnet | Pending audit |
 
 ## Links
 
