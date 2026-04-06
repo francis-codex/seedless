@@ -17,7 +17,7 @@ import { Connection, PublicKey, LAMPORTS_PER_SOL, SystemProgram, Transaction } f
 import * as Linking from 'expo-linking';
 import QRCode from 'react-native-qrcode-svg';
 
-import { SOLANA_RPC_URL, IS_DEVNET } from '../constants';
+import { SOLANA_RPC_URL, IS_DEVNET, STEALTH_SWEEP_RENT, STEALTH_SWEEP_FEE } from '../constants';
 import {
     getStealthMetaAddress,
     generateStealthAddress,
@@ -204,18 +204,16 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                             for (const addr of fundedAddresses) {
                                 const keypair = await getStealthKeypair(addr.address, addr.index, walletId);
                                 if (!keypair) {
-                                    console.error(`Could not derive keypair for ${addr.address}`);
                                     continue;
                                 }
 
                                 // Calculate amount to send (leave some for rent/fees)
                                 const balance = await connection.getBalance(keypair.publicKey);
-                                const rentExempt = 890880; // Minimum rent exempt balance
-                                const fee = 5000; // Approximate fee
+                                const rentExempt = STEALTH_SWEEP_RENT;
+                                const fee = STEALTH_SWEEP_FEE;
                                 const sendAmount = balance - rentExempt - fee;
 
                                 if (sendAmount <= 0) {
-                                    console.log(`Skipping ${addr.address}: insufficient balance after fees`);
                                     continue;
                                 }
 
@@ -235,7 +233,7 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                                 transaction.sign(keypair);
                                 const signature = await connection.sendRawTransaction(transaction.serialize());
                                 await connection.confirmTransaction(signature, 'confirmed');
-                                console.log(`Swept from ${addr.address}: ${signature}`);
+                                // Sweep successful
                             }
 
                             Alert.alert('Success', 'Funds swept to main wallet');
