@@ -140,6 +140,10 @@ export const isValidSolanaAddress = (address: string): boolean => {
 export const MIN_RENT_BALANCE_SOL = 0.00203928;
 export const MIN_RENT_BALANCE_LAMPORTS = 2039280;
 
+// Stealth address sweep constants
+export const STEALTH_SWEEP_RENT = 890880;
+export const STEALTH_SWEEP_FEE = 5000;
+
 // Default priority fee levels (microlamports per compute unit)
 export const PRIORITY_FEE_LEVELS = {
   LOW: 1000,
