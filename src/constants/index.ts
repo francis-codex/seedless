@@ -182,9 +182,6 @@ export const getAccountExplorerUrl = (address: string): string =>
 // Minimum SOL for transaction (rent + fee buffer)
 export const MIN_SOL_FOR_TX = 0.003;
 
-// Token account creation cost in SOL
-export const TOKEN_ACCOUNT_RENT = 0.00203928;
-
 // Swap quote refresh interval (ms)
 export const QUOTE_REFRESH_INTERVAL = 10000;
 
