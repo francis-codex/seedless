@@ -81,7 +81,7 @@ export function BagsScreen({ onBack }: BagsScreenProps) {
       setIsEligible(eligibility.eligible);
       setSeedBalance(eligibility.balance);
     } catch (error) {
-      console.error('Failed to load Bags data:', error);
+      // Silently handle errors - data will refresh on next pull
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -142,13 +142,13 @@ export function BagsScreen({ onBack }: BagsScreenProps) {
               onSuccess: () => {
                 successCount++;
               },
-              onFail: (error) => {
-                console.error(`Claim tx ${i + 1} failed:`, error.message);
+              onFail: () => {
+                // Failure handled by successCount check below
               },
             }
           );
         } catch (txError: any) {
-          console.error(`Failed to process claim tx ${i + 1}:`, txError);
+          // Skip this tx and continue with the next
         }
       }
 
@@ -160,7 +160,6 @@ export function BagsScreen({ onBack }: BagsScreenProps) {
         Alert.alert('Claim failed', 'Could not complete any claim transactions.');
       }
     } catch (error: any) {
-      console.error('Claim failed:', error);
       Alert.alert('Claim failed', error.message || 'Could not generate claim transactions');
     } finally {
       setIsClaiming(false);
@@ -313,7 +312,6 @@ export function BagsScreen({ onBack }: BagsScreenProps) {
                 }
               );
             } catch (error: any) {
-              console.error('Draw failed:', error);
               Alert.alert('Draw failed', error.message || 'Could not execute draw');
             } finally {
               setIsDrawing(false);
