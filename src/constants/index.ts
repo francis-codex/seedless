@@ -1,3 +1,5 @@
+import { PublicKey } from '@solana/web3.js';
+
 // ============================================================
 // NETWORK TOGGLE — flip this ONE flag to switch mainnet/devnet
 // ============================================================
@@ -126,11 +128,9 @@ export const BATCH_LIMITS = {
 // Validate a Solana address (base58, 32 bytes)
 export const isValidSolanaAddress = (address: string): boolean => {
   try {
-    if (!address || address.length < 32 || address.length > 44) return false;
-    const decoded = Buffer.from(
-      address.replace(/[^A-HJ-NP-Za-km-z1-9]/g, ''),
-    );
-    return decoded.length > 0 && !/[0OIl]/.test(address);
+    if (!address || typeof address !== 'string') return false;
+    new PublicKey(address);
+    return true;
   } catch {
     return false;
   }
