@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Seedless — Passkeys Explained</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0a;
+    font-family: 'Inter', -apple-system, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 40px;
+  }
+
+  .banner {
+    width: 1200px;
+    height: 675px;
+    background: radial-gradient(circle at 20% 80%, #1a0b2e 0%, #0a0a0a 60%);
+    border-radius: 24px;
+    padding: 72px 80px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .banner::before {
+    content: '';
+    position: absolute;
+    top: -20%;
+    left: -10%;
+    width: 700px;
+    height: 700px;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .banner::after {
+    content: '';
+    position: absolute;
+    bottom: -30%;
+    right: -10%;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(167, 139, 250, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: relative;
+    z-index: 3;
+  }
+
+  .logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    object-fit: cover;
+  }
+
+  .brand {
+    color: #fff;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: -0.3px;
+  }
+
+  .tag {
+    margin-left: 14px;
+    color: #a78bfa;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    padding: 5px 12px;
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    border-radius: 999px;
+    background: rgba(139, 92, 246, 0.08);
+  }
+
+  .content {
+    position: relative;
+    z-index: 2;
+  }
+
+  h1 {
+    color: #fff;
+    font-size: 56px;
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -1.5px;
+    margin-bottom: 40px;
+  }
+
+  h1 .highlight {
+    background: linear-gradient(135deg, #a78bfa 0%, #c4b5fd 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .equations {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .eq {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    font-size: 24px;
+    font-weight: 600;
+    color: #e5e5e5;
+  }
+
+  .eq.no .word { color: #ef4444; }
+  .eq.yes .word { color: #22c55e; }
+
+  .eq .symbol {
+    font-size: 32px;
+    font-weight: 800;
+    width: 32px;
+    text-align: center;
+  }
+  .eq.no .symbol { color: #ef4444; }
+  .eq.yes .symbol { color: #22c55e; }
+
+  .eq .label { color: #888; }
+
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    z-index: 2;
+  }
+
+  .footer-text {
+    color: #a78bfa;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .handle {
+    color: #666;
+    font-size: 13px;
+    font-weight: 500;
+  }
+</style>
+</head>
+<body>
+  <div class="banner">
+    <div class="header">
+      <img class="logo" src="../assets/icon.png" alt="Seedless" />
+      <div class="brand">Seedless</div>
+      <div class="tag">Passkeys 101</div>
+    </div>
+
+    <div class="content">
+      <h1>Your phone is the wallet.<br/>Your face is the <span class="highlight">password.</span></h1>
+      <div class="equations">
+        <div class="eq no"><span class="symbol">✕</span><span class="word">Passkey</span><span class="label">≠ password</span></div>
+        <div class="eq no"><span class="symbol">✕</span><span class="word">Passkey</span><span class="label">≠ stored key</span></div>
+        <div class="eq yes"><span class="symbol">✓</span><span class="word">Passkey</span><span class="label">= cryptographic key locked in your device's secure hardware</span></div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="footer-text">No phrase to write. Nothing to lose.</div>
+      <div class="handle">@seedless_wallet</div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Seedless — Your Key, Your Device</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0a;
+    font-family: 'Inter', -apple-system, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 40px;
+  }
+
+  .banner {
+    width: 1200px;
+    height: 675px;
+    background: radial-gradient(circle at 80% 30%, #1a0b2e 0%, #0a0a0a 60%);
+    border-radius: 24px;
+    padding: 72px 80px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    gap: 60px;
+  }
+
+  .banner::before {
+    content: '';
+    position: absolute;
+    top: -40%;
+    right: -10%;
+    width: 700px;
+    height: 700px;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .banner::after {
+    content: '';
+    position: absolute;
+    bottom: -30%;
+    left: -10%;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(167, 139, 250, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .header {
+    position: absolute;
+    top: 48px;
+    left: 80px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    z-index: 3;
+  }
+
+  .logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    object-fit: cover;
+  }
+
+  .brand {
+    color: #fff;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: -0.3px;
+  }
+
+  .tag {
+    margin-left: 14px;
+    color: #a78bfa;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    padding: 5px 12px;
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    border-radius: 999px;
+    background: rgba(139, 92, 246, 0.08);
+  }
+
+  .content {
+    position: relative;
+    z-index: 2;
+    flex: 1;
+    padding-top: 60px;
+  }
+
+  .question {
+    color: #888;
+    font-size: 17px;
+    font-weight: 500;
+    margin-bottom: 14px;
+    font-style: italic;
+  }
+
+  h1 {
+    color: #fff;
+    font-size: 64px;
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -2px;
+    margin-bottom: 32px;
+  }
+
+  h1 .highlight {
+    background: linear-gradient(135deg, #a78bfa 0%, #c4b5fd 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .subtitle {
+    color: #d4d4d4;
+    font-size: 20px;
+    line-height: 1.5;
+    font-weight: 400;
+    max-width: 580px;
+  }
+
+  .subtitle strong {
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .visual {
+    position: relative;
+    z-index: 2;
+    width: 280px;
+    height: 360px;
+    flex-shrink: 0;
+  }
+
+  .phone {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 220px;
+    height: 340px;
+    background: linear-gradient(145deg, #1f1f1f, #0a0a0a);
+    border: 2px solid #2a2a2a;
+    border-radius: 36px;
+    box-shadow: 0 30px 80px rgba(139, 92, 246, 0.25), inset 0 1px 2px rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .chip {
+    width: 130px;
+    height: 130px;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(167, 139, 250, 0.05));
+    border: 1px solid rgba(167, 139, 250, 0.4);
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    box-shadow: 0 0 60px rgba(139, 92, 246, 0.5), inset 0 0 30px rgba(139, 92, 246, 0.1);
+  }
+
+  .chip::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border: 1px solid rgba(167, 139, 250, 0.2);
+    border-radius: 30px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.05); }
+  }
+
+  .key-icon {
+    width: 60px;
+    height: 60px;
+    color: #c4b5fd;
+  }
+
+  .label {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #a78bfa;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    white-space: nowrap;
+  }
+
+  .footer {
+    position: absolute;
+    bottom: 48px;
+    left: 80px;
+    right: 80px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 2;
+  }
+
+  .footer-text {
+    color: #a78bfa;
+    font-size: 17px;
+    font-weight: 600;
+  }
+
+  .handle {
+    color: #666;
+    font-size: 13px;
+    font-weight: 500;
+  }
+</style>
+</head>
+<body>
+  <div class="banner">
+    <div class="header">
+      <img class="logo" src="../assets/icon.png" alt="Seedless" />
+      <div class="brand">Seedless</div>
+      <div class="tag">How It Works</div>
+    </div>
+
+    <div class="content">
+      <div class="question">"Is your key stored somewhere?"</div>
+      <h1>Your key. <br/><span class="highlight">Your device.</span><br/>Period.</h1>
+      <div class="subtitle">
+        Lives in your phone's <strong>secure enclave</strong>. Not on our servers. Not on a blockchain. Not anywhere we can reach.
+      </div>
+    </div>
+
+    <div class="visual">
+      <div class="phone">
+        <div class="chip">
+          <svg class="key-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+          </svg>
+        </div>
+        <div class="label">Secure Enclave</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="footer-text">If we disappeared tomorrow, you'd still have your wallet.</div>
+      <div class="handle">@seedless_wallet</div>
+    </div>
+  </div>
+</body>
+</html>
