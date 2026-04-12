@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Seedless — Phase 4</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0a;
+    font-family: 'Inter', -apple-system, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 40px;
+  }
+
+  .banner {
+    width: 1200px;
+    height: 675px;
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a0b2e 50%, #0a0a0a 100%);
+    border-radius: 24px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 12px;
+  }
+
+  .banner::before {
+    content: '';
+    position: absolute;
+    top: -20%;
+    left: -10%;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .banner::after {
+    content: '';
+    position: absolute;
+    bottom: -20%;
+    right: -10%;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(167, 139, 250, 0.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* Rocket top-left */
+  .rocket-tl {
+    position: absolute;
+    top: 40px;
+    left: 40px;
+    font-size: 80px;
+    transform: rotate(-30deg);
+    filter: drop-shadow(0 0 30px rgba(139, 92, 246, 0.5));
+    z-index: 2;
+  }
+
+  /* Rocket bottom-right */
+  .rocket-br {
+    position: absolute;
+    bottom: 40px;
+    right: 40px;
+    font-size: 100px;
+    transform: rotate(15deg);
+    filter: drop-shadow(0 0 30px rgba(167, 139, 250, 0.5));
+    z-index: 2;
+  }
+
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+    z-index: 3;
+  }
+
+  .logo {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    object-fit: cover;
+  }
+
+  .brand {
+    color: #fff;
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: -0.3px;
+  }
+
+  .phase {
+    font-size: 64px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    background: linear-gradient(135deg, #c4b5fd 0%, #a78bfa 40%, #8b5cf6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    z-index: 3;
+    line-height: 1.1;
+  }
+
+  .main-text {
+    font-size: 120px;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: -3px;
+    line-height: 1;
+    z-index: 3;
+    text-shadow: 0 0 60px rgba(139, 92, 246, 0.3);
+  }
+
+  .subtitle {
+    color: #a78bfa;
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    margin-top: 16px;
+    z-index: 3;
+  }
+</style>
+</head>
+<body>
+  <div class="banner">
+    <div class="rocket-tl">🚀</div>
+    <div class="rocket-br">🚀</div>
+
+    <div class="logo-row">
+      <img class="logo" src="../assets/icon.png" alt="Seedless" />
+      <div class="brand">Seedless Wallet</div>
+    </div>
+
+    <div class="phase">Phase 4</div>
+    <div class="main-text">ACTIVATED</div>
+    <div class="subtitle">New SDK. New look. New era.</div>
+  </div>
+</body>
+</html>
