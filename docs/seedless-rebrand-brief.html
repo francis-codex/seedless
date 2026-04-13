@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Seedless — Rebrand Brief</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  @media print {
+    body { padding: 0; background: #fff; }
+    .page { box-shadow: none; break-inside: avoid; }
+    .section { break-inside: avoid; }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #f5f5f5;
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: #1a1a1a;
+    line-height: 1.6;
+    padding: 40px;
+  }
+
+  .page {
+    max-width: 800px;
+    margin: 0 auto;
+    background: #fff;
+    padding: 64px 56px;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 48px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid #e5e5e5;
+  }
+
+  .header-left h1 {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+
+  .header-left .sub {
+    color: #888;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .header-right {
+    text-align: right;
+    color: #888;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.8;
+  }
+
+  .header-right strong {
+    color: #1a1a1a;
+  }
+
+  .section {
+    margin-bottom: 36px;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #888;
+    margin-bottom: 14px;
+  }
+
+  .section p {
+    font-size: 15px;
+    color: #333;
+    line-height: 1.7;
+  }
+
+  .ref-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .ref-card {
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 10px;
+    padding: 20px;
+  }
+
+  .ref-card.primary {
+    border: 2px solid #018DFF;
+    background: #f0f8ff;
+  }
+
+  .ref-card h3 {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .ref-card .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #018DFF;
+    background: rgba(1, 141, 255, 0.1);
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+  }
+
+  .ref-card p {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.6;
+  }
+
+  .ref-card .url {
+    font-size: 12px;
+    color: #aaa;
+    margin-top: 8px;
+  }
+
+  .ref-card .url a {
+    color: #888;
+    text-decoration: none;
+  }
+
+  .color-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .color-swatch {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    border: 1px solid #e5e5e5;
+  }
+
+  .color-label {
+    font-size: 11px;
+    color: #999;
+    text-align: center;
+    margin-top: 4px;
+  }
+
+  .list {
+    list-style: none;
+  }
+
+  .list li {
+    font-size: 15px;
+    color: #333;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .list li:last-child { border-bottom: none; }
+
+  .list .num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #f0f0f0;
+    color: #666;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .keep-kill {
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 10px;
+    padding: 24px;
+  }
+
+  .keep-kill h3 {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 12px;
+  }
+
+  .keep-kill.keep h3 { color: #22c55e; }
+  .keep-kill.kill h3 { color: #ef4444; }
+
+  .keep-kill ul {
+    list-style: none;
+  }
+
+  .keep-kill ul li {
+    font-size: 14px;
+    color: #555;
+    padding: 6px 0;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+
+  .keep-kill ul li .icon {
+    flex-shrink: 0;
+    font-size: 14px;
+  }
+
+  .specs-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .spec-card {
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 10px;
+    padding: 20px;
+  }
+
+  .spec-card h3 {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #888;
+    margin-bottom: 10px;
+  }
+
+  .spec-card p {
+    font-size: 14px;
+    color: #444;
+    line-height: 1.6;
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid #e5e5e5;
+    margin: 40px 0;
+  }
+
+  .cat-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #555;
+    margin-bottom: 14px;
+    margin-top: 8px;
+  }
+
+  .ref-list {
+    list-style: none;
+    margin-bottom: 24px;
+  }
+
+  .ref-list li {
+    font-size: 14px;
+    color: #444;
+    padding: 7px 0;
+    border-bottom: 1px solid #f5f5f5;
+    display: flex;
+    gap: 8px;
+  }
+
+  .ref-list li:last-child { border-bottom: none; }
+
+  .ref-list .name {
+    font-weight: 600;
+    color: #1a1a1a;
+    min-width: 140px;
+    flex-shrink: 0;
+  }
+
+  .ref-list .desc {
+    color: #666;
+    font-size: 13px;
+  }
+
+  .ref-list .link {
+    color: #aaa;
+    font-size: 12px;
+    margin-left: auto;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .ref-list .link a {
+    color: #888;
+    text-decoration: none;
+  }
+
+  .font-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+
+  .font-card {
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+  }
+
+  .font-card .font-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 4px;
+  }
+
+  .font-card .font-desc {
+    font-size: 11px;
+    color: #888;
+  }
+
+  .font-card .font-url {
+    font-size: 10px;
+    color: #bbb;
+    margin-top: 6px;
+  }
+
+  .palette-section {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+  }
+
+  .palette-group {
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 10px;
+    padding: 16px;
+    flex: 1;
+  }
+
+  .palette-group h4 {
+    font-size: 12px;
+    font-weight: 700;
+    color: #888;
+    margin-bottom: 10px;
+  }
+
+  .palette-colors {
+    display: flex;
+    gap: 8px;
+  }
+
+  .palette-colors div {
+    text-align: center;
+  }
+
+  .footer {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid #e5e5e5;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer .vibe {
+    background: linear-gradient(135deg, #FBFAF9, #F2EBE0);
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    padding: 20px 28px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+    font-style: italic;
+    flex: 1;
+  }
+
+  .deadline {
+    text-align: right;
+    padding-left: 32px;
+  }
+
+  .deadline .date {
+    font-size: 24px;
+    font-weight: 800;
+    color: #1a1a1a;
+  }
+
+  .deadline .label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #888;
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <div class="header-left">
+        <h1>Seedless Rebrand Brief</h1>
+        <div class="sub">Brand Identity Refresh — Phase 4</div>
+      </div>
+      <div class="header-right">
+        <strong>From:</strong> Francis (Seedless Labs)<br/>
+        <strong>To:</strong> Wells (Designer)<br/>
+        <strong>Date:</strong> April 14, 2026
+      </div>
+    </div>
+
+    <!-- Direction -->
+    <div class="section">
+      <div class="section-title">Direction</div>
+      <p>
+        Shifting Seedless from "developer / crypto tool" to "consumer app anyone could use."
+        Think warm, friendly, approachable — like a fintech app that happens to be crypto.
+        Someone who has never touched crypto should see the brand and think
+        <em>"this looks friendly, I'd try this"</em> — not <em>"this is for coders."</em>
+      </p>
+    </div>
+
+    <!-- Core Message -->
+    <div class="section">
+      <div class="section-title">Core Message</div>
+      <p>No seed phrase. Just your face / fingers.</p>
+    </div>
+
+    <!-- Primary References -->
+    <div class="section">
+      <div class="section-title">Primary References</div>
+      <div class="ref-grid">
+        <div class="ref-card primary">
+          <div class="badge">Main Reference</div>
+          <h3>Family Wallet</h3>
+          <p>Warm beige/stone backgrounds, soft rounded corners (40px), playful accents. Earthy, premium, Apple-influenced. The gold standard for consumer crypto.</p>
+          <div class="color-row">
+            <div>
+              <div class="color-swatch" style="background: #FBFAF9;"></div>
+              <div class="color-label">#FBFAF9</div>
+            </div>
+            <div>
+              <div class="color-swatch" style="background: #F2EBE0;"></div>
+              <div class="color-label">#F2EBE0</div>
+            </div>
+            <div>
+              <div class="color-swatch" style="background: #343433;"></div>
+              <div class="color-label">#343433</div>
+            </div>
+            <div>
+              <div class="color-swatch" style="background: #018DFF;"></div>
+              <div class="color-label">#018DFF</div>
+            </div>
+          </div>
+          <div class="url">family.co</div>
+        </div>
+        <div class="ref-card">
+          <h3>Cash App</h3>
+          <p>Culture-coded, bold, simple. Lifestyle branding. Single-action screens. Crypto as feature, not identity.</p>
+          <div class="url">cash.app</div>
+        </div>
+        <div class="ref-card">
+          <h3>Revolut</h3>
+          <p>Premium fintech feel. 3D card renders, product mockups. Zero crypto jargon. The benchmark for crypto inside a normie app.</p>
+          <div class="url">revolut.com</div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <!-- INSPIRATION LIBRARY -->
+    <div class="section">
+      <div class="section-title">Inspiration Library</div>
+
+      <!-- Crypto / Fintech -->
+      <div class="cat-title">Crypto & Fintech Apps</div>
+      <ul class="ref-list">
+        <li>
+          <span class="name">Phantom</span>
+          <span class="desc">Clean onboarding, soft gradients, friendly illustrations — consumer crypto done right</span>
+          <span class="link">phantom.app</span>
+        </li>
+        <li>
+          <span class="name">Rainbow</span>
+          <span class="desc">Playful color use, card-based layouts, the "fun" end of consumer wallets</span>
+          <span class="link">rainbow.me</span>
+        </li>
+        <li>
+          <span class="name">Zerion</span>
+          <span class="desc">Portfolio-first design, clean data visualization, light mode done right</span>
+          <span class="link">zerion.io</span>
+        </li>
+        <li>
+          <span class="name">Wise</span>
+          <span class="desc">Trust through transparency, warm global brand identity, clean pricing UI</span>
+          <span class="link">wise.com</span>
+        </li>
+        <li>
+          <span class="name">N26</span>
+          <span class="desc">European minimal banking, teal accent on white, elegant card designs</span>
+          <span class="link">n26.com</span>
+        </li>
+        <li>
+          <span class="name">Monzo</span>
+          <span class="desc">Hot coral on warm white, friendly micro-interactions, clear spending UI</span>
+          <span class="link">monzo.com</span>
+        </li>
+        <li>
+          <span class="name">Nubank</span>
+          <span class="desc">Made purple feel friendly not hacker — proof that purple CAN work if warmed up</span>
+          <span class="link">nubank.com.br</span>
+        </li>
+        <li>
+          <span class="name">Venmo</span>
+          <span class="desc">Social layer on payments, friendly empty states, approachable green palette</span>
+          <span class="link">venmo.com</span>
+        </li>
+      </ul>
+
+      <!-- Non-Crypto Apps -->
+      <div class="cat-title">Non-Crypto Apps (Vibe & Polish)</div>
+      <ul class="ref-list">
+        <li>
+          <span class="name">Notion</span>
+          <span class="desc">Warm off-white backgrounds, hand-drawn illustrations, approachable and human</span>
+          <span class="link">notion.so</span>
+        </li>
+        <li>
+          <span class="name">Linear</span>
+          <span class="desc">Ultra-clean product UI, subtle gradients, premium without being cold</span>
+          <span class="link">linear.app</span>
+        </li>
+        <li>
+          <span class="name">Arc Browser</span>
+          <span class="desc">Bold color personalization, playful but polished energy, sidebar navigation</span>
+          <span class="link">arc.net</span>
+        </li>
+        <li>
+          <span class="name">Things 3</span>
+          <span class="desc">Best-in-class whitespace, warm grays, tactile UI that feels like paper</span>
+          <span class="link">culturedcode.com/things</span>
+        </li>
+        <li>
+          <span class="name">Craft</span>
+          <span class="desc">Subtle shadows, cream/warm white background, document-first premium feel</span>
+          <span class="link">craft.do</span>
+        </li>
+        <li>
+          <span class="name">Loom</span>
+          <span class="desc">Friendly purple (warmer than typical tech), rounded shapes, human-first copy</span>
+          <span class="link">loom.com</span>
+        </li>
+        <li>
+          <span class="name">Superhuman</span>
+          <span class="desc">Speed-as-brand, minimal UI density, power features that feel effortless</span>
+          <span class="link">superhuman.com</span>
+        </li>
+      </ul>
+
+      <!-- Logo References -->
+      <div class="cat-title">Logo & Wordmark References</div>
+      <ul class="ref-list">
+        <li>
+          <span class="name">Stripe</span>
+          <span class="desc">Lowercase wordmark with gradient accent, weight and spacing of letterforms</span>
+          <span class="link">stripe.com</span>
+        </li>
+        <li>
+          <span class="name">Linear</span>
+          <span class="desc">Geometric icon + lowercase type, how to pair a symbol with a wordmark</span>
+          <span class="link">linear.app</span>
+        </li>
+        <li>
+          <span class="name">Notion</span>
+          <span class="desc">Simple icon that works at any size, friendly but not childish</span>
+          <span class="link">notion.so</span>
+        </li>
+        <li>
+          <span class="name">Framer</span>
+          <span class="desc">Single-stroke logomark, bold and recognizable at favicon scale</span>
+          <span class="link">framer.com</span>
+        </li>
+        <li>
+          <span class="name">Craft</span>
+          <span class="desc">Rounded square icon, warm and tactile, works across light/dark</span>
+          <span class="link">craft.do</span>
+        </li>
+        <li>
+          <span class="name">Arc</span>
+          <span class="desc">Playful icon with personality, lowercase type, color as identity</span>
+          <span class="link">arc.net</span>
+        </li>
+      </ul>
+    </div>
+
+    <hr class="divider" />
+
+    <!-- Typography -->
+    <div class="section">
+      <div class="section-title">Typography Suggestions</div>
+      <p style="margin-bottom: 14px;">Clean, rounded, modern fonts. Pick what fits the direction — these are starting points.</p>
+      <div class="font-grid">
+        <div class="font-card">
+          <div class="font-name">Plus Jakarta Sans</div>
+          <div class="font-desc">Geometric, slightly rounded, warm. Top pick for friendly wallet.</div>
+          <div class="font-url">fonts.google.com</div>
+        </div>
+        <div class="font-card">
+          <div class="font-name">Satoshi</div>
+          <div class="font-desc">Clean geometric sans, free. Great for headings + UI labels.</div>
+          <div class="font-url">fontshare.com</div>
+        </div>
+        <div class="font-card">
+          <div class="font-name">General Sans</div>
+          <div class="font-desc">Versatile workhorse, slightly wider. Works at all sizes.</div>
+          <div class="font-url">fontshare.com</div>
+        </div>
+        <div class="font-card">
+          <div class="font-name">Cabinet Grotesk</div>
+          <div class="font-desc">Bold personality for headlines. Pairs well with simpler body font.</div>
+          <div class="font-url">fontshare.com</div>
+        </div>
+        <div class="font-card">
+          <div class="font-name">SF Pro Rounded</div>
+          <div class="font-desc">iOS-native rounded option. Apple-first feel.</div>
+          <div class="font-url">Apple system font</div>
+        </div>
+        <div class="font-card">
+          <div class="font-name">Inter</div>
+          <div class="font-desc">Safe fallback, extremely legible. Used everywhere for a reason.</div>
+          <div class="font-url">rsms.me/inter</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Color Palette Direction -->
+    <div class="section">
+      <div class="section-title">Color Palette Direction</div>
+      <p style="margin-bottom: 14px;">Warm, earthy, premium. Not dark/neon/hacker. Here are two starting palettes — feel free to remix.</p>
+      <div class="palette-section">
+        <div class="palette-group">
+          <h4>Palette A — Warm Cream</h4>
+          <div class="palette-colors">
+            <div>
+              <div class="color-swatch" style="background: #FAF8F5;"></div>
+              <div class="color-label">#FAF8F5</div>
+            </div>
+            <div>
+              <div class="color-swatch" style="background: #F2EBE0;"></div>
+              <div class="color-label">#F2EBE0</div>
+            </div>
+            <div>
+              <div class="color-swatch" style="background: #7C9885;"></div>
+              <div class="color-label">#7C9885</div>
+            </div>
+            <div>
+              <div class="color-swatch" style="background: #4A6670;"></div>
+              <div class="color-label">#4A6670</div>
+            </div>
+            <div>
+              <div class="color-swatch" style="background: #2D3436;"></div>
+              <div class="color-label">#2D3436</div>
+            </div>
+          </div>
+        </div>
+        <div class="palette-group">
+          <h4>Palette B — Premium Earth</h4>
+          <div class="palette-colors">
+            <div>
+              <div class="color-swatch" style="background: #FAF6F0;"></div>
+              <div class="color-label">#FAF6F0</div>
+            </div>
+            <div>
+              <div class="color-swatch" style="background: #D4C5A9;"></div>
+              <div class="color-label">#D4C5A9</div>
+            </div>
+            <div>
+              <div class="color-swatch" style="background: #8B7355;"></div>
+              <div class="color-label">#8B7355</div>
+            </div>
+            <div>
+              <div class="color-swatch" style="background: #5C4033;"></div>
+              <div class="color-label">#5C4033</div>
+            </div>
+            <div>
+              <div class="color-swatch" style="background: #2C2C2C;"></div>
+              <div class="color-label">#2C2C2C</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="margin-top: 12px; font-size: 13px; color: #888;">Tools: <a href="https://realtimecolors.com" style="color: #888;">realtimecolors.com</a> — paste palette and preview live on a landing page</p>
+    </div>
+
+    <hr class="divider" />
+
+    <!-- Design Resources -->
+    <div class="section">
+      <div class="section-title">Design Resources & Pattern Libraries</div>
+      <ul class="ref-list">
+        <li>
+          <span class="name">Mobbin</span>
+          <span class="desc">Real-world mobile finance UI patterns — filter by "finance" or "crypto"</span>
+          <span class="link">mobbin.com</span>
+        </li>
+        <li>
+          <span class="name">Refero</span>
+          <span class="desc">Screenshot library of live apps — search "wallet" or "fintech" for flows</span>
+          <span class="link">refero.design</span>
+        </li>
+        <li>
+          <span class="name">Dribbble — Fintech</span>
+          <span class="desc">Concept explorations, mood boards, color ideas for fintech apps</span>
+          <span class="link">dribbble.com/search/fintech-app-design</span>
+        </li>
+        <li>
+          <span class="name">Dribbble — Wallet UI</span>
+          <span class="desc">Wallet-specific concepts, swipe and send screen patterns</span>
+          <span class="link">dribbble.com/search/crypto-wallet-ui</span>
+        </li>
+        <li>
+          <span class="name">Behance — Wallet</span>
+          <span class="desc">Full case studies with rationale — great for seeing complete rebrand processes</span>
+          <span class="link">behance.net/search/crypto+wallet+redesign</span>
+        </li>
+        <li>
+          <span class="name">Screenlane</span>
+          <span class="desc">Searchable UI recordings of real apps — animation and transition reference</span>
+          <span class="link">screenlane.com</span>
+        </li>
+      </ul>
+    </div>
+
+    <hr class="divider" />
+
+    <!-- Deliverables -->
+    <div class="section">
+      <div class="section-title">Deliverables</div>
+      <ul class="list">
+        <li><span class="num">1</span>New logo / icon — friendly, rounded, approachable</li>
+        <li><span class="num">2</span>Color palette — warmer tones, softer feel (beige, soft blues, warm whites)</li>
+        <li><span class="num">3</span>Typography — clean, rounded, lowercase-friendly</li>
+        <li><span class="num">4</span>Twitter banner (1500x500) — for @seedless_wallet and @francis_codex</li>
+        <li><span class="num">5</span>App icon refresh</li>
+        <li><span class="num">6</span>2-3 social post templates for announcements</li>
+      </ul>
+    </div>
+
+    <!-- Screens -->
+    <div class="section">
+      <div class="section-title">Screens to Redesign</div>
+      <ul class="list">
+        <li><span class="num">1</span>Splash / onboarding screen</li>
+        <li><span class="num">2</span>Home / dashboard</li>
+        <li><span class="num">3</span>Send screen</li>
+        <li><span class="num">4</span>Swap screen</li>
+        <li><span class="num">5</span>Overall app shell (nav, headers, cards)</li>
+      </ul>
+    </div>
+
+    <!-- Specs -->
+    <div class="section">
+      <div class="section-title">Specifications</div>
+      <div class="specs-grid">
+        <div class="spec-card">
+          <h3>Logo Direction</h3>
+          <p>Open to wordmark, icon, or combo — leaning toward clean lowercase wordmark + small icon mark that works solo as app icon and twitter pfp.</p>
+        </div>
+        <div class="spec-card">
+          <h3>Mode</h3>
+          <p>Light mode first (matches warm/friendly direction). Dark mode as secondary — both should feel intentional, not just inverted colors.</p>
+        </div>
+        <div class="spec-card">
+          <h3>Illustrations</h3>
+          <p>Flat or soft 3D — subtle, premium, minimal. Should support UI, not dominate it. No heavy crypto iconography (no chains, locks, blockchain cubes).</p>
+        </div>
+        <div class="spec-card">
+          <h3>Revisions</h3>
+          <p>2 rounds included. Round 1: explore 2-3 directions. Round 2: refine the chosen direction.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Keep / Kill -->
+    <div class="section">
+      <div class="two-col">
+        <div class="keep-kill keep">
+          <h3>Keep</h3>
+          <ul>
+            <li><span class="icon">✓</span> The name "Seedless"</li>
+            <li><span class="icon">✓</span> Core message: no seed phrase, just your face/fingers</li>
+            <li><span class="icon">✓</span> Friendly, human, approachable tone</li>
+          </ul>
+        </div>
+        <div class="keep-kill kill">
+          <h3>Kill</h3>
+          <ul>
+            <li><span class="icon">✕</span> Heavy dark/purple "crypto hacker" aesthetic</li>
+            <li><span class="icon">✕</span> Anything that looks like a developer tool</li>
+            <li><span class="icon">✕</span> "Infrastructure" language in any visual</li>
+            <li><span class="icon">✕</span> Cold, technical, unapproachable energy</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <div class="vibe">"Someone who has never touched crypto should see this brand and want to try it."</div>
+      <div class="deadline">
+        <div class="label">Deadline</div>
+        <div class="date">Apr 17</div>
+        <div class="label">11:59 PM</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
