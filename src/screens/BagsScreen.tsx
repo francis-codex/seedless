@@ -11,13 +11,12 @@ import {
 } from 'react-native';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import * as Linking from 'expo-linking';
-import { SEED_MINT, SEED_DECIMALS, EXPLORER_URL, CLUSTER_SIMULATION } from '../constants';
+import { SEED_MINT, SEED_DECIMALS, CLUSTER_SIMULATION } from '../constants';
 import {
   getClaimablePositions,
   getClaimTransactions,
   getTokenLifetimeFees,
   getTokenClaimEvents,
-  sendBagsTransaction,
   ClaimablePosition,
   ClaimEvent,
 } from '../utils/bags';
@@ -49,12 +48,6 @@ export function BagsScreen({ onBack }: BagsScreenProps) {
   const [isDrawing, setIsDrawing] = useState(false);
 
   const walletAddress = smartWalletPubkey?.toString() || '';
-
-  const formatTokenAmount = (lamports: string, decimals: number = SEED_DECIMALS): string => {
-    const num = parseInt(lamports, 10);
-    if (isNaN(num)) return '0';
-    return (num / Math.pow(10, decimals)).toFixed(2);
-  };
 
   const formatSolAmount = (lamports: string): string => {
     const num = parseInt(lamports, 10);
