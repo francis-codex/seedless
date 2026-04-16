@@ -115,12 +115,13 @@ export function formatDrawResult(draw: RewardDraw): string {
   return `${shortAddr} won ${draw.rewardAmount.toFixed(4)} SOL (holding ${draw.winner.amount.toFixed(0)} SEED)`;
 }
 
-// Create a SOL transfer instruction for the reward airdrop
+export type RewardTransferInstruction = ReturnType<typeof SystemProgram.transfer>;
+
 export function createRewardTransferInstruction(
   fromWallet: PublicKey,
   winnerAddress: string,
   rewardAmountSol: number
-) {
+): RewardTransferInstruction | null {
   const lamports = Math.round(rewardAmountSol * LAMPORTS_PER_SOL);
   if (lamports <= 0) return null;
 
@@ -131,7 +132,6 @@ export function createRewardTransferInstruction(
   });
 }
 
-// Execute a full reward draw and return the transfer instruction
 export async function executeRewardDrawWithTransfer(
   fromWallet: PublicKey,
   totalFeesLamports: string,
@@ -139,7 +139,7 @@ export async function executeRewardDrawWithTransfer(
   minHolderBalance: number = 100
 ): Promise<{
   draw: RewardDraw;
-  instruction: ReturnType<typeof SystemProgram.transfer>;
+  instruction: RewardTransferInstruction;
 } | null> {
   const draw = await executeRewardDraw(totalFeesLamports, rewardPercentage, minHolderBalance);
   if (!draw || draw.rewardAmount <= 0) return null;
