@@ -29,13 +29,6 @@ interface WalletScreenProps {
   onLaunch?: () => void;
 }
 
-
-// WalletScreen - Main wallet interface after connection
-
-// Default: Gasless transactions (paymaster sponsors fees)
-// Optional: Pay fees in SOL (traditional)
-
-// Create connection once - disable automatic retry on rate limit to prevent spam
 const connection = new Connection(SOLANA_RPC_URL, {
   commitment: 'confirmed',
   disableRetryOnRateLimit: true,

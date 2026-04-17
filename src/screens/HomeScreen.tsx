@@ -16,12 +16,6 @@ interface HomeScreenProps {
   onConnected: () => void;
 }
 
-
-// HomeScreen - Entry point for authentication
-
-// Triggers passkey flow via biometric authentication
-// (FaceID/TouchID) to create or access a smart wallet.
-
 export function HomeScreen({ onConnected }: HomeScreenProps) {
   const { connect, isConnecting } = useWallet();
 
