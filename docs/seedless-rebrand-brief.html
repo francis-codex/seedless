@@ -377,6 +377,42 @@
     text-align: center;
   }
 
+  .screenshot-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .screenshot-card {
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+  }
+
+  .screenshot-card img {
+    width: 100%;
+    max-width: 280px;
+    border-radius: 8px;
+    border: 1px solid #e5e5e5;
+    margin-bottom: 12px;
+  }
+
+  .screenshot-card h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 6px;
+  }
+
+  .screenshot-card p {
+    font-size: 12px;
+    color: #666;
+    line-height: 1.5;
+    text-align: left;
+  }
+
   .footer {
     margin-top: 48px;
     padding-top: 24px;
@@ -824,6 +860,76 @@
             <li><span class="icon">✕</span> "Infrastructure" language in any visual</li>
             <li><span class="icon">✕</span> Cold, technical, unapproachable energy</li>
           </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Current App Screenshots -->
+    <hr class="divider" />
+    <div class="section">
+      <div class="section-title">Current App — What You're Redesigning</div>
+      <p style="margin-bottom: 20px;">These are live screenshots from the current Seedless wallet (v0.3.1-beta on iOS simulator). This is the starting point — everything below needs the warm, friendly, family.co treatment.</p>
+
+      <div class="screenshot-grid">
+        <div class="screenshot-card">
+          <img src="wells-screenshots/01-splash.png" alt="Splash" />
+          <h3>Splash / Onboarding</h3>
+          <p>First thing users see. "No seed phrase. No extension. No gas fees." with Create/Connect button. Currently plain white + black text, no warmth.</p>
+        </div>
+        <div class="screenshot-card">
+          <img src="wells-screenshots/02-loading.png" alt="Loading" />
+          <h3>Loading State</h3>
+          <p>Centered "Seedless" wordmark with spinner. Needs branded loading — this is a missed branding moment right now.</p>
+        </div>
+        <div class="screenshot-card">
+          <img src="wells-screenshots/03-home.png" alt="Home" />
+          <h3>Home / Dashboard</h3>
+          <p>Main wallet view. DEVNET BETA banner, truncated address, dark balance card (SOL/USDC/SEED), Airdrop button, Gasless mode indicator, Privacy Features cards (Stealth + Burners), inline Send form below.</p>
+        </div>
+        <div class="screenshot-card">
+          <img src="wells-screenshots/04-home-balance.png" alt="Home Balance" />
+          <h3>Home — Balance Revealed</h3>
+          <p>Same dashboard after tapping "Show" — balances visible (0.0009 SOL, 0.00 USDC, 0.00 SEED). Balance card is dark with white text.</p>
+        </div>
+        <div class="screenshot-card">
+          <img src="wells-screenshots/05-home-funded.png" alt="Home Funded" />
+          <h3>Home — Funded Wallet</h3>
+          <p>Dashboard with real balance (20 SOL). Shows how balance card looks with actual funds. This is the "ideal state" users will see most.</p>
+        </div>
+        <div class="screenshot-card">
+          <img src="wells-screenshots/06-send.png" alt="Send" />
+          <h3>Send Flow</h3>
+          <p>Inline send form: recipient address, amount input with Max button, preset amounts (0.5/1/5/10 SOL), Send button. "How it works" section explains gasless. Currently part of home scroll — could be its own screen.</p>
+        </div>
+        <div class="screenshot-card">
+          <img src="wells-screenshots/07-swap.png" alt="Swap" />
+          <h3>Swap</h3>
+          <p>SOL → USDC swap via Jupiter aggregation. "You pay / You receive" card with token selectors, Get Quote button. Gasless via Kora paymaster. Currently mainnet only — screenshot from README.</p>
+        </div>
+        <div class="screenshot-card">
+          <img src="wells-screenshots/08-stealth.png" alt="Stealth" />
+          <h3>Stealth Addresses</h3>
+          <p>Privacy receiving feature. One-time addresses that can't be linked to main wallet on-chain. Balance card, "New Stealth Address" action, address list. Green accent on Sweep button.</p>
+        </div>
+        <div class="screenshot-card">
+          <img src="wells-screenshots/09-stealth-request.png" alt="Stealth Request" />
+          <h3>Stealth — Payment Request</h3>
+          <p>Bottom sheet for requesting payments to a stealth address. SOL/USDC toggle, amount, label, Generate QR Code button.</p>
+        </div>
+        <div class="screenshot-card">
+          <img src="wells-screenshots/10-stealth-qr.png" alt="Stealth QR" />
+          <h3>Stealth — QR Code</h3>
+          <p>Generated Solana Pay QR code for stealth payment request. "Scan with Solana Pay wallet" + Copy URL link.</p>
+        </div>
+        <div class="screenshot-card">
+          <img src="wells-screenshots/11-burners.png" alt="Burners" />
+          <h3>Burner Wallets</h3>
+          <p>Isolated disposable wallets with no on-chain link to main wallet. "New Burner Wallet" action card, burner list, limits info. Red accent on warnings.</p>
+        </div>
+        <div class="screenshot-card">
+          <img src="wells-screenshots/12-burner-send.png" alt="Burner Send" />
+          <h3>Burner — Send from Burner</h3>
+          <p>Active burner wallet "Done" with 5 SOL balance, Send/Receive/Destroy actions. Bottom sheet shows send form with address + amount. Green balance text, red Destroy button.</p>
         </div>
       </div>
     </div>
