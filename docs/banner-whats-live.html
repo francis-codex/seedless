@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Seedless — What's Live</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0a;
+    font-family: 'Inter', -apple-system, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 40px;
+  }
+  .banner {
+    width: 1200px;
+    height: 675px;
+    background: linear-gradient(160deg, #0a0a0a 0%, #0a0f1a 40%, #0a0a0a 100%);
+    border-radius: 24px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    padding: 72px 80px;
+    gap: 60px;
+  }
+  .banner::before {
+    content: '';
+    position: absolute;
+    top: -20%;
+    right: -10%;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .left {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    z-index: 2;
+  }
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  .logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    object-fit: cover;
+  }
+  .brand {
+    color: #fff;
+    font-weight: 700;
+    font-size: 17px;
+  }
+  h1 {
+    font-size: 52px;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: -2px;
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+  h1 .blue {
+    color: #3b82f6;
+  }
+  .sub {
+    color: #888;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.6;
+  }
+  .right {
+    width: 420px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 14px;
+    z-index: 2;
+  }
+  .feature {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 16px 22px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .feature .icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .feature .icon.green { background: rgba(34, 197, 94, 0.15); }
+  .feature .icon.blue { background: rgba(59, 130, 246, 0.15); }
+  .feature .icon.purple { background: rgba(139, 92, 246, 0.15); }
+  .feature .icon.orange { background: rgba(249, 115, 22, 0.15); }
+  .feature .icon.pink { background: rgba(236, 72, 153, 0.15); }
+  .feature .icon.teal { background: rgba(20, 184, 166, 0.15); }
+  .feature .text {
+    color: #d4d4d4;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .feature .text .dim {
+    color: #666;
+    font-weight: 400;
+    font-size: 13px;
+    display: block;
+    margin-top: 2px;
+  }
+  .footer {
+    position: absolute;
+    bottom: 40px;
+    left: 80px;
+    right: 80px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 2;
+  }
+  .seed-tag {
+    color: #22c55e;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .handle {
+    color: #555;
+    font-size: 13px;
+    font-weight: 500;
+  }
+</style>
+</head>
+<body>
+  <div class="banner">
+    <div class="left">
+      <div class="logo-row">
+        <img class="logo" src="../assets/icon.png" alt="Seedless" />
+        <div class="brand">Seedless</div>
+      </div>
+      <h1>What's live<br/><span class="blue">right now.</span></h1>
+      <div class="sub">All passkey-native. All on Solana.<br/>More shipping this week.</div>
+    </div>
+    <div class="right">
+      <div class="feature">
+        <div class="icon green">👆</div>
+        <div class="text">Face ID Wallet<span class="dim">Create in 2 seconds</span></div>
+      </div>
+      <div class="feature">
+        <div class="icon blue">💸</div>
+        <div class="text">Gasless Transfers<span class="dim">SOL + USDC, zero fees</span></div>
+      </div>
+      <div class="feature">
+        <div class="icon purple">🔄</div>
+        <div class="text">Token Swaps<span class="dim">Powered by Jupiter</span></div>
+      </div>
+      <div class="feature">
+        <div class="icon orange">🔥</div>
+        <div class="text">Burner Wallets<span class="dim">Spin up, send, burn</span></div>
+      </div>
+      <div class="feature">
+        <div class="icon pink">👻</div>
+        <div class="text">Stealth Addresses<span class="dim">Private by default</span></div>
+      </div>
+      <div class="feature">
+        <div class="icon teal">🌱</div>
+        <div class="text">$SEED Token<span class="dim">Live on Bags</span></div>
+      </div>
+    </div>
+    <div class="footer">
+      <div class="handle">@seedless_wallet</div>
+    </div>
+  </div>
+</body>
+</html>
