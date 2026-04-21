@@ -19,6 +19,14 @@ import { Connection, PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/
 import { getAccount, getAssociatedTokenAddress } from '@solana/spl-token';
 import * as Linking from 'expo-linking';
 import { SOLANA_RPC_URL, USDC_MINT, SEED_MINT, SEED_DECIMALS, CLUSTER_SIMULATION, IS_DEVNET, MIN_SOL_FOR_TX, QUICK_AMOUNTS, getTxExplorerUrl, isValidSolanaAddress } from '../constants';
+import {
+  ActiveSession,
+  clearSession as clearStoredSession,
+  computeExpiresAtSlot,
+  generateSessionKeypair,
+  getActiveSession,
+  storeSession,
+} from '../utils/session';
 
 interface WalletScreenProps {
   onDisconnect: () => void;
@@ -27,6 +35,7 @@ interface WalletScreenProps {
   onBurner?: () => void;
   onBags?: () => void;
   onLaunch?: () => void;
+  onAuthorities?: () => void;
 }
 
 const connection = new Connection(SOLANA_RPC_URL, {
@@ -40,11 +49,25 @@ const fallbackConnection = new Connection(
   { commitment: 'confirmed' },
 );
 
-export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags, onLaunch }: WalletScreenProps) {
-  const { smartWalletPubkey, disconnect, signAndSendTransaction, isSigning } = useWallet();
+export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags, onLaunch, onAuthorities }: WalletScreenProps) {
+  const {
+    smartWalletPubkey,
+    disconnect,
+    isSigning,
+    createSession,
+    signAndSendWithSession,
+    revokeSession,
+    transferSol,
+  } = useWallet();
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
+  const [isSessionBusy, setIsSessionBusy] = useState(false);
+
+  const walletIdRef = useRef<string | null>(null);
+  const walletId = smartWalletPubkey?.toBase58();
+  walletIdRef.current = walletId ?? null;
 
   // Balance state — default to 0 so UI never shows "—"
   const [solBalance, setSolBalance] = useState<number>(0);
@@ -86,28 +109,6 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
     } else {
       // Hiding balances - no auth needed
       setIsPrivateMode(true);
-    }
-  };
-
-  // Devnet SOL airdrop — uses public Solana faucet (per-wallet limit, not per-project)
-  const [isAirdropping, setIsAirdropping] = useState(false);
-  const handleAirdrop = async () => {
-    if (!smartWalletPubkey || !IS_DEVNET) return;
-    setIsAirdropping(true);
-    try {
-      const devnetConnection = new Connection('https://api.devnet.solana.com', 'confirmed');
-      const sig = await devnetConnection.requestAirdrop(smartWalletPubkey, 1 * LAMPORTS_PER_SOL);
-      await devnetConnection.confirmTransaction(sig, 'confirmed');
-      Alert.alert('Airdrop Success', '1 SOL added to your wallet');
-      setTimeout(() => handleRefresh(), 2000);
-    } catch (error: any) {
-      console.error('Airdrop failed:', error);
-      Alert.alert(
-        'Airdrop Failed',
-        'The devnet faucet is busy. Copy your wallet address and get SOL manually at faucet.solana.com, or share your address in the Seedless TG group and we\'ll send you some.',
-      );
-    } finally {
-      setIsAirdropping(false);
     }
   };
 
@@ -183,6 +184,69 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
     }
   }, [smartWalletPubkey]);
 
+  // Load an existing session (if any) when the wallet changes
+  useEffect(() => {
+    let cancelled = false;
+    if (!walletId) {
+      setActiveSession(null);
+      return;
+    }
+    getActiveSession(walletId).then((session) => {
+      if (!cancelled) setActiveSession(session);
+    }).catch(() => {
+      if (!cancelled) setActiveSession(null);
+    });
+    return () => { cancelled = true; };
+  }, [walletId]);
+
+  const handleStartSession = useCallback(async () => {
+    if (!walletId) return;
+    setIsSessionBusy(true);
+    try {
+      const sessionKeypair = generateSessionKeypair();
+      const expiresAtSlot = await computeExpiresAtSlot();
+      const redirectUrl = Linking.createURL('sign-callback');
+
+      const result = await createSession(
+        { sessionKey: sessionKeypair.publicKey, expiresAtSlot },
+        { redirectUrl },
+      );
+
+      await storeSession(walletId, sessionKeypair, result.sessionPda, expiresAtSlot);
+      const fresh = await getActiveSession(walletId);
+      setActiveSession(fresh);
+      Alert.alert('Fast Send enabled', 'Next ~30 minutes of sends won\'t need Face ID.');
+    } catch (error: any) {
+      console.error('Session create failed:', error);
+      const msg: string = error?.message || '';
+      const friendly = msg.includes('0x2')
+        ? 'Fast Send needs a wallet created under the v2 program. Create a fresh wallet to try it.'
+        : msg || 'Please try again.';
+      Alert.alert('Could not start session', friendly);
+    } finally {
+      setIsSessionBusy(false);
+    }
+  }, [walletId, createSession]);
+
+  const handleEndSession = useCallback(async () => {
+    if (!walletId || !activeSession) return;
+    setIsSessionBusy(true);
+    try {
+      const redirectUrl = Linking.createURL('sign-callback');
+      try {
+        await revokeSession({ sessionPda: activeSession.sessionPda }, { redirectUrl });
+      } catch (err) {
+        // Revoke requires passkey; if user cancels, still clear local state so
+        // we don't try to reuse a session we've marked dead.
+        console.warn('revokeSession failed, clearing local state', err);
+      }
+      await clearStoredSession(walletId);
+      setActiveSession(null);
+    } finally {
+      setIsSessionBusy(false);
+    }
+  }, [walletId, activeSession, revokeSession]);
+
   const fullAddress = useMemo(() => smartWalletPubkey?.toString() || '', [smartWalletPubkey]);
   const shortAddress = useMemo(() =>
     fullAddress ? `${fullAddress.slice(0, 4)}...${fullAddress.slice(-4)}` : '',
@@ -239,36 +303,43 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
     setIsSending(true);
     try {
       const lamports = Math.round(parsedAmount * LAMPORTS_PER_SOL);
-
-      // Create transfer instruction
-      const transferInstruction = SystemProgram.transfer({
-        fromPubkey: smartWalletPubkey,
-        toPubkey: recipientPubkey,
-        lamports,
-      });
-
-      // Create redirect URL for signing callback
       const redirectUrl = Linking.createURL('sign-callback');
+      const txOpts = {
+        clusterSimulation: CLUSTER_SIMULATION as 'mainnet' | 'devnet',
+      };
 
-      // Gasless by default - paymaster covers the fee
-      const signature = await signAndSendTransaction(
-        {
-          instructions: [transferInstruction],
-          transactionOptions: {
-            clusterSimulation: CLUSTER_SIMULATION as 'mainnet' | 'devnet',
-            // feeToken not set = gasless (paymaster sponsors)
+      // Re-check the session right before sending so we don't try to use one
+      // that just expired between screen mount and tap.
+      const session = walletId ? await getActiveSession(walletId) : null;
+      if (walletId && !session && activeSession) setActiveSession(null);
+
+      let signature: string;
+
+      if (session) {
+        // Fast path: ed25519-signed locally, no passkey prompt.
+        signature = await signAndSendWithSession({
+          sessionKeypair: session.sessionKeypair,
+          sessionPda: session.sessionPda,
+          instructions: [
+            SystemProgram.transfer({
+              fromPubkey: smartWalletPubkey,
+              toPubkey: recipientPubkey,
+              lamports,
+            }),
+          ],
+          transactionOptions: txOpts,
+        });
+      } else {
+        // Slow path: passkey-prompted transfer via the v2 convenience method.
+        signature = await transferSol(
+          {
+            recipient: recipientPubkey,
+            lamports,
+            transactionOptions: txOpts,
           },
-        },
-        {
-          redirectUrl,
-          onSuccess: () => {},
-          onFail: (error) => {
-            const msg = error.message || '';
-            // Don't throw here — let the catch block handle it uniformly
-            throw new Error(msg);
-          },
-        }
-      );
+          { redirectUrl },
+        );
+      }
 
       Alert.alert(
         'Transaction Successful',
@@ -285,6 +356,13 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
     } catch (error: any) {
       console.error('Transfer failed:', error);
       const msg = error.message || 'Transaction failed';
+      // If the session looked valid client-side but the chain rejected it
+      // (expired, revoked, limit hit), drop it so the next send falls back
+      // to the passkey path instead of looping the same failure.
+      if (activeSession && /session|SessionExpired|SessionInactive|unauthorized/i.test(msg)) {
+        if (walletId) await clearStoredSession(walletId);
+        setActiveSession(null);
+      }
       // Parse known LazorKit/Solana errors into friendly messages
       let friendly = msg;
       if (msg.includes('Transaction too large') || msg.includes('1232')) {
@@ -292,7 +370,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
       } else if (msg.includes('0x1') || msg.includes('insufficient lamports')) {
         friendly = 'Insufficient balance for this transaction. Make sure you have enough SOL.';
       } else if (msg.includes('0x2')) {
-        friendly = 'Insufficient funds. Make sure you have enough SOL to cover the amount plus rent.';
+        friendly = 'This wallet was created on an older program version that the new session/transfer flow cannot drive. Connect a new wallet to test, then we can migrate this one.';
       } else if (msg.includes('0x1783') || msg.includes('TransactionTooOld')) {
         friendly = 'Transaction expired. The signing took too long. Please try again.';
       } else if (msg.includes('0x7d6') || msg.includes('ConstraintSeeds')) {
@@ -308,7 +386,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
     } finally {
       setIsSending(false);
     }
-  }, [smartWalletPubkey, recipient, amount, solBalance, signAndSendTransaction]);
+  }, [smartWalletPubkey, walletId, recipient, amount, solBalance, activeSession, signAndSendWithSession, transferSol]);
 
   return (
     <KeyboardAvoidingView
@@ -400,21 +478,6 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
         )}
       </View>
 
-      {IS_DEVNET && (
-        <TouchableOpacity
-          style={[styles.airdropButton, isAirdropping && styles.sendButtonDisabled]}
-          onPress={handleAirdrop}
-          disabled={isAirdropping}
-          activeOpacity={0.8}
-        >
-          {isAirdropping ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text style={styles.airdropButtonText}>Airdrop 1 SOL (Devnet)</Text>
-          )}
-        </TouchableOpacity>
-      )}
-
       <View style={styles.statusBar}>
         <View style={styles.statusDot} />
         <Text style={styles.statusText}>Gasless mode</Text>
@@ -445,6 +508,12 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
             </TouchableOpacity>
           )}
         </View>
+        {onAuthorities && (
+          <TouchableOpacity style={styles.devicesButton} onPress={onAuthorities} activeOpacity={0.8}>
+            <Text style={styles.devicesButtonText}>Devices</Text>
+            <Text style={styles.devicesButtonSub}>Add or remove signers</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* SEED Rewards - Bags.fm Fee Sharing (Mainnet Only) */}
@@ -466,7 +535,32 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
       <View style={styles.divider} />
 
       <View style={styles.formSection}>
-        <Text style={styles.formTitle}>Send SOL</Text>
+        <View style={styles.formTitleRow}>
+          <Text style={styles.formTitle}>Send SOL</Text>
+          <View style={styles.fastSendBadge}>
+            <View style={[styles.fastSendDot, activeSession ? styles.fastSendDotOn : styles.fastSendDotOff]} />
+            <Text style={styles.fastSendBadgeText}>
+              {activeSession
+                ? `Fast Send · ${Math.max(1, Math.round(activeSession.remainingMs / 60000))}m`
+                : 'Fast Send off'}
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.fastSendToggle, isSessionBusy && styles.fastSendToggleDisabled]}
+          onPress={activeSession ? handleEndSession : handleStartSession}
+          disabled={isSessionBusy || !smartWalletPubkey}
+          activeOpacity={0.7}
+        >
+          {isSessionBusy ? (
+            <ActivityIndicator color="#000" size="small" />
+          ) : (
+            <Text style={styles.fastSendToggleText}>
+              {activeSession ? 'End Fast Send' : 'Enable Fast Send (one Face ID)'}
+            </Text>
+          )}
+        </TouchableOpacity>
 
         <Text style={styles.label}>To</Text>
         <TextInput
@@ -709,7 +803,53 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     color: '#000',
+  },
+  formTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  fastSendBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#f3f3f3',
+  },
+  fastSendDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  fastSendDotOn: {
+    backgroundColor: '#16a34a',
+  },
+  fastSendDotOff: {
+    backgroundColor: '#bbb',
+  },
+  fastSendBadgeText: {
+    fontSize: 12,
+    color: '#333',
+    fontWeight: '500',
+  },
+  fastSendToggle: {
+    borderWidth: 1,
+    borderColor: '#e5e5e5',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
     marginBottom: 20,
+  },
+  fastSendToggleDisabled: {
+    opacity: 0.6,
+  },
+  fastSendToggleText: {
+    fontSize: 14,
+    color: '#000',
+    fontWeight: '500',
   },
   label: {
     fontSize: 13,
@@ -825,6 +965,22 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
   },
+  devicesButton: {
+    marginTop: 12,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    padding: 16,
+  },
+  devicesButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#000',
+  },
+  devicesButtonSub: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+  },
   launchTokenButton: {
     backgroundColor: '#7c3aed',
     borderRadius: 12,
@@ -875,17 +1031,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#b45309',
     marginTop: 2,
-  },
-  airdropButton: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  airdropButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#fff',
   },
 });

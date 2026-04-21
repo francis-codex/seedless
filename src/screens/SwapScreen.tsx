@@ -14,6 +14,7 @@ import * as Linking from 'expo-linking';
 import { SOL_MINT, USDC_MINT, SEED_MINT, TOKEN_DECIMALS, SEED_DECIMALS, CLUSTER_SIMULATION } from '../constants';
 import { prepareSwap, QuoteResponse } from '../utils/jupiter';
 import { getBagsQuote, createBagsSwapTransaction, BagsQuoteResponse } from '../utils/bags';
+import { DEFAULT_AUTH_EXPIRY_SLOTS, shouldUseDeferredExec } from '../utils/deferredExec';
 
 interface SwapScreenProps {
   onBack: () => void;
@@ -30,7 +31,7 @@ const SWAP_PAIRS: Record<SwapPair, { input: string; output: string; inputMint: s
 };
 
 export function SwapScreen({ onBack }: SwapScreenProps) {
-  const { smartWalletPubkey, signAndSendTransaction } = useWallet();
+  const { smartWalletPubkey, signAndSendTransaction, authorizeAndExecute } = useWallet();
 
   // Form state
   const [amount, setAmount] = useState('');
@@ -126,8 +127,15 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
       const amountInSmallestUnit = toSmallestUnit(amount, inputDecimals);
       const redirectUrl = Linking.createURL('swap-callback');
 
+      // Build instruction set for the active source, then branch by size:
+      // under the threshold → single-tx signAndSendTransaction;
+      // over → authorizeAndExecute (2-tx deferred) so the passkey signature
+      // doesn't have to fit alongside the swap payload.
+      let instructions;
+      let addressLookupTableAccounts;
+      let successLabel: string;
+
       if (swapSource === 'bags' && bagsQuote) {
-        // Bags swap: get serialized transaction, deserialize, sign via LazorKit
         const swapTx = await createBagsSwapTransaction(
           inputMint,
           outputMint,
@@ -135,60 +143,46 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
           bagsQuote.slippageBps,
           smartWalletPubkey.toString()
         );
-
         const { Transaction } = await import('@solana/web3.js');
         const txBuffer = Buffer.from(swapTx.transaction, 'base64');
-        const tx = Transaction.from(txBuffer);
-
-        await signAndSendTransaction(
-          {
-            instructions: tx.instructions,
-            transactionOptions: {
-              clusterSimulation: CLUSTER_SIMULATION as 'mainnet' | 'devnet',
-            },
-          },
-          {
-            redirectUrl,
-            onSuccess: () => {
-              Alert.alert(
-                'Swap complete',
-                `Swapped ${amount} ${inputToken} for ${toHumanAmount(bagsQuote.outAmount, outputDecimals)} ${outputToken} via Bags`
-              );
-            },
-            onFail: (error) => {
-              Alert.alert('Swap failed', error.message);
-            },
-          }
-        );
+        instructions = Transaction.from(txBuffer).instructions;
+        successLabel = `Swapped ${amount} ${inputToken} for ${toHumanAmount(bagsQuote.outAmount, outputDecimals)} ${outputToken} via Bags`;
       } else {
-        // Jupiter swap
-        const { instructions, addressLookupTableAccounts } = await prepareSwap(
+        const jupiter = await prepareSwap(
           inputMint,
           outputMint,
           amountInSmallestUnit,
           smartWalletPubkey
         );
+        instructions = jupiter.instructions;
+        addressLookupTableAccounts = jupiter.addressLookupTableAccounts;
+        successLabel = `Swapped ${amount} ${inputToken} for ${toHumanAmount(quote!.outAmount, outputDecimals)} ${outputToken} via Jupiter`;
+      }
 
-        await signAndSendTransaction(
+      const txOpts = {
+        addressLookupTableAccounts,
+        clusterSimulation: CLUSTER_SIMULATION as 'mainnet' | 'devnet',
+      };
+
+      const callbacks = {
+        redirectUrl,
+        onSuccess: () => Alert.alert('Swap complete', successLabel),
+        onFail: (error: Error) => Alert.alert('Swap failed', error.message),
+      };
+
+      if (shouldUseDeferredExec(instructions)) {
+        await authorizeAndExecute(
           {
             instructions,
-            transactionOptions: {
-              addressLookupTableAccounts,
-              clusterSimulation: CLUSTER_SIMULATION as 'mainnet' | 'devnet',
-            },
+            transactionOptions: txOpts,
+            expiryOffset: DEFAULT_AUTH_EXPIRY_SLOTS,
           },
-          {
-            redirectUrl,
-            onSuccess: () => {
-              Alert.alert(
-                'Swap complete',
-                `Swapped ${amount} ${inputToken} for ${toHumanAmount(quote!.outAmount, outputDecimals)} ${outputToken} via Jupiter`
-              );
-            },
-            onFail: (error) => {
-              Alert.alert('Swap failed', error.message);
-            },
-          }
+          callbacks,
+        );
+      } else {
+        await signAndSendTransaction(
+          { instructions, transactionOptions: txOpts },
+          callbacks,
         );
       }
 
@@ -214,6 +208,7 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
     outputDecimals,
     smartWalletPubkey,
     signAndSendTransaction,
+    authorizeAndExecute,
     swapSource,
   ]);
 

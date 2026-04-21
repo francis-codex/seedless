@@ -8,9 +8,10 @@ import { StealthScreen } from './screens/StealthScreen';
 import { BurnerScreen } from './screens/BurnerScreen';
 import { BagsScreen } from './screens/BagsScreen';
 import { LaunchScreen } from './screens/LaunchScreen';
+import { AuthoritiesScreen } from './screens/AuthoritiesScreen';
 import { IS_DEVNET } from './constants';
 
-type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'bags' | 'launch';
+type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'bags' | 'launch' | 'authorities';
 
 // Navigation state for tracking screen transitions
 export type NavigationState = {
@@ -69,6 +70,7 @@ export function AppContent() {
             onBurner={() => setCurrentScreen('burner')}
             onBags={() => setCurrentScreen('bags')}
             onLaunch={() => setCurrentScreen('launch')}
+            onAuthorities={() => setCurrentScreen('authorities')}
           />
         </View>
         {effectiveScreen === 'swap' && <View style={styles.overlay}><SwapScreen onBack={() => setCurrentScreen('wallet')} /></View>}
@@ -76,6 +78,7 @@ export function AppContent() {
         {effectiveScreen === 'burner' && <View style={styles.overlay}><BurnerScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         {effectiveScreen === 'bags' && <View style={styles.overlay}><BagsScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         {effectiveScreen === 'launch' && <View style={styles.overlay}><LaunchScreen onBack={() => setCurrentScreen('wallet')} /></View>}
+        {effectiveScreen === 'authorities' && <View style={styles.overlay}><AuthoritiesScreen onBack={() => setCurrentScreen('wallet')} /></View>}
       </>
     );
   }
