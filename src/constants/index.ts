@@ -7,7 +7,10 @@ const USE_DEVNET = true; // <-- set false for mainnet
 
 // Solana RPC Configuration
 const HELIUS_API_KEY = process.env.EXPO_PUBLIC_HELIUS_API_KEY || '';
-const HELIUS_DEVNET_KEY = '4bdebac7-7691-4af0-bbe3-bc95b8e6b18f';
+const HELIUS_DEVNET_KEY = process.env.EXPO_PUBLIC_HELIUS_DEVNET_KEY || '';
+if (!HELIUS_DEVNET_KEY && USE_DEVNET) {
+  console.warn('[env] EXPO_PUBLIC_HELIUS_DEVNET_KEY is not set — RPC calls will fail');
+}
 export const SOLANA_RPC_URL = USE_DEVNET
   ? `https://devnet.helius-rpc.com/?api-key=${HELIUS_DEVNET_KEY}`
   : `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
@@ -109,7 +112,7 @@ export const CONFIRMATION_LEVELS = {
 export const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 
 // App version for tracking
-export const APP_VERSION = '0.3.1-beta';
+export const APP_VERSION = '0.4.0-beta';
 
 // Quick send amount presets
 export const QUICK_AMOUNTS = [0.5, 1, 5, 10] as const;
