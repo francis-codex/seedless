@@ -10,9 +10,13 @@ import {
     Alert,
     ScrollView,
     Modal,
+    RefreshControl,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
+import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 
 import {
     createBurner,
@@ -29,12 +33,15 @@ interface BurnerScreenProps {
     onBack: () => void;
 }
 
+const BURNER_FEE_LAMPORTS = 5000;
+
 export function BurnerScreen({ onBack }: BurnerScreenProps) {
     const { smartWalletPubkey } = useWallet();
     const walletId = smartWalletPubkey?.toBase58();
 
     const [burners, setBurners] = useState<BurnerWalletWithBalance[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
 
     // Create modal
@@ -63,6 +70,18 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
     useEffect(() => {
         loadBurners();
     }, [loadBurners]);
+
+    const handleRefresh = useCallback(async () => {
+        setIsRefreshing(true);
+        try {
+            const burnersWithBalances = await listBurnersWithBalances(walletId);
+            setBurners(burnersWithBalances);
+        } catch (error) {
+            console.error('Failed to refresh burners:', error);
+        } finally {
+            setIsRefreshing(false);
+        }
+    }, [walletId]);
 
     const handleCreateBurner = async () => {
         if (!newBurnerLabel.trim()) {
@@ -109,8 +128,14 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
             return;
         }
 
-        if (amount > selectedBurner.balance) {
-            Alert.alert('Insufficient Balance', 'Not enough SOL');
+        const balanceLamports = Math.floor(selectedBurner.balance * LAMPORTS_PER_SOL);
+        const amountLamports = Math.round(amount * LAMPORTS_PER_SOL);
+        const maxLamports = Math.max(0, balanceLamports - BURNER_FEE_LAMPORTS);
+        if (amountLamports > maxLamports) {
+            Alert.alert(
+                'Not Enough SOL',
+                `Burner has ${selectedBurner.balance.toFixed(6)} SOL. Max sendable is ${(maxLamports / LAMPORTS_PER_SOL).toFixed(9)} SOL (network fee reserved).\n\nTap Max to auto-fill.`,
+            );
             return;
         }
 
@@ -179,14 +204,33 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
     }
 
     return (
-        <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <ScrollView
+            style={styles.container}
+            contentContainerStyle={styles.content}
+            refreshControl={
+                <RefreshControl
+                    refreshing={isRefreshing}
+                    onRefresh={handleRefresh}
+                    tintColor="#000"
+                    colors={['#000']}
+                    title="Refreshing..."
+                    titleColor="#666"
+                />
+            }
+        >
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={onBack}>
                     <Text style={styles.backText}>Back</Text>
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Burners</Text>
-                <View style={{ width: 40 }} />
+                <TouchableOpacity onPress={handleRefresh} disabled={isRefreshing} style={styles.refreshIcon}>
+                    {isRefreshing ? (
+                        <ActivityIndicator size="small" color="#000" />
+                    ) : (
+                        <Text style={styles.refreshIconText}>↻</Text>
+                    )}
+                </TouchableOpacity>
             </View>
 
             {/* Warning Card */}
@@ -259,7 +303,10 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
             {/* Create Modal */}
             <Modal visible={showCreateModal} animationType="slide" transparent onRequestClose={() => setShowCreateModal(false)}>
                 <TouchableWithoutFeedback onPress={() => setShowCreateModal(false)}>
-                    <View style={styles.modalOverlay}>
+                    <KeyboardAvoidingView
+                        style={styles.modalOverlay}
+                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    >
                         <TouchableWithoutFeedback onPress={() => {}}>
                             <View style={styles.modalContent}>
                                 <Text style={styles.modalTitle}>Create Burner</Text>
@@ -289,14 +336,17 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                                 </TouchableOpacity>
                             </View>
                         </TouchableWithoutFeedback>
-                    </View>
+                    </KeyboardAvoidingView>
                 </TouchableWithoutFeedback>
             </Modal>
 
             {/* Send Modal */}
             <Modal visible={showSendModal} animationType="slide" transparent onRequestClose={() => setShowSendModal(false)}>
                 <TouchableWithoutFeedback onPress={() => setShowSendModal(false)}>
-                    <View style={styles.modalOverlay}>
+                    <KeyboardAvoidingView
+                        style={styles.modalOverlay}
+                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    >
                         <TouchableWithoutFeedback onPress={() => {}}>
                             <View style={styles.modalContent}>
                                 <Text style={styles.modalTitle}>Send from Burner</Text>
@@ -312,14 +362,27 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                                     autoCapitalize="none"
                                 />
 
-                                <TextInput
-                                    style={styles.modalInput}
-                                    placeholder={`Amount (max ${BURNER_LIMITS.MAX_SEND_SOL} SOL)`}
-                                    placeholderTextColor="#999"
-                                    value={sendAmount}
-                                    onChangeText={setSendAmount}
-                                    keyboardType="decimal-pad"
-                                />
+                                <View style={styles.amountRow}>
+                                    <TextInput
+                                        style={[styles.modalInput, styles.amountInput]}
+                                        placeholder={`Amount (max ${BURNER_LIMITS.MAX_SEND_SOL} SOL)`}
+                                        placeholderTextColor="#999"
+                                        value={sendAmount}
+                                        onChangeText={setSendAmount}
+                                        keyboardType="decimal-pad"
+                                    />
+                                    <TouchableOpacity
+                                        style={styles.maxButton}
+                                        onPress={() => {
+                                            if (!selectedBurner) return;
+                                            const balanceLamports = Math.floor(selectedBurner.balance * LAMPORTS_PER_SOL);
+                                            const maxLamports = Math.max(0, balanceLamports - BURNER_FEE_LAMPORTS);
+                                            setSendAmount((maxLamports / LAMPORTS_PER_SOL).toFixed(9));
+                                        }}
+                                    >
+                                        <Text style={styles.maxButtonText}>Max</Text>
+                                    </TouchableOpacity>
+                                </View>
 
                                 <TouchableOpacity
                                     style={[styles.modalButton, isSending && styles.buttonDisabled]}
@@ -338,7 +401,7 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                                 </TouchableOpacity>
                             </View>
                         </TouchableWithoutFeedback>
-                    </View>
+                    </KeyboardAvoidingView>
                 </TouchableWithoutFeedback>
             </Modal>
         </ScrollView>
@@ -378,6 +441,14 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 24,
         fontWeight: '700',
+        color: '#000',
+    },
+    refreshIcon: {
+        width: 40,
+        alignItems: 'flex-end',
+    },
+    refreshIconText: {
+        fontSize: 22,
         color: '#000',
     },
     warningCard: {
@@ -547,6 +618,25 @@ const styles = StyleSheet.create({
         color: '#000',
         marginBottom: 12,
         backgroundColor: '#fafafa',
+    },
+    amountRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 8,
+    },
+    amountInput: {
+        flex: 1,
+    },
+    maxButton: {
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        backgroundColor: '#f0f0f0',
+        borderRadius: 10,
+    },
+    maxButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#000',
     },
     modalButton: {
         backgroundColor: '#000',

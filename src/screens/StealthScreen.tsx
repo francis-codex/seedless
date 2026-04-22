@@ -10,11 +10,13 @@ import {
     Alert,
     ScrollView,
     Modal,
+    RefreshControl,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import { Connection, PublicKey, LAMPORTS_PER_SOL, SystemProgram, Transaction } from '@solana/web3.js';
-import * as Linking from 'expo-linking';
 import QRCode from 'react-native-qrcode-svg';
 
 import { SOLANA_RPC_URL, IS_DEVNET, STEALTH_SWEEP_RENT, STEALTH_SWEEP_FEE } from '../constants';
@@ -59,6 +61,7 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
 
     const [isInitialized, setIsInitialized] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [metaAddress, setMetaAddress] = useState<StealthMetaAddress | null>(null);
     const [addresses, setAddresses] = useState<AddressWithBalance[]>([]);
     const [totalBalance, setTotalBalance] = useState(0);
@@ -125,6 +128,15 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
     useEffect(() => {
         initialize();
     }, [initialize]);
+
+    const handleRefresh = useCallback(async () => {
+        setIsRefreshing(true);
+        try {
+            await loadAddresses();
+        } finally {
+            setIsRefreshing(false);
+        }
+    }, [walletId]);
 
     const handleGenerateAddress = async () => {
         if (isLoading) return;
@@ -266,14 +278,33 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
     }
 
     return (
-        <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <ScrollView
+            style={styles.container}
+            contentContainerStyle={styles.content}
+            refreshControl={
+                <RefreshControl
+                    refreshing={isRefreshing}
+                    onRefresh={handleRefresh}
+                    tintColor="#000"
+                    colors={['#000']}
+                    title="Refreshing..."
+                    titleColor="#666"
+                />
+            }
+        >
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={onBack}>
                     <Text style={styles.backText}>Back</Text>
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Stealth</Text>
-                <View style={{ width: 40 }} />
+                <TouchableOpacity onPress={handleRefresh} disabled={isRefreshing} style={styles.refreshIcon}>
+                    {isRefreshing ? (
+                        <ActivityIndicator size="small" color="#000" />
+                    ) : (
+                        <Text style={styles.refreshIconText}>↻</Text>
+                    )}
+                </TouchableOpacity>
             </View>
 
             {/* Info Card */}
@@ -346,7 +377,10 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
             {/* Payment Request Modal */}
             <Modal visible={showPaymentModal} animationType="slide" transparent onRequestClose={() => setShowPaymentModal(false)}>
                 <TouchableWithoutFeedback onPress={() => setShowPaymentModal(false)}>
-                    <View style={styles.modalOverlay}>
+                    <KeyboardAvoidingView
+                        style={styles.modalOverlay}
+                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    >
                         <TouchableWithoutFeedback onPress={() => {}}><View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>Payment Request</Text>
                         <Text style={styles.modalAddress}>{shortenAddress(paymentAddress)}</Text>
@@ -405,9 +439,9 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                         {generatedQrUrl ? (
                             <View style={styles.qrContainer}>
                                 <QRCode value={generatedQrUrl} size={200} backgroundColor="#fff" color="#000" />
-                                <Text style={styles.qrLabel}>Scan with Solana Pay wallet</Text>
+                                <Text style={styles.qrLabel}>Scan with a Solana Pay wallet</Text>
                                 <TouchableOpacity onPress={() => Clipboard.setStringAsync(generatedQrUrl)}>
-                                    <Text style={styles.copyUrlText}>Copy URL</Text>
+                                    <Text style={styles.copyUrlText}>Copy Link</Text>
                                 </TouchableOpacity>
                             </View>
                         ) : null}
@@ -416,7 +450,7 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                             <Text style={styles.closeButtonText}>Close</Text>
                         </TouchableOpacity>
                     </View></TouchableWithoutFeedback>
-                    </View>
+                    </KeyboardAvoidingView>
                 </TouchableWithoutFeedback>
             </Modal>
         </ScrollView>
@@ -456,6 +490,14 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 24,
         fontWeight: '700',
+        color: '#000',
+    },
+    refreshIcon: {
+        width: 40,
+        alignItems: 'flex-end',
+    },
+    refreshIconText: {
+        fontSize: 22,
         color: '#000',
     },
     infoCard: {
@@ -675,6 +717,11 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#0066cc',
         marginTop: 8,
+    },
+    urlActions: {
+        flexDirection: 'row',
+        gap: 20,
+        marginTop: 4,
     },
     closeButton: {
         paddingVertical: 12,
