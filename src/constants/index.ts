@@ -15,6 +15,19 @@ export const SOLANA_RPC_URL = USE_DEVNET
   ? `https://devnet.helius-rpc.com/?api-key=${HELIUS_DEVNET_KEY}`
   : `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 
+// Umbra Privacy — programs, indexer, relayer, ZK CDN
+// Docs: https://docs.umbraprivacy.com · Plan: docs/umbra-integration-plan.md
+export const UMBRA_PROGRAM_ID = USE_DEVNET
+  ? 'DSuKkyqGVGgo4QtPABfxKJKygUDACbUhirnuv63mEpAJ'
+  : 'UMBRAD2ishebJTcgCLkTkNUx1v3GyoAgpTRPeWoLykh';
+export const UMBRA_INDEXER_URL = USE_DEVNET
+  ? 'https://utxo-indexer.api-devnet.umbraprivacy.com'
+  : 'https://utxo-indexer.api.umbraprivacy.com';
+export const UMBRA_RELAYER_URL = USE_DEVNET
+  ? 'https://relayer.api-devnet.umbraprivacy.com'
+  : 'https://relayer.api.umbraprivacy.com';
+export const UMBRA_ZK_CDN = 'https://zk.api.umbraprivacy.com';
+
 // LazorKit Portal and Paymaster
 export const PORTAL_URL = 'https://portal.lazor.sh';
 export const PAYMASTER_URL = USE_DEVNET
@@ -47,9 +60,16 @@ export const JUPITER_API_KEY = process.env.EXPO_PUBLIC_JUPITER_API_KEY || '';
 export const BAGS_API_URL = 'https://public-api-v2.bags.fm/api/v1';
 export const BAGS_API_KEY = process.env.EXPO_PUBLIC_BAGS_API_KEY || '';
 
-// SEED token mint (launched on Bags.fm)
+// SEED token mint (launched on Bags.fm) — real on mainnet, used for bags API read calls
+// from any network (bags API is mainnet-only and returns mainnet data).
 export const SEED_MINT = 'FYt532fCsCuoHd9aaX5QN7pZLUTiSXwEjhBmZijgBAGS';
 export const SEED_DECIMALS = 9;
+
+// Random-reward holder mint — querying real $SEED holders requires a mainnet RPC.
+// On devnet we use a test SPL token with seeded dummy holders so the random draw
+// has weighted balances to pick from on camera. Real $SEED holders on mainnet.
+const REWARD_MINT_DEVNET = 'ErGhuzZxaTL6FL4UNoR4Jqm1NmuTFgGMoZKSeHYwPQy8';
+export const REWARD_HOLDER_MINT = USE_DEVNET ? REWARD_MINT_DEVNET : SEED_MINT;
 
 // Native SOL mint address (wrapped SOL for Jupiter)
 export const SOL_MINT = 'So11111111111111111111111111111111111111112';
