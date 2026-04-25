@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import * as Linking from 'expo-linking';
-import { SEED_MINT, SEED_DECIMALS, CLUSTER_SIMULATION } from '../constants';
+import { SEED_MINT, SEED_DECIMALS, CLUSTER_SIMULATION, IS_DEVNET } from '../constants';
 import {
   getClaimablePositions,
   getClaimTransactions,
@@ -270,7 +270,7 @@ export function BagsScreen({ onBack }: BagsScreenProps) {
               const result = await executeRewardDrawWithTransfer(
                 smartWalletPubkey,
                 lifetimeFees,
-                10,
+                IS_DEVNET ? 0.001 : 10,
                 100
               );
               if (!result) {

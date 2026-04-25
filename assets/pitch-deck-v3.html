@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seedless — Pitch Deck v3</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #18120e;
+    color: #1a1a1a;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .slide {
+    width: 1280px;
+    height: 720px;
+    margin: 32px auto;
+    padding: 64px 80px;
+    position: relative;
+    overflow: hidden;
+    page-break-after: always;
+    border-radius: 16px;
+    background: #faf7f2;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .slide-header { flex-shrink: 0; margin-bottom: 36px; }
+  .slide-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+
+  h2.slide-title {
+    font-size: 52px;
+    font-weight: 900;
+    color: #1a1a1a;
+    letter-spacing: -2px;
+    margin-bottom: 10px;
+    line-height: 1;
+  }
+  .slide-sub {
+    font-size: 18px;
+    color: #6b6055;
+    font-weight: 500;
+    letter-spacing: -0.2px;
+  }
+
+  .version-tag {
+    position: absolute;
+    top: 24px;
+    right: 32px;
+    font-size: 11px;
+    color: #b8a99a;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+
+  /* ============ SLIDE 1: Title ============ */
+  .slide-title-pg {
+    background: #faf7f2;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    position: relative;
+  }
+  .slide-title-pg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 18% 22%, rgba(194, 65, 12, 0.08), transparent 42%),
+      radial-gradient(circle at 82% 78%, rgba(124, 92, 252, 0.06), transparent 42%);
+  }
+  .title-logo {
+    width: 128px;
+    height: 128px;
+    border-radius: 30px;
+    margin-bottom: 36px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.10);
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+  }
+  .title-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .slide-title-pg h1 {
+    font-size: 112px;
+    font-weight: 900;
+    letter-spacing: -4px;
+    margin-bottom: 18px;
+    color: #1a1a1a;
+    position: relative;
+    z-index: 1;
+    line-height: 1;
+  }
+  .slide-title-pg .tagline {
+    font-size: 30px;
+    color: #4a3f35;
+    margin-bottom: 48px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    position: relative;
+    z-index: 1;
+  }
+  .slide-title-pg .raise-pill {
+    background: #1a1a1a;
+    color: #faf7f2;
+    padding: 16px 36px;
+    border-radius: 100px;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    position: relative;
+    z-index: 1;
+  }
+  .slide-title-pg .deck-meta {
+    margin-top: 20px;
+    font-size: 12px;
+    color: #8a7e72;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    font-weight: 700;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ============ SLIDE 2: Problem ============ */
+  .problem-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .problem-card {
+    background: #fff;
+    border: 1px solid #ece4d8;
+    border-radius: 18px;
+    padding: 36px 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .problem-card .number {
+    font-size: 64px;
+    font-weight: 900;
+    color: #c2410c;
+    line-height: 1;
+    flex-shrink: 0;
+    min-width: 110px;
+    letter-spacing: -3px;
+  }
+  .problem-card h3 { font-size: 21px; margin-bottom: 6px; color: #1a1a1a; font-weight: 800; }
+  .problem-card p { font-size: 15px; color: #6b6055; line-height: 1.4; }
+
+  /* ============ SLIDE 3: Solution ============ */
+  .solution-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 22px; }
+  .solution-item {
+    background: #fff;
+    border: 1px solid #ece4d8;
+    border-radius: 18px;
+    padding: 40px 28px;
+    text-align: center;
+  }
+  .solution-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 20px;
+    background: #fdf3eb;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 22px;
+  }
+  .solution-icon svg { width: 36px; height: 36px; }
+  .solution-item h3 { font-size: 24px; margin-bottom: 10px; color: #1a1a1a; font-weight: 800; }
+  .solution-item p { font-size: 14px; color: #6b6055; line-height: 1.5; }
+
+  /* ============ SLIDE 4: Market ============ */
+  .market-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 28px; }
+  .market-card {
+    background: #fff;
+    border: 1px solid #ece4d8;
+    border-radius: 16px;
+    padding: 24px 20px;
+    text-align: center;
+  }
+  .market-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: #fdf3eb;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 14px;
+  }
+  .market-icon svg { width: 26px; height: 26px; }
+  .market-card h3 { font-size: 16px; margin-bottom: 6px; color: #1a1a1a; font-weight: 800; }
+  .market-card p { font-size: 13px; color: #6b6055; line-height: 1.45; }
+  .market-stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .market-stat {
+    background: #1a1a1a;
+    border-radius: 16px;
+    padding: 24px 20px;
+    text-align: center;
+  }
+  .market-stat .val { font-size: 40px; font-weight: 900; color: #faf7f2; margin-bottom: 4px; letter-spacing: -1.5px; }
+  .market-stat .lbl { font-size: 12px; color: #b8a99a; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+
+  /* ============ SLIDE 5: Architecture ============ */
+  .arch-flow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 56px;
+  }
+  .arch-node {
+    background: #fff;
+    border: 2px solid #ece4d8;
+    border-radius: 18px;
+    padding: 24px 16px;
+    text-align: center;
+    flex: 1;
+    max-width: 175px;
+  }
+  .arch-node .arch-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: #fdf3eb;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+  }
+  .arch-node .arch-icon svg { width: 22px; height: 22px; }
+  .arch-node h3 { font-size: 15px; margin-bottom: 4px; font-weight: 800; color: #1a1a1a; }
+  .arch-node p { font-size: 11px; color: #8a7e72; font-weight: 500; }
+  .arch-arrow { color: #c2410c; font-size: 26px; flex-shrink: 0; padding: 0 6px; font-weight: 700; }
+  .arch-node.solana { background: #1a1a1a; border-color: #1a1a1a; }
+  .arch-node.solana .arch-icon { background: rgba(194, 65, 12, 0.18); }
+  .arch-node.solana h3 { color: #faf7f2; }
+  .arch-node.solana p { color: #b8a99a; }
+
+  .tech-pills {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  .tech-pill {
+    background: #fff;
+    border: 1px solid #ece4d8;
+    border-radius: 100px;
+    padding: 12px 18px;
+    font-size: 13px;
+    color: #1a1a1a;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+  }
+  .tech-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: #c2410c; flex-shrink: 0; }
+
+  /* ============ SLIDE 6: Traction ============ */
+  .traction-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 30px; }
+  .traction-card {
+    background: #fff;
+    border: 1px solid #ece4d8;
+    border-radius: 18px;
+    padding: 30px 18px;
+    text-align: center;
+  }
+  .traction-card .value { font-size: 46px; font-weight: 900; color: #1a1a1a; margin-bottom: 6px; letter-spacing: -2px; line-height: 1; }
+  .traction-card .label { font-size: 12px; color: #6b6055; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; }
+  .check-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    color: #1a1a1a;
+    background: #fff;
+    border: 1px solid #ece4d8;
+    border-radius: 12px;
+    padding: 16px 18px;
+    font-weight: 700;
+  }
+  .check-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #d1fae5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .check-icon svg { width: 13px; height: 13px; }
+
+  /* ============ SLIDE 7: Bags ============ */
+  .bags-features { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 22px; }
+  .bags-feature {
+    background: #fff;
+    border: 1px solid #ece4d8;
+    border-radius: 16px;
+    padding: 24px 22px;
+    display: flex;
+    gap: 18px;
+    align-items: center;
+  }
+  .bags-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: #fdf3eb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .bags-icon svg { width: 26px; height: 26px; }
+  .bags-feature h3 { font-size: 17px; margin-bottom: 4px; font-weight: 800; color: #1a1a1a; }
+  .bags-feature p { font-size: 13px; color: #6b6055; line-height: 1.45; }
+  .bags-status {
+    background: #1a1a1a;
+    border-radius: 16px;
+    padding: 18px 26px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .bags-status-text { font-size: 14px; color: #b8a99a; font-weight: 600; }
+  .bags-status-text strong { color: #faf7f2; font-weight: 800; }
+  .bags-status-pill {
+    background: #c2410c;
+    color: #faf7f2;
+    padding: 8px 18px;
+    border-radius: 100px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+  }
+
+  /* ============ SLIDE 8: Umbra ============ */
+  .umbra-hero {
+    background: #1a1a1a;
+    border-radius: 18px;
+    padding: 36px 40px;
+    margin-bottom: 22px;
+    color: #faf7f2;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+  .umbra-logos { display: flex; align-items: center; gap: 18px; flex-shrink: 0; }
+  .umbra-logo { width: 72px; height: 72px; border-radius: 18px; overflow: hidden; }
+  .umbra-logo img { width: 100%; height: 100%; object-fit: cover; }
+  .umbra-x { font-size: 30px; font-weight: 600; color: #b8a99a; }
+  .umbra-hero-text h3 { font-size: 26px; margin-bottom: 6px; font-weight: 900; letter-spacing: -0.8px; }
+  .umbra-hero-text p { font-size: 14px; color: #b8a99a; line-height: 1.5; }
+  .umbra-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .umbra-card {
+    background: #fff;
+    border: 1px solid #ece4d8;
+    border-radius: 16px;
+    padding: 24px;
+    text-align: center;
+  }
+  .umbra-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: #fdf3eb;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 14px;
+  }
+  .umbra-icon svg { width: 24px; height: 24px; }
+  .umbra-card h4 { font-size: 16px; margin-bottom: 6px; color: #1a1a1a; font-weight: 800; }
+  .umbra-card p { font-size: 13px; color: #6b6055; line-height: 1.45; }
+
+  /* ============ SLIDE 9: Helius ============ */
+  .helius-quote {
+    background: #fff;
+    border: 1px solid #ece4d8;
+    border-left: 5px solid #c2410c;
+    border-radius: 16px;
+    padding: 36px 40px;
+    margin-bottom: 28px;
+  }
+  .quote-text { font-size: 32px; font-weight: 700; color: #1a1a1a; margin-bottom: 14px; line-height: 1.25; font-style: italic; letter-spacing: -0.6px; }
+  .quote-attr { font-size: 14px; color: #6b6055; font-weight: 600; }
+  .quote-attr strong { color: #c2410c; font-weight: 800; font-style: normal; }
+  .helius-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .helius-card {
+    background: #fff;
+    border: 1px solid #ece4d8;
+    border-radius: 16px;
+    padding: 22px;
+    text-align: center;
+  }
+  .helius-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: #fdf3eb;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+  }
+  .helius-icon svg { width: 22px; height: 22px; }
+  .helius-card h4 { font-size: 15px; margin-bottom: 6px; color: #1a1a1a; font-weight: 800; }
+  .helius-card p { font-size: 13px; color: #6b6055; line-height: 1.45; }
+
+  /* ============ SLIDE 10: Roadmap ============ */
+  .timeline { display: flex; gap: 0; position: relative; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    top: 38px;
+    left: 60px;
+    right: 60px;
+    height: 3px;
+    background: linear-gradient(90deg, #c2410c, rgba(194, 65, 12, 0.15));
+    border-radius: 2px;
+  }
+  .timeline-item { flex: 1; text-align: center; position: relative; padding-top: 64px; }
+  .timeline-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 3px solid #c2410c;
+    background: #faf7f2;
+    position: absolute;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1;
+  }
+  .timeline-dot.done { background: #c2410c; }
+  .timeline-dot.active { background: #faf7f2; box-shadow: 0 0 0 6px rgba(194, 65, 12, 0.2); }
+  .timeline-item .phase {
+    font-size: 11px;
+    color: #c2410c;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 8px;
+    font-weight: 800;
+  }
+  .timeline-item h3 { font-size: 16px; margin-bottom: 6px; padding: 0 6px; color: #1a1a1a; font-weight: 800; }
+  .timeline-item p { font-size: 12px; color: #6b6055; padding: 0 6px; line-height: 1.4; font-weight: 500; }
+
+  /* ============ SLIDE 11: Raise ============ */
+  .raise-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 22px; }
+  .raise-card {
+    background: #fff;
+    border: 1px solid #ece4d8;
+    border-radius: 18px;
+    padding: 36px 32px;
+  }
+  .raise-card h3 { font-size: 14px; margin-bottom: 16px; color: #c2410c; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+  .raise-card .big {
+    font-size: 64px;
+    font-weight: 900;
+    color: #1a1a1a;
+    letter-spacing: -3px;
+    line-height: 1;
+    margin-bottom: 14px;
+  }
+  .raise-card .small { font-size: 14px; color: #6b6055; line-height: 1.6; font-weight: 500; }
+  .raise-card ul { list-style: none; }
+  .raise-card li {
+    font-size: 14px;
+    color: #1a1a1a;
+    line-height: 2;
+    padding-left: 20px;
+    position: relative;
+    font-weight: 600;
+  }
+  .raise-card li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 13px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #c2410c;
+  }
+  .raise-cta {
+    background: #1a1a1a;
+    border-radius: 16px;
+    padding: 22px 30px;
+    color: #faf7f2;
+    display: flex;
+    align-items: center;
+    gap: 22px;
+  }
+  .raise-cta strong { color: #faf7f2; font-size: 16px; font-weight: 800; white-space: nowrap; }
+  .raise-cta p { font-size: 13px; color: #b8a99a; line-height: 1.5; font-weight: 500; }
+
+  /* ============ SLIDE 12: Use of Funds ============ */
+  .budget-bars { margin-bottom: 28px; }
+  .budget-row { display: flex; align-items: center; gap: 22px; margin-bottom: 14px; }
+  .budget-label { font-size: 15px; width: 240px; flex-shrink: 0; color: #1a1a1a; font-weight: 700; }
+  .budget-bar-bg {
+    flex: 1;
+    height: 38px;
+    background: #fff;
+    border: 1px solid #ece4d8;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .budget-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #c2410c, #ea580c);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 16px;
+    font-size: 13px;
+    font-weight: 800;
+    min-width: 90px;
+    color: #faf7f2;
+  }
+  .budget-total {
+    display: flex;
+    justify-content: space-between;
+    font-size: 22px;
+    font-weight: 900;
+    padding-top: 22px;
+    border-top: 2px solid #1a1a1a;
+    color: #1a1a1a;
+    letter-spacing: -0.5px;
+  }
+  .budget-total .amt { color: #c2410c; }
+
+  /* ============ SLIDE 13: Close ============ */
+  .slide-close {
+    background: #1a1a1a;
+    color: #faf7f2;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  .slide-close .close-logo {
+    width: 100px;
+    height: 100px;
+    border-radius: 24px;
+    margin-bottom: 28px;
+    overflow: hidden;
+  }
+  .slide-close .close-logo img { width: 100%; height: 100%; object-fit: cover; }
+  .slide-close h1 {
+    font-size: 96px;
+    font-weight: 900;
+    margin-bottom: 14px;
+    color: #faf7f2;
+    letter-spacing: -3.5px;
+    line-height: 1;
+  }
+  .slide-close .closer {
+    font-size: 24px;
+    color: #b8a99a;
+    margin-bottom: 56px;
+    font-weight: 500;
+  }
+  .contact-grid {
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    gap: 18px 56px;
+  }
+  .contact-item {
+    font-size: 15px;
+    color: #d4c8bb;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+  }
+  .contact-item svg { width: 17px; height: 17px; flex-shrink: 0; stroke: #c2410c; }
+
+  @media print {
+    @page { size: 1280px 720px; margin: 0; }
+    body { background: #faf7f2; }
+    .slide { margin: 0; border-radius: 0; box-shadow: none; }
+  }
+
+  /* single-slide export mode (driven by ?slide=N) */
+  body.solo {
+    background: transparent;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+  body.solo .slide { margin: 0; border-radius: 0; }
+  body.solo .slide.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<!-- ============ SLIDE 1: Title ============ -->
+<div class="slide slide-title-pg">
+  <span class="version-tag">v3 &middot; Apr 2026</span>
+  <div class="title-logo"><img src="brand/rebranded_logo.png" alt="seedless"></div>
+  <h1>seedless</h1>
+  <div class="tagline">Simple &amp; Private. Native on Solana.</div>
+  <div class="raise-pill">$300K Pre-Seed &middot; SAFE</div>
+  <div class="deck-meta">Mobile Wallet &middot; Passkey-First &middot; Privacy by Default</div>
+</div>
+
+<!-- ============ SLIDE 2: Problem ============ -->
+<div class="slide">
+  <span class="version-tag">v3</span>
+  <div class="slide-header">
+    <h2 class="slide-title">The Problem</h2>
+    <div class="slide-sub">Wallets still ship 2017 UX. Most users will never write down 12 words.</div>
+  </div>
+  <div class="slide-body">
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="number">12</div>
+        <div>
+          <h3>Words to Write Down</h3>
+          <p>Single point of failure. Lose them, lose everything.</p>
+        </div>
+      </div>
+      <div class="problem-card">
+        <div class="number">92%</div>
+        <div>
+          <h3>Onboarding Drop-off</h3>
+          <p>Users quit before their first transaction.</p>
+        </div>
+      </div>
+      <div class="problem-card">
+        <div class="number">$0</div>
+        <div>
+          <h3>Gas Before First Use</h3>
+          <p>Buy SOL to do anything. Chicken-and-egg.</p>
+        </div>
+      </div>
+      <div class="problem-card">
+        <div class="number">100%</div>
+        <div>
+          <h3>Public by Default</h3>
+          <p>Every Solana payment broadcast to the world.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SLIDE 3: Solution ============ -->
+<div class="slide">
+  <span class="version-tag">v3</span>
+  <div class="slide-header">
+    <h2 class="slide-title">The Solution</h2>
+    <div class="slide-sub">Open the app. Authenticate with your face. Transact.</div>
+  </div>
+  <div class="slide-body">
+    <div class="solution-row">
+      <div class="solution-item">
+        <div class="solution-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h3>Passkey Auth</h3>
+        <p>Keys live in the device secure enclave. Never exported.</p>
+      </div>
+      <div class="solution-item">
+        <div class="solution-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        </div>
+        <h3>Gasless</h3>
+        <p>Paymaster sponsors fees. Zero SOL needed to start.</p>
+      </div>
+      <div class="solution-item">
+        <div class="solution-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h3>Private by Default</h3>
+        <p>Encrypted accounts &amp; shielded sends, powered by Umbra.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SLIDE 4: Market ============ -->
+<div class="slide">
+  <span class="version-tag">v3</span>
+  <div class="slide-header">
+    <h2 class="slide-title">Who This Is For</h2>
+    <div class="slide-sub">The next 100M users won't write down a seed. They'll tap.</div>
+  </div>
+  <div class="slide-body">
+    <div class="market-grid">
+      <div class="market-card">
+        <div class="market-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+        </div>
+        <h3>Mobile-Money User</h3>
+        <p>Sends on M-Pesa daily. Never touched crypto.</p>
+      </div>
+      <div class="market-card">
+        <div class="market-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10z"/></svg>
+        </div>
+        <h3>Global Freelancer</h3>
+        <p>Wants USDC payments without wallet friction.</p>
+      </div>
+      <div class="market-card">
+        <div class="market-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h3>Privacy-Conscious</h3>
+        <p>Doesn't want every payment broadcast publicly.</p>
+      </div>
+      <div class="market-card">
+        <div class="market-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0z"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+        </div>
+        <h3>The Burned User</h3>
+        <p>Lost funds to a bad seed backup. Done with that.</p>
+      </div>
+    </div>
+    <div class="market-stat-row">
+      <div class="market-stat"><div class="val">340M+</div><div class="lbl">Smartphones in Africa</div></div>
+      <div class="market-stat"><div class="val">57%</div><div class="lbl">Unbanked in SSA</div></div>
+      <div class="market-stat"><div class="val">$832B</div><div class="lbl">Mobile money 2023</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SLIDE 5: Architecture ============ -->
+<div class="slide">
+  <span class="version-tag">v3</span>
+  <div class="slide-header">
+    <h2 class="slide-title">Architecture</h2>
+    <div class="slide-sub">Built on best-in-class Solana primitives. Battle-tested infra.</div>
+  </div>
+  <div class="slide-body">
+    <div class="arch-flow">
+      <div class="arch-node">
+        <div class="arch-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <h3>User</h3>
+        <p>Face ID</p>
+      </div>
+      <div class="arch-arrow">&#8594;</div>
+      <div class="arch-node">
+        <div class="arch-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h3>WebAuthn</h3>
+        <p>Passkey</p>
+      </div>
+      <div class="arch-arrow">&#8594;</div>
+      <div class="arch-node">
+        <div class="arch-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><line x1="6" y1="7" x2="6.01" y2="7"/><line x1="6" y1="17" x2="6.01" y2="17"/></svg>
+        </div>
+        <h3>Secure Enclave</h3>
+        <p>Key Storage</p>
+      </div>
+      <div class="arch-arrow">&#8594;</div>
+      <div class="arch-node">
+        <div class="arch-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        </div>
+        <h3>Paymaster</h3>
+        <p>Sponsored gas</p>
+      </div>
+      <div class="arch-arrow">&#8594;</div>
+      <div class="arch-node solana">
+        <div class="arch-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <h3>Solana</h3>
+        <p>Settlement</p>
+      </div>
+    </div>
+    <div class="tech-pills">
+      <div class="tech-pill"><span class="dot"></span>WebAuthn / FIDO2</div>
+      <div class="tech-pill"><span class="dot"></span>LazorKit SDK</div>
+      <div class="tech-pill"><span class="dot"></span>Kora Paymaster</div>
+      <div class="tech-pill"><span class="dot"></span>Helius RPC / DAS</div>
+      <div class="tech-pill"><span class="dot"></span>Jupiter</div>
+      <div class="tech-pill"><span class="dot"></span>Bags API</div>
+      <div class="tech-pill"><span class="dot"></span>Umbra Privacy</div>
+      <div class="tech-pill"><span class="dot"></span>React Native</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SLIDE 6: Traction ============ -->
+<div class="slide">
+  <span class="version-tag">v3</span>
+  <div class="slide-header">
+    <h2 class="slide-title">Traction</h2>
+    <div class="slide-sub">Real holders. Real product. Daily commits.</div>
+  </div>
+  <div class="slide-body">
+    <div class="traction-grid">
+      <div class="traction-card"><div class="value">4</div><div class="label">Beta Phases Shipped</div></div>
+      <div class="traction-card"><div class="value">343</div><div class="label">Real $SEED Holders</div></div>
+      <div class="traction-card"><div class="value">1.07B</div><div class="label">$SEED Held</div></div>
+      <div class="traction-card"><div class="value">Daily</div><div class="label">GitHub Commits</div></div>
+    </div>
+    <div class="check-grid">
+      <div class="check-item">
+        <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        Audited (public, Solana Foundation-backed)
+      </div>
+      <div class="check-item">
+        <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        Listed on CoinGecko
+      </div>
+      <div class="check-item">
+        <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        Delaware C-corp
+      </div>
+      <div class="check-item">
+        <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        Android + iOS dev builds live
+      </div>
+      <div class="check-item">
+        <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        Helius CEO public co-sign
+      </div>
+      <div class="check-item">
+        <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        Live in $4M Bags Hackathon
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SLIDE 7: Bags Hackathon ============ -->
+<div class="slide">
+  <span class="version-tag">v3</span>
+  <div class="slide-header">
+    <h2 class="slide-title">Live in the $4M Bags Hackathon</h2>
+    <div class="slide-sub">Four production integrations. All Face-ID signed. No seed. No gas.</div>
+  </div>
+  <div class="slide-body">
+    <div class="bags-features">
+      <div class="bags-feature">
+        <div class="bags-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        </div>
+        <div>
+          <h3>Fee Sharing Claims</h3>
+          <p>Claim SEED fees on-chain in one Face ID tap.</p>
+        </div>
+      </div>
+      <div class="bags-feature">
+        <div class="bags-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        </div>
+        <div>
+          <h3>Gasless Swap via Bags</h3>
+          <p>Bags trade routes wired natively. Zero SOL needed.</p>
+        </div>
+      </div>
+      <div class="bags-feature">
+        <div class="bags-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
+        </div>
+        <div>
+          <h3>Random Reward Drops</h3>
+          <p>Real SOL airdropped to weighted-random SEED holders.</p>
+        </div>
+      </div>
+      <div class="bags-feature">
+        <div class="bags-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/></svg>
+        </div>
+        <div>
+          <h3>In-App Token Launch</h3>
+          <p>Full Bags launch flow native to Seedless.</p>
+        </div>
+      </div>
+    </div>
+    <div class="bags-status">
+      <div class="bags-status-text">Accepted <strong>Mar 13</strong> &middot; Submission window <strong>Apr 22-28</strong> &middot; Bags Fund eligible</div>
+      <div class="bags-status-pill">Submitting</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SLIDE 8: Umbra ============ -->
+<div class="slide">
+  <span class="version-tag">v3</span>
+  <div class="slide-header">
+    <h2 class="slide-title">Privacy Under the Hood</h2>
+    <div class="slide-sub">Partnering with Umbra Privacy — encrypted accounts, shielded balances, anonymous send.</div>
+  </div>
+  <div class="slide-body">
+    <div class="umbra-hero">
+      <div class="umbra-logos">
+        <div class="umbra-logo"><img src="brand/rebranded_logo.png" alt="seedless"></div>
+        <span class="umbra-x">&times;</span>
+        <div class="umbra-logo"><img src="brand/umbra_logo.png" alt="umbra"></div>
+      </div>
+      <div class="umbra-hero-text">
+        <h3>seedless &times; umbra</h3>
+        <p>Replacing in-house stealth + burner with Umbra's MPC-backed privacy SDK. Building against the Frontier hackathon side-track.</p>
+      </div>
+    </div>
+    <div class="umbra-grid">
+      <div class="umbra-card">
+        <div class="umbra-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h4>Encrypted Accounts</h4>
+        <p>State encrypted via X25519 + MPC. Only you decrypt.</p>
+      </div>
+      <div class="umbra-card">
+        <div class="umbra-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        </div>
+        <h4>Shielded Balances</h4>
+        <p>Holdings hidden on-chain. Solana stays public, you don't.</p>
+      </div>
+      <div class="umbra-card">
+        <div class="umbra-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </div>
+        <h4>Anonymous Send</h4>
+        <p>Sender, receiver, amount unlinkable via ZK proofs.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SLIDE 9: Helius ============ -->
+<div class="slide">
+  <span class="version-tag">v3</span>
+  <div class="slide-header">
+    <h2 class="slide-title">Helius &times; Seedless</h2>
+    <div class="slide-sub">Infrastructure partner. Public validation from Solana's largest RPC provider.</div>
+  </div>
+  <div class="slide-body">
+    <div class="helius-quote">
+      <div class="quote-text">&ldquo;thanks for the trust!&rdquo;</div>
+      <div class="quote-attr"><strong>Mert Mumtaz</strong> &mdash; CEO, Helius &middot; Apr 15 2026</div>
+    </div>
+    <div class="helius-grid">
+      <div class="helius-card">
+        <div class="helius-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/></svg>
+        </div>
+        <h4>RPC Infrastructure</h4>
+        <p>Same rails as Jupiter, Tensor, Drift.</p>
+      </div>
+      <div class="helius-card">
+        <div class="helius-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10z"/></svg>
+        </div>
+        <h4>DAS API</h4>
+        <p>SEED holder snapshots tracked via DAS.</p>
+      </div>
+      <div class="helius-card">
+        <div class="helius-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <h4>Ecosystem Signal</h4>
+        <p>Warm line for deeper partnership opens.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SLIDE 10: Roadmap ============ -->
+<div class="slide">
+  <span class="version-tag">v3</span>
+  <div class="slide-header">
+    <h2 class="slide-title">Roadmap</h2>
+    <div class="slide-sub">Mainnet next. Distribution after.</div>
+  </div>
+  <div class="slide-body">
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="timeline-dot done"></div>
+        <div class="phase">Done</div>
+        <h3>MVP + 4 Betas</h3>
+        <p>Audited program, devnet betas shipped</p>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot done"></div>
+        <div class="phase">Done</div>
+        <h3>Brand + Token</h3>
+        <p>Rebrand, $SEED, 343 holders</p>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot active"></div>
+        <div class="phase">Now</div>
+        <h3>Hackathons + Privacy</h3>
+        <p>Bags + Frontier, Umbra build</p>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="phase">Q2 2026</div>
+        <h3>Mainnet</h3>
+        <p>Audit done, partner cert pending, flip imminent</p>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="phase">Q2-Q3</div>
+        <h3>iOS + Growth</h3>
+        <p>App Store, ground distribution</p>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="phase">Q3-Q4</div>
+        <h3>Scale</h3>
+        <p>SDK, partners, 10K+ wallets</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SLIDE 11: Raise ============ -->
+<div class="slide">
+  <span class="version-tag">v3</span>
+  <div class="slide-header">
+    <h2 class="slide-title">The Raise</h2>
+    <div class="slide-sub">Pre-seed. Founder-led. Mainnet-imminent. Audit-cleared.</div>
+  </div>
+  <div class="slide-body">
+    <div class="raise-grid">
+      <div class="raise-card">
+        <h3>Round Terms</h3>
+        <div class="big">$300K</div>
+        <div class="small">SAFE &middot; YC standard post-money. 3-month runway to mainnet + first 10K users.</div>
+      </div>
+      <div class="raise-card">
+        <h3>Why Now</h3>
+        <ul>
+          <li>Program audit complete</li>
+          <li>Live in $4M Bags Hackathon</li>
+          <li>Helius CEO public co-sign</li>
+          <li>Umbra privacy integration shipping</li>
+          <li>343 holders pre-mainnet</li>
+        </ul>
+      </div>
+    </div>
+    <div class="raise-cta">
+      <strong>The ask:</strong>
+      <p>Capital to mainnet, App Store launch, and 10K real users on the ground in emerging markets. We shipped before raising — that's the proof.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SLIDE 12: Use of Funds ============ -->
+<div class="slide">
+  <span class="version-tag">v3</span>
+  <div class="slide-header">
+    <h2 class="slide-title">Use of Funds</h2>
+    <div class="slide-sub">3-month deployment to mainnet + first 10K users.</div>
+  </div>
+  <div class="slide-body">
+    <div class="budget-bars">
+      <div class="budget-row">
+        <div class="budget-label">Engineering &amp; Build</div>
+        <div class="budget-bar-bg"><div class="budget-bar-fill" style="width: 90%;">$80,000</div></div>
+      </div>
+      <div class="budget-row">
+        <div class="budget-label">Infrastructure &amp; Gas Pool</div>
+        <div class="budget-bar-bg"><div class="budget-bar-fill" style="width: 70%;">$60,000</div></div>
+      </div>
+      <div class="budget-row">
+        <div class="budget-label">SDK Audit &amp; Security</div>
+        <div class="budget-bar-bg"><div class="budget-bar-fill" style="width: 60%;">$50,000</div></div>
+      </div>
+      <div class="budget-row">
+        <div class="budget-label">Marketing &amp; Growth</div>
+        <div class="budget-bar-bg"><div class="budget-bar-fill" style="width: 60%;">$50,000</div></div>
+      </div>
+      <div class="budget-row">
+        <div class="budget-label">iOS Launch &amp; App Store</div>
+        <div class="budget-bar-bg"><div class="budget-bar-fill" style="width: 38%;">$30,000</div></div>
+      </div>
+      <div class="budget-row">
+        <div class="budget-label">Operations &amp; Legal</div>
+        <div class="budget-bar-bg"><div class="budget-bar-fill" style="width: 38%;">$30,000</div></div>
+      </div>
+    </div>
+    <div class="budget-total">
+      <span>Total Pre-Seed Raise</span>
+      <span class="amt">$300,000</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SLIDE 13: Close ============ -->
+<div class="slide slide-close">
+  <span class="version-tag" style="color: #4a3f35;">v3</span>
+  <div class="close-logo"><img src="brand/rebranded_logo.png" alt="seedless"></div>
+  <h1>seedless</h1>
+  <div class="closer">The wallet that makes seed phrases obsolete.</div>
+  <div class="contact-grid">
+    <div class="contact-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10z"/></svg>
+      seedlesslabs.xyz
+    </div>
+    <div class="contact-item">
+      <svg viewBox="0 0 24 24" fill="#c2410c" stroke="none"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+      @seedless_wallet
+    </div>
+    <div class="contact-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      t.me/seedless_wallet
+    </div>
+    <div class="contact-item">
+      <svg viewBox="0 0 24 24" fill="#c2410c" stroke="none"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+      @francis_codex
+    </div>
+    <div class="contact-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+      seedless-labs/seedless
+    </div>
+    <div class="contact-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      hello@seedlesslabs.xyz
+    </div>
+  </div>
+</div>
+
+<script>
+  // ?slide=N renders only the Nth slide (1-indexed) for per-slide PNG export
+  (function () {
+    var n = parseInt(new URLSearchParams(location.search).get('slide'), 10);
+    if (!n) return;
+    document.body.classList.add('solo');
+    var slides = document.querySelectorAll('body > .slide');
+    slides.forEach(function (el, i) {
+      if (i + 1 !== n) el.classList.add('hidden');
+    });
+  })();
+</script>
+</body>
+</html>

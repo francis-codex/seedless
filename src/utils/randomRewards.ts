@@ -1,5 +1,5 @@
 import { Connection, PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { SOLANA_RPC_URL, SEED_MINT, SEED_DECIMALS } from '../constants';
+import { SOLANA_RPC_URL, REWARD_HOLDER_MINT, SEED_DECIMALS } from '../constants';
 
 const connection = new Connection(SOLANA_RPC_URL, {
   commitment: 'confirmed',
@@ -21,7 +21,7 @@ export interface RewardDraw {
 
 // Fetch all SEED token holders via getTokenLargestAccounts + getParsedTokenAccountsByMint
 export async function getSeedHolders(minBalance: number = 1): Promise<SeedHolder[]> {
-  const seedMint = new PublicKey(SEED_MINT);
+  const seedMint = new PublicKey(REWARD_HOLDER_MINT);
 
   // Use getTokenLargestAccounts for top holders (RPC native, no extra API)
   const largestAccounts = await connection.getTokenLargestAccounts(seedMint);
@@ -159,7 +159,7 @@ export async function checkEligibility(
   walletAddress: string,
   minBalance: number = 100
 ): Promise<{ eligible: boolean; balance: number }> {
-  const seedMint = new PublicKey(SEED_MINT);
+  const seedMint = new PublicKey(REWARD_HOLDER_MINT);
   const wallet = new PublicKey(walletAddress);
 
   try {

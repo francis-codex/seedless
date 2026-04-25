@@ -9,9 +9,9 @@ import { BurnerScreen } from './screens/BurnerScreen';
 import { BagsScreen } from './screens/BagsScreen';
 import { LaunchScreen } from './screens/LaunchScreen';
 import { AuthoritiesScreen } from './screens/AuthoritiesScreen';
-import { IS_DEVNET } from './constants';
+import { UmbraDebugScreen } from './screens/UmbraDebugScreen';
 
-type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'bags' | 'launch' | 'authorities';
+type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'bags' | 'launch' | 'authorities' | 'umbradebug';
 
 // Navigation state for tracking screen transitions
 export type NavigationState = {
@@ -53,10 +53,7 @@ export function AppContent() {
   }
 
   if (isConnected) {
-    // Determine effective screen — block mainnet-only screens on devnet
-    const effectiveScreen = (IS_DEVNET && (currentScreen === 'swap' || currentScreen === 'bags' || currentScreen === 'launch'))
-      ? 'wallet'
-      : currentScreen;
+    const effectiveScreen = currentScreen;
 
     // Keep WalletScreen mounted to preserve balance state and avoid refetching
     // Other screens overlay on top — when they go back, WalletScreen is instant
@@ -71,6 +68,7 @@ export function AppContent() {
             onBags={() => setCurrentScreen('bags')}
             onLaunch={() => setCurrentScreen('launch')}
             onAuthorities={() => setCurrentScreen('authorities')}
+            onUmbraDebug={() => setCurrentScreen('umbradebug')}
           />
         </View>
         {effectiveScreen === 'swap' && <View style={styles.overlay}><SwapScreen onBack={() => setCurrentScreen('wallet')} /></View>}
@@ -79,6 +77,7 @@ export function AppContent() {
         {effectiveScreen === 'bags' && <View style={styles.overlay}><BagsScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         {effectiveScreen === 'launch' && <View style={styles.overlay}><LaunchScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         {effectiveScreen === 'authorities' && <View style={styles.overlay}><AuthoritiesScreen onBack={() => setCurrentScreen('wallet')} /></View>}
+        {effectiveScreen === 'umbradebug' && <View style={styles.overlay}><UmbraDebugScreen onBack={() => setCurrentScreen('wallet')} /></View>}
       </>
     );
   }

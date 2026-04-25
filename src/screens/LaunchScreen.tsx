@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
   },
   launchButton: {
     flex: 1,
-    backgroundColor: '#16a34a',
+    backgroundColor: '#000',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',

@@ -36,6 +36,7 @@ interface WalletScreenProps {
   onBags?: () => void;
   onLaunch?: () => void;
   onAuthorities?: () => void;
+  onUmbraDebug?: () => void;
 }
 
 const connection = new Connection(SOLANA_RPC_URL, {
@@ -49,7 +50,7 @@ const fallbackConnection = new Connection(
   { commitment: 'confirmed' },
 );
 
-export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags, onLaunch, onAuthorities }: WalletScreenProps) {
+export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags, onLaunch, onAuthorities, onUmbraDebug }: WalletScreenProps) {
   const {
     smartWalletPubkey,
     disconnect,
@@ -514,18 +515,24 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
             <Text style={styles.devicesButtonSub}>Add or remove signers</Text>
           </TouchableOpacity>
         )}
+        {onUmbraDebug && IS_DEVNET && (
+          <TouchableOpacity style={styles.devicesButton} onPress={onUmbraDebug} activeOpacity={0.8}>
+            <Text style={styles.devicesButtonText}>Umbra debug</Text>
+            <Text style={styles.devicesButtonSub}>Hello-world register (devnet)</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* SEED Rewards - Bags.fm Fee Sharing (Mainnet Only) */}
-      {onBags && !IS_DEVNET && (
+      {/* SEED Rewards - Bags.fm Fee Sharing */}
+      {onBags && (
         <TouchableOpacity style={styles.bagsButton} onPress={onBags} activeOpacity={0.8}>
           <Text style={styles.bagsButtonText}>SEED Rewards</Text>
           <Text style={styles.bagsButtonSub}>Fee sharing + claim earnings</Text>
         </TouchableOpacity>
       )}
 
-      {/* Launch Token via Bags (Mainnet Only) */}
-      {onLaunch && !IS_DEVNET && (
+      {/* Launch Token via Bags */}
+      {onLaunch && (
         <TouchableOpacity style={styles.launchTokenButton} onPress={onLaunch} activeOpacity={0.8}>
           <Text style={styles.launchTokenButtonText}>Launch Token</Text>
           <Text style={styles.launchTokenButtonSub}>Create + list on Bags.fm</Text>
@@ -982,35 +989,35 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   launchTokenButton: {
-    backgroundColor: '#7c3aed',
+    marginTop: 12,
+    backgroundColor: '#f5f5f5',
     borderRadius: 12,
     padding: 16,
-    marginTop: 16,
   },
   launchTokenButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#fff',
+    color: '#000',
   },
   launchTokenButtonSub: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
+    color: '#666',
     marginTop: 4,
   },
   bagsButton: {
-    backgroundColor: '#16a34a',
+    marginTop: 12,
+    backgroundColor: '#f5f5f5',
     borderRadius: 12,
     padding: 16,
-    marginTop: 16,
   },
   bagsButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#fff',
+    color: '#000',
   },
   bagsButtonSub: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
+    color: '#666',
     marginTop: 4,
   },
   devnetBanner: {
