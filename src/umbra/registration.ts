@@ -8,6 +8,7 @@ import {
 import type { IUmbraSigner } from '@umbra-privacy/sdk/interfaces';
 
 import { buildUmbraClient } from './client';
+import { buildMasterSeedStorage, type PasskeySignFn } from './master-seed';
 import { createUserRegistrationProver } from './zk/provers/register';
 
 const SIGNER_STORAGE_KEY = 'umbra_throwaway_signer_v1';
@@ -27,6 +28,21 @@ export type RegistrationProgress =
   | { stage: 'success'; signatures: readonly string[] };
 
 export type ProgressCallback = (event: RegistrationProgress) => void;
+
+export async function getStoredSignerAndClient(opts?: {
+  passkeyMasterSeed?: { vaultPubkey: string; signMessage: PasskeySignFn };
+}) {
+  const stored = await SecureStore.getItemAsync(SIGNER_STORAGE_KEY);
+  if (!stored) throw new Error('No throwaway signer in secure storage — run hello-world registration first.');
+  const bytes = Uint8Array.from(Buffer.from(stored, 'base64'));
+  if (bytes.byteLength !== 64) throw new Error('Stored signer key is malformed.');
+  const signer: IUmbraSigner = await createSignerFromPrivateKeyBytes(bytes);
+  const masterSeedStorage = opts?.passkeyMasterSeed
+    ? buildMasterSeedStorage(opts.passkeyMasterSeed)
+    : undefined;
+  const client = await buildUmbraClient({ signer, masterSeedStorage });
+  return { signer, client };
+}
 
 async function loadOrCreateSignerBytes(): Promise<{ bytes: Uint8Array; reused: boolean }> {
   const stored = await SecureStore.getItemAsync(SIGNER_STORAGE_KEY);
@@ -59,12 +75,29 @@ function stepCallbacks(step: RegistrationStep, onProgress?: ProgressCallback) {
   };
 }
 
-export async function runHelloWorldRegistration(onProgress?: ProgressCallback) {
+export interface HelloWorldArgs {
+  // When provided, master seed is derived from a passkey signature over a
+  // canonical message and persisted in SecureStore. The encrypted balance
+  // becomes bound to the user's smart wallet identity even though the on-chain
+  // payer is still the throwaway Ed25519 signer.
+  passkeyMasterSeed?: {
+    vaultPubkey: string;
+    signMessage: PasskeySignFn;
+  };
+}
+
+export async function runHelloWorldRegistration(
+  onProgress?: ProgressCallback,
+  args?: HelloWorldArgs,
+) {
   const { bytes, reused } = await loadOrCreateSignerBytes();
   const signer: IUmbraSigner = await createSignerFromPrivateKeyBytes(bytes);
   onProgress?.({ stage: 'signer-created', address: signer.address, reused });
 
-  const client = await buildUmbraClient({ signer });
+  const masterSeedStorage = args?.passkeyMasterSeed
+    ? buildMasterSeedStorage(args.passkeyMasterSeed)
+    : undefined;
+  const client = await buildUmbraClient({ signer, masterSeedStorage });
   onProgress?.({ stage: 'client-built' });
 
   const zkProver = await createUserRegistrationProver();
