@@ -1,4 +1,7 @@
-// Polyfills
+// Polyfills — order matters. EventTarget/CustomEvent must be installed before
+// ANY module captures `globalThis.EventTarget` at init time (notably
+// @solana/rpc-subscriptions-channel-websocket).
+import './src/polyfills/event-target';
 import 'react-native-get-random-values';
 import 'react-native-url-polyfill/auto';
 // RN has no crypto.subtle.digest. @solana/addresses (PDA derivation) calls
@@ -35,6 +38,34 @@ import { install as installEd25519 } from '@solana/webcrypto-ed25519-polyfill';
 installEd25519();
 import { Buffer } from 'buffer';
 global.Buffer = global.Buffer || Buffer;
+
+// Hermes ships AbortSignal but is missing throwIfAborted (ES2022). Umbra SDK
+// calls callerAbortSignal.throwIfAborted() between registration steps.
+{
+  const proto: any = (globalThis as any).AbortSignal?.prototype;
+  if (proto && typeof proto.throwIfAborted !== 'function') {
+    proto.throwIfAborted = function () {
+      if (this.aborted) {
+        throw this.reason ?? new Error('AbortError');
+      }
+    };
+  }
+}
+
+// Filter known-harmless console noise. @solana/web3.js (legacy v1) logs
+// `console.error('ws error:', err.message)` whenever its WebSocket subscription
+// channel reconnects — which it does aggressively after every confirmed tx.
+// Same behavior on devnet and mainnet; the underlying tx already landed before
+// the socket cycles. Drop only this exact prefix so real errors still surface.
+{
+  const origError = console.error;
+  console.error = (...args: any[]) => {
+    if (args.length > 0 && typeof args[0] === 'string' && args[0].startsWith('ws error:')) {
+      return;
+    }
+    origError(...args);
+  };
+}
 
 import { registerRootComponent } from 'expo';
 
