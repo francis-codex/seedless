@@ -28,6 +28,14 @@ import {
     BURNER_LIMITS,
     shortenAddress,
 } from '../utils/burner';
+import {
+    privateSendFromBurner,
+    PrivateSendDegradationDeclined,
+    type DegradationContext,
+    type PrivateSendProgress,
+} from '../umbra/burner-bridge';
+import { isValidSolanaAddress, getTxExplorerUrl, UMBRA_FEATURE_ENABLED } from '../constants';
+import * as Linking from 'expo-linking';
 
 interface BurnerScreenProps {
     onBack: () => void;
@@ -55,13 +63,23 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
     const [sendAmount, setSendAmount] = useState('');
     const [isSending, setIsSending] = useState(false);
 
-    const loadBurners = useCallback(async () => {
+    // Private (Umbra) send modal
+    const [showPrivateSendModal, setShowPrivateSendModal] = useState(false);
+    const [privateRecipient, setPrivateRecipient] = useState('');
+    const [privateAmount, setPrivateAmount] = useState('');
+    const [isPrivateSending, setIsPrivateSending] = useState(false);
+    const [privateProgress, setPrivateProgress] = useState<PrivateSendProgress | null>(null);
+    const [privateResultSig, setPrivateResultSig] = useState<string | null>(null);
+
+    const loadBurners = useCallback(async (): Promise<BurnerWalletWithBalance[]> => {
         setIsLoading(true);
         try {
             const burnersWithBalances = await listBurnersWithBalances(walletId);
             setBurners(burnersWithBalances);
+            return burnersWithBalances;
         } catch (error) {
             console.error('Failed to load burners:', error);
+            return [];
         } finally {
             setIsLoading(false);
         }
@@ -161,6 +179,126 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
             Alert.alert('Failed', friendly);
         } finally {
             setIsSending(false);
+        }
+    };
+
+    const handleOpenPrivateSend = (burner: BurnerWalletWithBalance) => {
+        setSelectedBurner(burner);
+        setPrivateRecipient('');
+        setPrivateAmount('');
+        setPrivateProgress(null);
+        setPrivateResultSig(null);
+        setShowPrivateSendModal(true);
+    };
+
+    const handlePrivateSend = async () => {
+        if (!selectedBurner) return;
+        if (!isValidSolanaAddress(privateRecipient)) {
+            Alert.alert('Invalid recipient', 'Enter a valid Solana address.');
+            return;
+        }
+        const amount = parseFloat(privateAmount);
+        if (isNaN(amount) || amount <= 0) {
+            Alert.alert('Invalid amount', 'Enter a positive amount.');
+            return;
+        }
+        if (amount > BURNER_LIMITS.MAX_SEND_SOL) {
+            Alert.alert('Limit exceeded', `Max is ${BURNER_LIMITS.MAX_SEND_SOL} SOL`);
+            return;
+        }
+        // Reserve a bigger buffer than a regular send: register (2 txs) +
+        // create-utxo can land 3 fees if the burner isn't registered yet.
+        const balanceLamports = Math.floor(selectedBurner.balance * LAMPORTS_PER_SOL);
+        const amountLamports = Math.round(amount * LAMPORTS_PER_SOL);
+        const feeReserve = 30000; // ~6x base fee — covers registration + create
+        if (amountLamports > balanceLamports - feeReserve) {
+            Alert.alert(
+                'Not enough SOL',
+                `Burner has ${selectedBurner.balance.toFixed(6)} SOL.\nReserve ${(feeReserve / LAMPORTS_PER_SOL).toFixed(6)} SOL for Umbra fees (registration may be needed on first send).`,
+            );
+            return;
+        }
+
+        setIsPrivateSending(true);
+        setPrivateProgress({ stage: 'preparing' });
+        setPrivateResultSig(null);
+        try {
+            const askDegradationConsent = (ctx: DegradationContext): Promise<boolean> => {
+                const isRpcError = ctx.reason === 'pre-flight-rpc-error';
+                const title = isRpcError ? "Couldn't verify privacy" : 'Recipient isn\'t on Umbra';
+                const body = isRpcError
+                    ? 'The amount may be visible on chain. Send anyway?'
+                    : 'The amount won\'t be hidden on chain. Send anyway?';
+                return new Promise<boolean>((resolve) => {
+                    Alert.alert(
+                        title,
+                        body,
+                        [
+                            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                            { text: 'Send anyway', style: 'destructive', onPress: () => resolve(true) },
+                        ],
+                        { cancelable: false },
+                    );
+                });
+            };
+            const result = await privateSendFromBurner(
+                {
+                    burnerId: selectedBurner.id,
+                    destinationAddress: privateRecipient,
+                    amountLamports: BigInt(amountLamports),
+                    onDegradationRequested: askDegradationConsent,
+                },
+                (e) => setPrivateProgress(e),
+            );
+            const sig = result.createSignature ?? result.fallbackSignature ?? null;
+            setPrivateResultSig(sig);
+            // Refresh balances + re-pin selectedBurner to the fresh row so a
+            // follow-up send sees the post-transfer balance, not the stale one.
+            const updated = await loadBurners();
+            const refreshed = updated.find((b) => b.id === selectedBurner.id);
+            if (refreshed) setSelectedBurner(refreshed);
+            // Clear the amount so a double-tap can't accidentally re-send the
+            // same value against a now-smaller balance.
+            setPrivateAmount('');
+            const modeLabel = result.mode === 'umbra-encrypted'
+                ? 'Encrypted private send'
+                : 'Burner-fallback send (sender hidden, amount visible)';
+            Alert.alert(
+                'Sent',
+                `${modeLabel}\n\n${amount} SOL → ${privateRecipient.slice(0, 6)}…${privateRecipient.slice(-6)}`,
+                sig
+                    ? [
+                        { text: 'View on explorer', onPress: () => Linking.openURL(getTxExplorerUrl(sig)) },
+                        { text: 'OK', style: 'cancel' },
+                      ]
+                    : [{ text: 'OK', style: 'cancel' }],
+            );
+        } catch (err: any) {
+            // User declined the privacy-degradation prompt — treat as a clean
+            // cancel, not an error. Reset progress so the modal doesn't sit on
+            // a stale "Checking…" line.
+            if (err instanceof PrivateSendDegradationDeclined) {
+                setPrivateProgress(null);
+                return;
+            }
+            console.error('Private send failed:', err);
+            const raw = String(err?.message ?? 'Private send failed');
+            // Map the raw on-chain dump to something a human can act on.
+            const insufficient = raw.match(/insufficient lamports\s+(\d+),\s*need\s+(\d+)/i);
+            const friendly = insufficient
+                ? (() => {
+                    const have = Number(insufficient[1]) / LAMPORTS_PER_SOL;
+                    const need = Number(insufficient[2]) / LAMPORTS_PER_SOL;
+                    return `Burner only has ${have.toFixed(6)} SOL but the send needs ${need.toFixed(6)} SOL. Lower the amount or top up the burner.`;
+                  })()
+                : raw.includes('not registered with Umbra')
+                    ? raw
+                    : raw.length > 240
+                        ? `${raw.slice(0, 240)}…`
+                        : raw;
+            Alert.alert('Failed', friendly);
+        } finally {
+            setIsPrivateSending(false);
         }
     };
 
@@ -289,6 +427,16 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                                     <Text style={styles.destroyButtonText}>Destroy</Text>
                                 </TouchableOpacity>
                             </View>
+
+                            {UMBRA_FEATURE_ENABLED && (
+                                <TouchableOpacity
+                                    style={[styles.privateSendButton, burner.balance === 0 && styles.buttonDisabled]}
+                                    onPress={() => handleOpenPrivateSend(burner)}
+                                    disabled={burner.balance === 0}
+                                >
+                                    <Text style={styles.privateSendText}>Private Send (Umbra)</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
                     ))
                 )}
@@ -398,6 +546,122 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
 
                                 <TouchableOpacity style={styles.closeButton} onPress={() => setShowSendModal(false)}>
                                     <Text style={styles.closeButtonText}>Cancel</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </TouchableWithoutFeedback>
+                    </KeyboardAvoidingView>
+                </TouchableWithoutFeedback>
+            </Modal>
+            {/* Private Send (Umbra) Modal */}
+            <Modal
+                visible={showPrivateSendModal}
+                animationType="slide"
+                transparent
+                onRequestClose={() => !isPrivateSending && setShowPrivateSendModal(false)}
+            >
+                <TouchableWithoutFeedback onPress={() => !isPrivateSending && setShowPrivateSendModal(false)}>
+                    <KeyboardAvoidingView
+                        style={styles.modalOverlay}
+                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    >
+                        <TouchableWithoutFeedback onPress={() => {}}>
+                            <View style={styles.modalContent}>
+                                <Text style={styles.modalTitle}>Private Send</Text>
+                                <Text style={styles.modalSubtitle}>{selectedBurner?.label} → encrypted UTXO</Text>
+                                <Text style={styles.modalBalance}>Balance: {selectedBurner?.balance.toFixed(4)} SOL</Text>
+                                <Text style={styles.privateHint}>
+                                    On-chain link between burner and recipient is broken. Recipient claims into their
+                                    encrypted balance with their passkey. Devnet uses WSOL (auto-wrapped). First send
+                                    from this burner runs a 2-tx Umbra registration.
+                                </Text>
+
+                                <TextInput
+                                    style={styles.modalInput}
+                                    placeholder="Recipient address (Solana)"
+                                    placeholderTextColor="#999"
+                                    value={privateRecipient}
+                                    onChangeText={setPrivateRecipient}
+                                    autoCapitalize="none"
+                                    editable={!isPrivateSending}
+                                />
+
+                                <View style={styles.amountRow}>
+                                    <TextInput
+                                        style={[styles.modalInput, styles.amountInput]}
+                                        placeholder={`Amount (max ${BURNER_LIMITS.MAX_SEND_SOL} SOL)`}
+                                        placeholderTextColor="#999"
+                                        value={privateAmount}
+                                        onChangeText={setPrivateAmount}
+                                        keyboardType="decimal-pad"
+                                        editable={!isPrivateSending}
+                                    />
+                                    <TouchableOpacity
+                                        style={styles.maxButton}
+                                        onPress={() => {
+                                            if (!selectedBurner) return;
+                                            const balanceLamports = Math.floor(selectedBurner.balance * LAMPORTS_PER_SOL);
+                                            const maxLamports = Math.max(0, balanceLamports - 30000);
+                                            setPrivateAmount((maxLamports / LAMPORTS_PER_SOL).toFixed(9));
+                                        }}
+                                        disabled={isPrivateSending}
+                                    >
+                                        <Text style={styles.maxButtonText}>Max</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {privateProgress && (
+                                    <View style={styles.privateProgressBox}>
+                                        <Text style={styles.privateProgressTitle}>
+                                            {privateProgress.stage === 'preparing' && 'Preparing burner signer…'}
+                                            {privateProgress.stage === 'checking-recipient' && 'Checking recipient privacy support…'}
+                                            {privateProgress.stage === 'registering-burner' && 'Registering burner with Umbra…'}
+                                            {privateProgress.stage === 'register-step' && (privateProgress.detail ?? 'register step')}
+                                            {privateProgress.stage === 'creating-utxo' && 'Creating encrypted UTXO…'}
+                                            {privateProgress.stage === 'fallback-burner-transfer' && 'Recipient not on Umbra → sending via burner (sender hidden, amount visible)…'}
+                                            {privateProgress.stage === 'success' && (
+                                              privateProgress.mode === 'burner-fallback'
+                                                ? 'Burner-fallback send confirmed'
+                                                : 'Encrypted private send confirmed'
+                                            )}
+                                        </Text>
+                                        {privateProgress.signature && (
+                                            <TouchableOpacity onPress={() => Linking.openURL(getTxExplorerUrl(privateProgress.signature!))}>
+                                                <Text style={styles.privateProgressSig}>{privateProgress.signature.slice(0, 12)}…{privateProgress.signature.slice(-8)} ↗</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                )}
+
+                                {privateResultSig && (
+                                    <TouchableOpacity
+                                        style={styles.privateResultRow}
+                                        onPress={() => Linking.openURL(getTxExplorerUrl(privateResultSig))}
+                                    >
+                                        <Text style={styles.privateResultLabel}>
+                                            {privateProgress?.mode === 'burner-fallback' ? 'Transfer sig' : 'UTXO sig'}
+                                        </Text>
+                                        <Text style={styles.privateResultSig}>{privateResultSig.slice(0, 12)}…{privateResultSig.slice(-8)} ↗</Text>
+                                    </TouchableOpacity>
+                                )}
+
+                                <TouchableOpacity
+                                    style={[styles.modalButton, isPrivateSending && styles.buttonDisabled]}
+                                    onPress={handlePrivateSend}
+                                    disabled={isPrivateSending}
+                                >
+                                    {isPrivateSending ? (
+                                        <ActivityIndicator size="small" color="#fff" />
+                                    ) : (
+                                        <Text style={styles.modalButtonText}>Send Privately</Text>
+                                    )}
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.closeButton}
+                                    onPress={() => setShowPrivateSendModal(false)}
+                                    disabled={isPrivateSending}
+                                >
+                                    <Text style={styles.closeButtonText}>{privateResultSig ? 'Done' : 'Cancel'}</Text>
                                 </TouchableOpacity>
                             </View>
                         </TouchableWithoutFeedback>
@@ -563,6 +827,53 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#dc2626',
     },
+    privateSendButton: {
+        marginTop: 10,
+        backgroundColor: '#0e0e0e',
+        borderRadius: 10,
+        paddingVertical: 11,
+        alignItems: 'center',
+    },
+    privateSendText: {
+        color: '#9af09a',
+        fontSize: 13,
+        fontWeight: '600',
+        letterSpacing: 0.3,
+    },
+    privateHint: {
+        fontSize: 11,
+        color: '#666',
+        lineHeight: 16,
+        marginBottom: 14,
+    },
+    privateProgressBox: {
+        backgroundColor: '#0e0e0e',
+        borderRadius: 8,
+        padding: 10,
+        marginTop: 4,
+        marginBottom: 10,
+    },
+    privateProgressTitle: {
+        color: '#9af09a',
+        fontSize: 12,
+        fontFamily: 'Menlo',
+    },
+    privateProgressSig: {
+        color: '#9bb6ff',
+        fontSize: 11,
+        fontFamily: 'Menlo',
+        marginTop: 4,
+    },
+    privateResultRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: 8,
+        marginBottom: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    privateResultLabel: { fontSize: 12, color: '#555' },
+    privateResultSig: { fontSize: 12, color: '#7c3aed', fontFamily: 'Menlo' },
     limitsCard: {
         backgroundColor: '#fef3c7',
         borderRadius: 12,
