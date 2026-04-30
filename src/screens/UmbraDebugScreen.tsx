@@ -251,10 +251,35 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
 
   const handleScanUtxo = useCallback(() => {
     runOp('scan-utxo', async () => {
-      const { client } = await getStoredSignerAndClient(passkeyMasterSeed ? { passkeyMasterSeed } : undefined);
-      // Indexer warmup: a UTXO that just landed needs ~3-5s to be visible.
-      await new Promise((r) => setTimeout(r, 3000));
-      const r = await scanClaimableUtxosAcrossTrees({ client, maxTreeIndex: 7 });
+      const { signer, client } = await getStoredSignerAndClient(passkeyMasterSeed ? { passkeyMasterSeed } : undefined);
+
+      // Diagnostic: derive the X25519 key the scanner will use, compare to
+      // the on-chain X25519 the recipient registered. If they don't match,
+      // the master seed is divergent and decryption can never succeed.
+      try {
+        const sdk: any = await import('@umbra-privacy/sdk');
+        if (typeof sdk.getUserAccountX25519KeypairDeriver === 'function') {
+          const deriver = sdk.getUserAccountX25519KeypairDeriver({ client });
+          const kp = await deriver();
+          const derivedPub = kp?.publicKey ?? kp?.x25519PublicKey ?? kp;
+          console.log('[umbra] derived X25519 (scanner)', signer.address, derivedPub);
+        }
+        const querier = sdk.getUserAccountQuerierFunction({ client });
+        const onChain = await querier(signer.address as any);
+        console.log('[umbra] on-chain X25519 (registered)', signer.address, (onChain as any)?.data?.x25519PublicKey);
+      } catch (e) {
+        console.warn('[umbra] x25519 diagnostic skipped:', (e as any)?.message ?? e);
+      }
+
+      // Try up to 4 times with backoff — create-utxo's leaf can take a few
+      // seconds to surface in the indexer.
+      let r = await scanClaimableUtxosAcrossTrees({ client, maxTreeIndex: 7 });
+      for (let attempt = 1; attempt <= 3 && r.ephemeral.length + r.receiver.length + r.publicEphemeral.length + r.publicReceiver.length === 0; attempt++) {
+        await new Promise((res) => setTimeout(res, 3000 * attempt));
+        console.log(`[umbra] scan retry ${attempt} (indexer warmup)`);
+        r = await scanClaimableUtxosAcrossTrees({ client, maxTreeIndex: 7 });
+      }
+
       const utxos: readonly ScannedUtxoData[] = [
         ...r.ephemeral,
         ...r.receiver,
