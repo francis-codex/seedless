@@ -106,13 +106,20 @@ export async function checkRecipientUmbraStatus(
   try {
     const query = getUserAccountQuerierFunction({ client });
     const result = await query(recipientAddress as any);
+    console.log('[umbra] recipient query', recipientAddress, {
+      state: result.state,
+      data: result.data,
+    });
     if (result.state === 'non_existent') {
       return { registered: false, hasX25519: false };
     }
-    return {
-      registered: true,
-      hasX25519: !!(result.data as any)?.isX25519PubkeyRegistered,
-    };
+    const data = result.data as any;
+    const hasX25519 =
+      !!data?.isX25519PubkeyRegistered ||
+      !!data?.x25519PublicKey ||
+      !!data?.x25519Pubkey ||
+      !!data?.confidentialKey;
+    return { registered: true, hasX25519 };
   } catch (err: any) {
     return {
       registered: false,
