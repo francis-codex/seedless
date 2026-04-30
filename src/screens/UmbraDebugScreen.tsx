@@ -253,10 +253,16 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
     runOp('scan-utxo', async () => {
       const { client } = await getStoredSignerAndClient(passkeyMasterSeed ? { passkeyMasterSeed } : undefined);
       const result = await scanClaimableUtxos({ client, treeIndex: 0 });
-      const utxos: readonly ScannedUtxoData[] =
-        (result as any).utxos ?? (Array.isArray(result) ? (result as any) : []);
+      const r = result as any;
+      const utxos: readonly ScannedUtxoData[] = [
+        ...(r.ephemeral ?? []),
+        ...(r.receiver ?? []),
+        ...(r.publicEphemeral ?? []),
+        ...(r.publicReceiver ?? []),
+      ];
       setScannedUtxos(utxos);
-      return { message: `scan complete · ${utxos.length} claimable utxo(s) found in tree 0` };
+      const breakdown = `${r.ephemeral?.length ?? 0}e/${r.receiver?.length ?? 0}r/${r.publicEphemeral?.length ?? 0}pe/${r.publicReceiver?.length ?? 0}pr`;
+      return { message: `scan complete · ${utxos.length} claimable utxo(s) found in tree 0 (${breakdown})` };
     });
   }, [runOp, passkeyMasterSeed]);
 
