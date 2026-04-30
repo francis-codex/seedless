@@ -5,15 +5,38 @@ import { PublicKey } from '@solana/web3.js';
 // ============================================================
 const USE_DEVNET = true; // <-- set false for mainnet
 
-// Solana RPC Configuration
+// Solana RPC Configuration — provider preference per network:
+//
+// DEVNET:  public devnet (first) → Alchemy (if key set, manual swap)
+// MAINNET: Helius (paid plan, full method support)
+//
+// Why public devnet first: it supports every method we need (HTTP reads + WS
+// subs) at zero cost. Helius free devnet plan blocks HTTP reads (HTTP 401 /
+// `-32401`) and Alchemy free tier doesn't expose slotSubscribe /
+// accountSubscribe — both fail in different ways. Public devnet is rate-
+// limited (~100 req/10s per IP) but works end-to-end. Alchemy stays plumbed
+// as a fallback; flip the order below if public devnet starts flaking.
 const HELIUS_API_KEY = process.env.EXPO_PUBLIC_HELIUS_API_KEY || '';
-const HELIUS_DEVNET_KEY = process.env.EXPO_PUBLIC_HELIUS_DEVNET_KEY || '';
-if (!HELIUS_DEVNET_KEY && USE_DEVNET) {
-  console.warn('[env] EXPO_PUBLIC_HELIUS_DEVNET_KEY is not set — RPC calls will fail');
+const ALCHEMY_DEVNET_KEY = process.env.EXPO_PUBLIC_ALCHEMY_DEVNET_KEY || '';
+if (!HELIUS_API_KEY && !USE_DEVNET) {
+  console.warn('[env] EXPO_PUBLIC_HELIUS_API_KEY is not set — mainnet RPC calls will fail');
 }
 export const SOLANA_RPC_URL = USE_DEVNET
-  ? `https://devnet.helius-rpc.com/?api-key=${HELIUS_DEVNET_KEY}`
+  ? 'https://api.devnet.solana.com'
   : `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+
+// WebSocket subscription endpoint. Public devnet supports slotSubscribe /
+// accountSubscribe; alchemy free tier doesn't. Mainnet uses Helius (paid plan
+// covers all sub methods).
+export const SOLANA_WSS_URL = USE_DEVNET
+  ? 'wss://api.devnet.solana.com'
+  : `wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+
+// Alchemy devnet endpoint kept exported for ad-hoc fallback wiring (e.g.
+// pointing a single noisy provider at it without flipping the whole app).
+export const ALCHEMY_DEVNET_RPC_URL = ALCHEMY_DEVNET_KEY
+  ? `https://solana-devnet.g.alchemy.com/v2/${ALCHEMY_DEVNET_KEY}`
+  : null;
 
 // Umbra Privacy — programs, indexer, relayer, ZK CDN
 // Docs: https://docs.umbraprivacy.com · Plan: docs/umbra-integration-plan.md
@@ -27,6 +50,17 @@ export const UMBRA_RELAYER_URL = USE_DEVNET
   ? 'https://relayer.api-devnet.umbraprivacy.com'
   : 'https://relayer.api.umbraprivacy.com';
 export const UMBRA_ZK_CDN = 'https://zk.api.umbraprivacy.com';
+
+// Umbra devnet supports WSOL only as of Apr 27 2026 (per Cal in TG group).
+// SDK auto-wraps native devnet SOL — pass SOL_MINT, do not require WSOL holdings.
+// More tokens (USDC etc.) coming "shortly" but lower priority for the team.
+// On mainnet this still maps to wSOL — Umbra also supports USDC / USDT / UMBRA there.
+export const UMBRA_TEST_MINT_DEVNET = 'So11111111111111111111111111111111111111112';
+
+// Feature flag for Umbra UI surfaces. Cal recommended apps add a downtime
+// switch we can flip during their next breaking-changes window.
+export const UMBRA_FEATURE_ENABLED =
+  (process.env.EXPO_PUBLIC_UMBRA_FEATURE_ENABLED ?? 'true') !== 'false';
 
 // LazorKit Portal and Paymaster
 export const PORTAL_URL = 'https://portal.lazor.sh';

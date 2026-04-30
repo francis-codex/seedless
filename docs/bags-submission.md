@@ -51,7 +51,7 @@ That's it. Everything else (github, site, audit URL) lives inside the thread its
 ### tweet 1 (attach `seedless_demo_bags_clean.mp4`)
 
 ```
-seedless. passkey-first solana wallet built on @lazorkitlabs.
+seedless. passkey-first solana wallet built on @lazorkit.
 
 no seed phrase. no extension. face id signs every tx.
 
@@ -91,7 +91,7 @@ smart wallet's already audited.
 public report, solana foundation-backed:
 github.com/lazor-kit/program-v2/tree/main/audits
 
-mainnet flips the moment partner cert clears with @lazorkitlabs.
+mainnet flips the moment partner cert clears with @lazorkit.
 devnet today by discipline, not by gap.
 ```
 
@@ -118,7 +118,7 @@ Before you hit "post" on tweet 1:
 - [ ] You're posting from `@seedless_wallet` (not `@francis_codex`) — the project account submits, the founder amplifies
 - [ ] Demo video uploaded to tweet 1, plays in preview
 - [ ] First line reads clean (no orphan word at the end of a line)
-- [ ] @lazorkitlabs handle is correct
+- [ ] @lazorkit handle is correct
 - [ ] @bagsfm handle is correct
 - [ ] @wellsreyem handle is correct
 - [ ] Audit URL is the right one (`/lazor-kit/program-v2/tree/main/audits`)
@@ -151,7 +151,7 @@ Note: video shows the **old logo** (Wells rebrand still being wired into app cod
 ## Risk / FAQ — if anyone asks in replies
 
 **Q: Why devnet?**
-A: Smart wallet's already audited (link). Mainnet flips when partner cert clears with @lazorkitlabs. Devnet today by discipline, not by gap.
+A: Smart wallet's already audited (link). Mainnet flips when partner cert clears with @lazorkit. Devnet today by discipline, not by gap.
 
 **Q: Can I try it on mainnet?**
 A: Not yet — Kay (LazorKit) is finishing partner-side checks. Audit report is public, Solana Foundation-backed. The moment cert clears, we flip.
