@@ -207,10 +207,19 @@ export async function privateSendFromBurner(
     return fallbackToBurnerTransfer();
   }
 
-  // Recipient is Umbra-registered → try encrypted-UTXO path.
-  // Sender (burner) registration is lazy: catch the sender-side "not
-  // registered" error, run register, retry once.
+  // Pre-flight register the sender (burner). The SDK throws a generic
+  // "Transaction simulation failed" when the signer's user account doesn't
+  // exist on chain — too vague to distinguish from real failures, so we
+  // ensure registration up-front instead of guessing from error messages.
+  // ensureBurnerRegistered is idempotent; the SDK skips already-confirmed
+  // steps so re-running is cheap.
   let registrationSignatures: string[] = [];
+  const senderStatus = await checkRecipientUmbraStatus(client, keypair.publicKey.toBase58());
+  if (!senderStatus.hasX25519) {
+    registrationSignatures = await ensureBurnerRegistered(client, onProgress);
+  }
+
+  // Recipient is Umbra-registered → encrypted-UTXO path.
   let createResult: any;
   try {
     onProgress?.({ stage: 'creating-utxo', mode: 'umbra-encrypted' });
@@ -223,9 +232,6 @@ export async function privateSendFromBurner(
   } catch (err: any) {
     const rawMessage = String(err?.message ?? err);
     const message = rawMessage.toLowerCase();
-    // Receiver-side: pre-flight didn't catch it (RPC was unknown), but the
-    // SDK confirms the recipient lacks an X25519 key. Fall back to plain
-    // burner transfer unless caller demanded encrypted-only.
     const isReceiverProblem = message.includes('receiver is not registered')
       || message.includes('receiver not registered');
     if (isReceiverProblem) {
@@ -235,21 +241,7 @@ export async function privateSendFromBurner(
       await requestDegradationConsent(reason);
       return fallbackToBurnerTransfer();
     }
-    const looksSenderUnregistered =
-      message.includes('sender is not registered')
-      || message.includes('user account')
-      || message.includes('x25519')
-      || (message.includes('not registered') && !message.includes('receiver'))
-      || message.includes('registration');
-    if (!looksSenderUnregistered) throw err;
-    registrationSignatures = await ensureBurnerRegistered(client, onProgress);
-    onProgress?.({ stage: 'creating-utxo', mode: 'umbra-encrypted' });
-    createResult = await createReceiverClaimableFromPublicBalance({
-      client,
-      destinationAddress,
-      mint,
-      amount: amountLamports,
-    });
+    throw err;
   }
 
   const createSignature = createResult?.signature ?? createResult?.queueSignature;
