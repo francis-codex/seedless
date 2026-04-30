@@ -21,7 +21,7 @@ import {
 } from '../umbra/registration';
 import { depositToEncryptedBalance } from '../umbra/deposit';
 import { withdrawToPublicBalance } from '../umbra/withdraw';
-import { createReceiverClaimableFromPublicBalance, scanClaimableUtxos } from '../umbra/utxo';
+import { createReceiverClaimableFromPublicBalance, scanClaimableUtxosAcrossTrees } from '../umbra/utxo';
 import { claimReceiverClaimableUtxosToEncryptedBalance } from '../umbra/claim';
 import type { ScannedUtxoData } from '@umbra-privacy/sdk/interfaces';
 import { getTxExplorerUrl, getAccountExplorerUrl, UMBRA_TEST_MINT_DEVNET } from '../constants';
@@ -252,17 +252,20 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
   const handleScanUtxo = useCallback(() => {
     runOp('scan-utxo', async () => {
       const { client } = await getStoredSignerAndClient(passkeyMasterSeed ? { passkeyMasterSeed } : undefined);
-      const result = await scanClaimableUtxos({ client, treeIndex: 0 });
-      const r = result as any;
+      // Indexer warmup: a UTXO that just landed needs ~3-5s to be visible.
+      await new Promise((r) => setTimeout(r, 3000));
+      const r = await scanClaimableUtxosAcrossTrees({ client, maxTreeIndex: 7 });
       const utxos: readonly ScannedUtxoData[] = [
-        ...(r.ephemeral ?? []),
-        ...(r.receiver ?? []),
-        ...(r.publicEphemeral ?? []),
-        ...(r.publicReceiver ?? []),
+        ...r.ephemeral,
+        ...r.receiver,
+        ...r.publicEphemeral,
+        ...r.publicReceiver,
       ];
       setScannedUtxos(utxos);
-      const breakdown = `${r.ephemeral?.length ?? 0}e/${r.receiver?.length ?? 0}r/${r.publicEphemeral?.length ?? 0}pe/${r.publicReceiver?.length ?? 0}pr`;
-      return { message: `scan complete · ${utxos.length} claimable utxo(s) found in tree 0 (${breakdown})` };
+      const totals = `${r.ephemeral.length}e/${r.receiver.length}r/${r.publicEphemeral.length}pe/${r.publicReceiver.length}pr`;
+      const perTree = r.perTree.map((p) => `t${p.treeIndex}:${p.counts}`).join(' ');
+      console.log('[umbra] scan complete', { totals, perTree, treesScanned: r.treesScanned });
+      return { message: `scan complete · ${utxos.length} utxo(s) across ${r.treesScanned} tree(s) (${totals})` };
     });
   }, [runOp, passkeyMasterSeed]);
 

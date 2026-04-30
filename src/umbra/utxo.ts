@@ -81,6 +81,62 @@ export async function scanClaimableUtxos(args: ScanArgs): Promise<ScannedUtxoRes
   );
 }
 
+// Devnet's mixer tree 0 has been around for weeks and may be full or
+// past-cursor relative to a freshly created UTXO. The SDK doesn't expose a
+// "current tree index" querier yet, so iterate a small range and merge.
+// 8 trees × 2^20 leaves is plenty of headroom for the demo window.
+export async function scanClaimableUtxosAcrossTrees(args: {
+  client: IUmbraClient;
+  maxTreeIndex?: number;
+}): Promise<{
+  ephemeral: any[];
+  receiver: any[];
+  publicEphemeral: any[];
+  publicReceiver: any[];
+  treesScanned: number;
+  perTree: Array<{ treeIndex: number; counts: string }>;
+}> {
+  const { client, maxTreeIndex = 7 } = args;
+  const ephemeral: any[] = [];
+  const receiver: any[] = [];
+  const publicEphemeral: any[] = [];
+  const publicReceiver: any[] = [];
+  const perTree: Array<{ treeIndex: number; counts: string }> = [];
+
+  for (let t = 0; t <= maxTreeIndex; t++) {
+    try {
+      const r = (await scanClaimableUtxos({ client, treeIndex: t })) as any;
+      const eN = r.ephemeral?.length ?? 0;
+      const rN = r.receiver?.length ?? 0;
+      const peN = r.publicEphemeral?.length ?? 0;
+      const prN = r.publicReceiver?.length ?? 0;
+      perTree.push({ treeIndex: t, counts: `${eN}e/${rN}r/${peN}pe/${prN}pr` });
+      ephemeral.push(...(r.ephemeral ?? []));
+      receiver.push(...(r.receiver ?? []));
+      publicEphemeral.push(...(r.publicEphemeral ?? []));
+      publicReceiver.push(...(r.publicReceiver ?? []));
+    } catch (err: any) {
+      // A tree that doesn't exist yet typically throws — stop iterating once
+      // we hit the upper bound rather than spamming the indexer.
+      const msg = String(err?.message ?? err).toLowerCase();
+      if (msg.includes('not found') || msg.includes('out of range') || msg.includes('does not exist')) {
+        break;
+      }
+      console.warn(`[umbra] scan tree ${t} failed:`, err?.message ?? err);
+      break;
+    }
+  }
+
+  return {
+    ephemeral,
+    receiver,
+    publicEphemeral,
+    publicReceiver,
+    treesScanned: perTree.length,
+    perTree,
+  };
+}
+
 // Pre-flight check for "is this address able to receive an encrypted UTXO?"
 // Receiver-claimable UTXOs encrypt to the recipient's X25519 viewing key,
 // which only exists on chain if they ran Umbra registration. If we skip this
@@ -106,14 +162,15 @@ export async function checkRecipientUmbraStatus(
   try {
     const query = getUserAccountQuerierFunction({ client });
     const result = await query(recipientAddress as any);
+    const anyResult = result as any;
     console.log('[umbra] recipient query', recipientAddress, {
       state: result.state,
-      data: result.data,
+      data: anyResult.data,
     });
     if (result.state === 'non_existent') {
       return { registered: false, hasX25519: false };
     }
-    const data = result.data as any;
+    const data = anyResult.data;
     const hasX25519 =
       !!data?.isX25519PubkeyRegistered ||
       !!data?.x25519PublicKey ||
