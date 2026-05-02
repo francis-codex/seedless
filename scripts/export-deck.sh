@@ -11,7 +11,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DECK="$ROOT/assets/pitch-deck-v3.html"
 OUT="$ROOT/assets/deck-v3-export"
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-SLIDE_COUNT=13
+SLIDE_COUNT=10
 
 if [ ! -x "$CHROME" ]; then
   echo "Chrome not found at $CHROME"; exit 1
