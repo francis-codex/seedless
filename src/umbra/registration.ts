@@ -1,3 +1,12 @@
+// Hello-world Umbra registration on a throwaway Ed25519 signer.
+//
+// Flow:
+//   1. Persist (or restore) a 64-byte Ed25519 keypair in iOS SecureStore.
+//   2. Build an Umbra client with that signer; SDK derives the master seed
+//      natively from signer.signMessage(canonical).
+//   3. Run the 3-instruction registration: user account init → X25519 key
+//      → user-commitment for anonymous usage. All idempotent — safe to re-run.
+
 import { Buffer } from 'buffer';
 import * as SecureStore from 'expo-secure-store';
 import { getPublicKeyAsync } from '@noble/ed25519';
@@ -8,7 +17,6 @@ import {
 import type { IUmbraSigner } from '@umbra-privacy/sdk/interfaces';
 
 import { buildUmbraClient } from './client';
-import { buildMasterSeedStorage, type PasskeySignFn } from './master-seed';
 import { createUserRegistrationProver } from './zk/provers/register';
 
 const SIGNER_STORAGE_KEY = 'umbra_throwaway_signer_v1';
@@ -29,18 +37,13 @@ export type RegistrationProgress =
 
 export type ProgressCallback = (event: RegistrationProgress) => void;
 
-export async function getStoredSignerAndClient(opts?: {
-  passkeyMasterSeed?: { vaultPubkey: string; signMessage: PasskeySignFn };
-}) {
+export async function getStoredSignerAndClient() {
   const stored = await SecureStore.getItemAsync(SIGNER_STORAGE_KEY);
-  if (!stored) throw new Error('No throwaway signer in secure storage — run hello-world registration first.');
+  if (!stored) throw new Error('No signer in secure storage — run registration first.');
   const bytes = Uint8Array.from(Buffer.from(stored, 'base64'));
   if (bytes.byteLength !== 64) throw new Error('Stored signer key is malformed.');
   const signer: IUmbraSigner = await createSignerFromPrivateKeyBytes(bytes);
-  const masterSeedStorage = opts?.passkeyMasterSeed
-    ? buildMasterSeedStorage(opts.passkeyMasterSeed)
-    : undefined;
-  const client = await buildUmbraClient({ signer, masterSeedStorage });
+  const client = await buildUmbraClient({ signer });
   return { signer, client };
 }
 
@@ -75,29 +78,12 @@ function stepCallbacks(step: RegistrationStep, onProgress?: ProgressCallback) {
   };
 }
 
-export interface HelloWorldArgs {
-  // When provided, master seed is derived from a passkey signature over a
-  // canonical message and persisted in SecureStore. The encrypted balance
-  // becomes bound to the user's smart wallet identity even though the on-chain
-  // payer is still the throwaway Ed25519 signer.
-  passkeyMasterSeed?: {
-    vaultPubkey: string;
-    signMessage: PasskeySignFn;
-  };
-}
-
-export async function runHelloWorldRegistration(
-  onProgress?: ProgressCallback,
-  args?: HelloWorldArgs,
-) {
+export async function runHelloWorldRegistration(onProgress?: ProgressCallback) {
   const { bytes, reused } = await loadOrCreateSignerBytes();
   const signer: IUmbraSigner = await createSignerFromPrivateKeyBytes(bytes);
   onProgress?.({ stage: 'signer-created', address: signer.address, reused });
 
-  const masterSeedStorage = args?.passkeyMasterSeed
-    ? buildMasterSeedStorage(args.passkeyMasterSeed)
-    : undefined;
-  const client = await buildUmbraClient({ signer, masterSeedStorage });
+  const client = await buildUmbraClient({ signer });
   onProgress?.({ stage: 'client-built' });
 
   const zkProver = await createUserRegistrationProver();

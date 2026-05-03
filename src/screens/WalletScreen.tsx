@@ -18,7 +18,7 @@ import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import { Connection, PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { getAccount, getAssociatedTokenAddress } from '@solana/spl-token';
 import * as Linking from 'expo-linking';
-import { SOLANA_RPC_URL, USDC_MINT, SEED_MINT, SEED_DECIMALS, CLUSTER_SIMULATION, IS_DEVNET, MIN_SOL_FOR_TX, QUICK_AMOUNTS, getTxExplorerUrl, isValidSolanaAddress } from '../constants';
+import { SOLANA_RPC_URL, USDC_MINT, SEED_MINT, SOL_MINT, SEED_DECIMALS, CLUSTER_SIMULATION, IS_DEVNET, MIN_SOL_FOR_TX, QUICK_AMOUNTS, getTxExplorerUrl, isValidSolanaAddress } from '../constants';
 import {
   ActiveSession,
   clearSession as clearStoredSession,
@@ -74,6 +74,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
   const [solBalance, setSolBalance] = useState<number>(0);
   const [usdcBalance, setUsdcBalance] = useState<number>(0);
   const [seedBalance, setSeedBalance] = useState<number>(0);
+  const [prices, setPrices] = useState<{ sol: number; usdc: number; seed: number }>({ sol: 0, usdc: 1, seed: 0 });
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [balanceError, setBalanceError] = useState<string | null>(null);
 
@@ -142,7 +143,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
     // Fetch USDC balance independently
     try {
       const usdcMint = new PublicKey(USDC_MINT);
-      const ata = await getAssociatedTokenAddress(usdcMint, walletPubkey);
+      const ata = await getAssociatedTokenAddress(usdcMint, walletPubkey, true);
       const tokenAccount = await getAccount(connection, ata);
       setUsdcBalance(Number(tokenAccount.amount) / 1_000_000);
     } catch {
@@ -152,11 +153,27 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
     // Fetch SEED balance
     try {
       const seedMint = new PublicKey(SEED_MINT);
-      const ata = await getAssociatedTokenAddress(seedMint, walletPubkey);
+      const ata = await getAssociatedTokenAddress(seedMint, walletPubkey, true);
       const tokenAccount = await getAccount(connection, ata);
       setSeedBalance(Number(tokenAccount.amount) / Math.pow(10, SEED_DECIMALS));
     } catch {
       setSeedBalance(0);
+    }
+
+    // Fetch USD prices from Jupiter Lite API (no auth needed)
+    try {
+      const ids = [SOL_MINT, USDC_MINT, SEED_MINT].join(',');
+      const res = await fetch(`https://lite-api.jup.ag/price/v3?ids=${ids}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPrices({
+          sol: data?.[SOL_MINT]?.usdPrice ?? 0,
+          usdc: data?.[USDC_MINT]?.usdPrice ?? 1,
+          seed: data?.[SEED_MINT]?.usdPrice ?? 0,
+        });
+      }
+    } catch {
+      // keep last known prices
     }
 
     hasFetchedRef.current = true;
@@ -451,24 +468,32 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
 
         <View style={styles.balanceRow}>
           <Text style={styles.balanceAmount}>
-            {isPrivateMode ? '••••••' : solBalance.toFixed(4)}
+            {isPrivateMode
+              ? '••••••'
+              : `$${(solBalance * prices.sol + usdcBalance * prices.usdc + seedBalance * prices.seed).toFixed(2)}`}
           </Text>
-          <Text style={styles.balanceToken}>SOL</Text>
         </View>
 
-        <View style={styles.balanceRow}>
-          <Text style={styles.balanceAmountSecondary}>
-            {isPrivateMode ? '••••••' : usdcBalance.toFixed(2)}
-          </Text>
-          <Text style={styles.balanceTokenSecondary}>USDC</Text>
-        </View>
+        {!isPrivateMode && solBalance > 0 && (
+          <View style={styles.balanceRow}>
+            <Text style={styles.balanceAmountSecondary}>{solBalance.toFixed(4)}</Text>
+            <Text style={styles.balanceTokenSecondary}>SOL</Text>
+          </View>
+        )}
 
-        <View style={styles.balanceRow}>
-          <Text style={styles.balanceAmountSecondary}>
-            {isPrivateMode ? '••••••' : seedBalance.toFixed(2)}
-          </Text>
-          <Text style={styles.balanceTokenSecondary}>SEED</Text>
-        </View>
+        {!isPrivateMode && usdcBalance > 0 && (
+          <View style={styles.balanceRow}>
+            <Text style={styles.balanceAmountSecondary}>{usdcBalance.toFixed(2)}</Text>
+            <Text style={styles.balanceTokenSecondary}>USDC</Text>
+          </View>
+        )}
+
+        {!isPrivateMode && seedBalance > 0 && (
+          <View style={styles.balanceRow}>
+            <Text style={styles.balanceAmountSecondary}>{seedBalance.toFixed(2)}</Text>
+            <Text style={styles.balanceTokenSecondary}>SEED</Text>
+          </View>
+        )}
 
         {isPrivateMode && (
           <Text style={styles.privateModeHint}>Tap "Show" and authenticate to reveal</Text>
@@ -515,10 +540,10 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
             <Text style={styles.devicesButtonSub}>Add or remove signers</Text>
           </TouchableOpacity>
         )}
-        {onUmbraDebug && IS_DEVNET && (
+        {onUmbraDebug && (
           <TouchableOpacity style={styles.devicesButton} onPress={onUmbraDebug} activeOpacity={0.8}>
-            <Text style={styles.devicesButtonText}>Umbra debug</Text>
-            <Text style={styles.devicesButtonSub}>Hello-world register (devnet)</Text>
+            <Text style={styles.devicesButtonText}>Privacy Setup</Text>
+            <Text style={styles.devicesButtonSub}>Register for Umbra private receiving</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -594,7 +619,10 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
             style={styles.maxButton}
             onPress={() => {
               if (solBalance !== null && solBalance > MIN_SOL_FOR_TX) {
-                setAmount((solBalance - MIN_SOL_FOR_TX).toFixed(4));
+                // Floor to 4 decimals so the parsed value can never exceed
+                // (solBalance - MIN_SOL_FOR_TX) due to floating-point drift.
+                const usable = Math.floor((solBalance - MIN_SOL_FOR_TX) * 10000) / 10000;
+                setAmount(usable.toFixed(4));
               }
             }}
             activeOpacity={0.6}

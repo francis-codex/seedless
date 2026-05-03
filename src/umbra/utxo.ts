@@ -85,53 +85,78 @@ export async function scanClaimableUtxos(args: ScanArgs): Promise<ScannedUtxoRes
 // past-cursor relative to a freshly created UTXO. The SDK doesn't expose a
 // "current tree index" querier yet, so iterate a small range and merge.
 // 8 trees × 2^20 leaves is plenty of headroom for the demo window.
+// SDK v4 returns: { selfBurnable, received, publicSelfBurnable, publicReceived }.
+// Pre-v4 used { ephemeral, receiver, publicEphemeral, publicReceiver }.
+// We were reading the old field names → every scan looked empty even though
+// the SDK was decrypting UTXOs successfully.
 export async function scanClaimableUtxosAcrossTrees(args: {
   client: IUmbraClient;
   maxTreeIndex?: number;
 }): Promise<{
-  ephemeral: any[];
-  receiver: any[];
-  publicEphemeral: any[];
-  publicReceiver: any[];
+  selfBurnable: any[];
+  received: any[];
+  publicSelfBurnable: any[];
+  publicReceived: any[];
   treesScanned: number;
   perTree: Array<{ treeIndex: number; counts: string }>;
 }> {
   const { client, maxTreeIndex = 7 } = args;
-  const ephemeral: any[] = [];
-  const receiver: any[] = [];
-  const publicEphemeral: any[] = [];
-  const publicReceiver: any[] = [];
+  const indices = Array.from({ length: maxTreeIndex + 1 }, (_, i) => i);
+
+  // Parallel sweep. The previous serial loop paid 8× the round-trip latency
+  // for what is effectively 8 independent reads. Errors on empty/non-existent
+  // trees are demoted to zero-count entries instead of breaking the sweep —
+  // a single missing tree shouldn't blind us to populated higher trees.
+  const settled = await Promise.all(
+    indices.map(async (t) => {
+      try {
+        const r = (await scanClaimableUtxos({ client, treeIndex: t })) as any;
+        return {
+          treeIndex: t,
+          selfBurnable: (r.selfBurnable ?? []) as any[],
+          received: (r.received ?? []) as any[],
+          publicSelfBurnable: (r.publicSelfBurnable ?? []) as any[],
+          publicReceived: (r.publicReceived ?? []) as any[],
+          ok: true as const,
+        };
+      } catch (err: any) {
+        const msg = String(err?.message ?? err).toLowerCase();
+        const expected = msg.includes('not found') || msg.includes('out of range') || msg.includes('does not exist');
+        if (!expected) console.warn(`[umbra] scan tree ${t} failed:`, err?.message ?? err);
+        return {
+          treeIndex: t,
+          selfBurnable: [] as any[],
+          received: [] as any[],
+          publicSelfBurnable: [] as any[],
+          publicReceived: [] as any[],
+          ok: false as const,
+        };
+      }
+    }),
+  );
+
+  const selfBurnable: any[] = [];
+  const received: any[] = [];
+  const publicSelfBurnable: any[] = [];
+  const publicReceived: any[] = [];
   const perTree: Array<{ treeIndex: number; counts: string }> = [];
 
-  for (let t = 0; t <= maxTreeIndex; t++) {
-    try {
-      const r = (await scanClaimableUtxos({ client, treeIndex: t })) as any;
-      const eN = r.ephemeral?.length ?? 0;
-      const rN = r.receiver?.length ?? 0;
-      const peN = r.publicEphemeral?.length ?? 0;
-      const prN = r.publicReceiver?.length ?? 0;
-      perTree.push({ treeIndex: t, counts: `${eN}e/${rN}r/${peN}pe/${prN}pr` });
-      ephemeral.push(...(r.ephemeral ?? []));
-      receiver.push(...(r.receiver ?? []));
-      publicEphemeral.push(...(r.publicEphemeral ?? []));
-      publicReceiver.push(...(r.publicReceiver ?? []));
-    } catch (err: any) {
-      // A tree that doesn't exist yet typically throws — stop iterating once
-      // we hit the upper bound rather than spamming the indexer.
-      const msg = String(err?.message ?? err).toLowerCase();
-      if (msg.includes('not found') || msg.includes('out of range') || msg.includes('does not exist')) {
-        break;
-      }
-      console.warn(`[umbra] scan tree ${t} failed:`, err?.message ?? err);
-      break;
-    }
+  for (const s of settled) {
+    perTree.push({
+      treeIndex: s.treeIndex,
+      counts: `${s.selfBurnable.length}sb/${s.received.length}r/${s.publicSelfBurnable.length}psb/${s.publicReceived.length}pr`,
+    });
+    selfBurnable.push(...s.selfBurnable);
+    received.push(...s.received);
+    publicSelfBurnable.push(...s.publicSelfBurnable);
+    publicReceived.push(...s.publicReceived);
   }
 
   return {
-    ephemeral,
-    receiver,
-    publicEphemeral,
-    publicReceiver,
+    selfBurnable,
+    received,
+    publicSelfBurnable,
+    publicReceived,
     treesScanned: perTree.length,
     perTree,
   };
@@ -171,11 +196,15 @@ export async function checkRecipientUmbraStatus(
       return { registered: false, hasX25519: false };
     }
     const data = anyResult.data;
-    const hasX25519 =
-      !!data?.isX25519PubkeyRegistered ||
-      !!data?.x25519PublicKey ||
-      !!data?.x25519Pubkey ||
-      !!data?.confidentialKey;
+    // Don't trust the boolean flag alone — a half-registered account can show
+    // isUserAccountX25519KeyRegistered: true while x25519PublicKey is 32 zero
+    // bytes (step 1 ran, step 2 didn't). And don't trust !!data.x25519PublicKey
+    // either: a Uint8Array is truthy regardless of contents.
+    const keyBytes: Uint8Array | number[] | undefined =
+      data?.x25519PublicKey ?? data?.x25519Pubkey ?? data?.confidentialKey;
+    const keyIsNonZero = !!keyBytes && Array.from(keyBytes as any).some((b: any) => b !== 0);
+    const isUserCommitmentRegistered = !!data?.isUserCommitmentRegistered;
+    const hasX25519 = keyIsNonZero && isUserCommitmentRegistered;
     return { registered: true, hasX25519 };
   } catch (err: any) {
     return {

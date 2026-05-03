@@ -261,8 +261,8 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
             // same value against a now-smaller balance.
             setPrivateAmount('');
             const modeLabel = result.mode === 'umbra-encrypted'
-                ? 'Encrypted private send'
-                : 'Burner-fallback send (sender hidden, amount visible)';
+                ? 'Sent privately — amount and sender hidden'
+                : 'Sent — sender hidden, amount visible';
             Alert.alert(
                 'Sent',
                 `${modeLabel}\n\n${amount} SOL → ${privateRecipient.slice(0, 6)}…${privateRecipient.slice(-6)}`,
@@ -612,16 +612,16 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                                 {privateProgress && (
                                     <View style={styles.privateProgressBox}>
                                         <Text style={styles.privateProgressTitle}>
-                                            {privateProgress.stage === 'preparing' && 'Preparing burner signer…'}
-                                            {privateProgress.stage === 'checking-recipient' && 'Checking recipient privacy support…'}
-                                            {privateProgress.stage === 'registering-burner' && 'Registering burner with Umbra…'}
-                                            {privateProgress.stage === 'register-step' && (privateProgress.detail ?? 'register step')}
-                                            {privateProgress.stage === 'creating-utxo' && 'Creating encrypted UTXO…'}
-                                            {privateProgress.stage === 'fallback-burner-transfer' && 'Recipient not on Umbra → sending via burner (sender hidden, amount visible)…'}
+                                            {privateProgress.stage === 'preparing' && 'Getting ready…'}
+                                            {privateProgress.stage === 'checking-recipient' && 'Checking if recipient supports private receiving…'}
+                                            {privateProgress.stage === 'registering-burner' && 'Setting up your private account (one-time)…'}
+                                            {privateProgress.stage === 'register-step' && (privateProgress.detail ?? 'Setting up…')}
+                                            {privateProgress.stage === 'creating-utxo' && 'Encrypting your transfer…'}
+                                            {privateProgress.stage === 'fallback-burner-transfer' && 'Recipient isn\'t on Umbra — sending normally (amount will be visible)…'}
                                             {privateProgress.stage === 'success' && (
                                               privateProgress.mode === 'burner-fallback'
-                                                ? 'Burner-fallback send confirmed'
-                                                : 'Encrypted private send confirmed'
+                                                ? 'Sent — sender hidden, amount visible'
+                                                : 'Sent privately — amount and sender hidden'
                                             )}
                                         </Text>
                                         {privateProgress.signature && (
@@ -638,7 +638,7 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                                         onPress={() => Linking.openURL(getTxExplorerUrl(privateResultSig))}
                                     >
                                         <Text style={styles.privateResultLabel}>
-                                            {privateProgress?.mode === 'burner-fallback' ? 'Transfer sig' : 'UTXO sig'}
+                                            {privateProgress?.mode === 'burner-fallback' ? 'Transfer' : 'Private transfer'}
                                         </Text>
                                         <Text style={styles.privateResultSig}>{privateResultSig.slice(0, 12)}…{privateResultSig.slice(-8)} ↗</Text>
                                     </TouchableOpacity>

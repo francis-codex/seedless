@@ -132,20 +132,29 @@ async function ensureBurnerRegistered(
   onProgress?.({ stage: 'registering-burner' });
   const zkProver = await createUserRegistrationProver();
   const register = getUserRegistrationFunction({ client }, { zkProver });
+  // CreateDepositIntoMixerTreeFromPublicBalance requires the user-commitment
+  // (anonymous-usage) step to also be registered. Skipping it leaves the
+  // account with isUserCommitmentRegistered: false → simulation fails.
   const signatures = await register({
     confidential: true,
-    anonymous: false, // private send only needs confidential mode (X25519 key)
+    anonymous: true,
     callbacks: {
       userAccountInitialisation: {
-        pre: async () => onProgress?.({ stage: 'register-step', detail: '1/2 user account init' }),
+        pre: async () => onProgress?.({ stage: 'register-step', detail: 'Setting up your private account (1/3)' }),
         post: async (_tx, signature) => onProgress?.({
-          stage: 'register-step', detail: '1/2 user account init confirmed', signature,
+          stage: 'register-step', detail: 'Account ready (1/3)', signature,
         }),
       },
       registerX25519PublicKey: {
-        pre: async () => onProgress?.({ stage: 'register-step', detail: '2/2 X25519 confidential key' }),
+        pre: async () => onProgress?.({ stage: 'register-step', detail: 'Publishing your viewing key (2/3)' }),
         post: async (_tx, signature) => onProgress?.({
-          stage: 'register-step', detail: '2/2 X25519 confidential key confirmed', signature,
+          stage: 'register-step', detail: 'Viewing key live (2/3)', signature,
+        }),
+      },
+      registerUserForAnonymousUsage: {
+        pre: async () => onProgress?.({ stage: 'register-step', detail: 'Joining the privacy pool (3/3)' }),
+        post: async (_tx, signature) => onProgress?.({
+          stage: 'register-step', detail: 'Joined the privacy pool (3/3)', signature,
         }),
       },
     },
@@ -230,6 +239,14 @@ export async function privateSendFromBurner(
       amount: amountLamports,
     });
   } catch (err: any) {
+    // Surface the SDK's hidden simulation logs — the default
+    // `Transaction simulation failed` message strips the on-chain log array
+    // that actually says WHY (slab mismatch, insufficient SOL, etc).
+    const sim = err?.cause ?? err?.simulationResponse ?? err?.context ?? null;
+    const simLogs = sim?.logs ?? sim?.value?.logs ?? err?.logs;
+    if (simLogs) console.error('[umbra] create-utxo simulation logs:', simLogs);
+    if (sim) console.error('[umbra] create-utxo simulation context:', sim);
+
     const rawMessage = String(err?.message ?? err);
     const message = rawMessage.toLowerCase();
     const isReceiverProblem = message.includes('receiver is not registered')

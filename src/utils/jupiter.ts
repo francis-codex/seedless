@@ -116,6 +116,11 @@ export async function getQuote(
     outputMint,
     amount,
     slippageBps: slippageBps.toString(),
+    // Cap route complexity so the assembled tx fits within 1232 bytes
+    // alongside LazorKit's auth instruction. Without this, multi-hop routes
+    // (e.g. USDC→SOL→SEED) overflow with "encoding overruns Uint8Array".
+    maxAccounts: '32',
+    restrictIntermediateTokens: 'true',
   });
 
   const response = await fetchWithTimeout(

@@ -1,17 +1,14 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
-import { useWallet } from '@lazorkit/wallet-mobile-adapter';
-import { clearCachedMasterSeed, type PasskeySignFn } from '../umbra/master-seed';
 import {
   getStoredSignerAndClient,
   resetThrowawaySigner,
@@ -46,9 +43,9 @@ const PHASE2_AMOUNT_LAMPORTS = 1_000_000n; // 0.001 SOL — keeps devnet airdrop
 const SOL_DISPLAY = '0.001 SOL';
 
 const STEP_LABEL: Record<RegistrationStep, string> = {
-  userAccountInitialisation: '1/3 · user account init',
-  registerX25519PublicKey: '2/3 · X25519 key (confidential)',
-  registerUserForAnonymousUsage: '3/3 · anonymous usage',
+  userAccountInitialisation: 'Setting up your private account (1/3)',
+  registerX25519PublicKey: 'Publishing your viewing key (2/3)',
+  registerUserForAnonymousUsage: 'Joining the privacy pool (3/3)',
 };
 
 function fmtTime() {
@@ -91,20 +88,6 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
-  const { isConnected, smartWalletPubkey, signMessage: lazorSignMessage } = useWallet();
-  const [usePasskeyMasterSeed, setUsePasskeyMasterSeed] = useState(false);
-
-  const passkeyMasterSeed = useMemo(() => {
-    if (!usePasskeyMasterSeed || !isConnected || !smartWalletPubkey) return undefined;
-    const vaultPubkey = smartWalletPubkey.toBase58();
-    const signMessage: PasskeySignFn = async (canonical) => {
-      const redirectUrl = Linking.createURL('umbra-master-seed-callback');
-      const result = await lazorSignMessage(canonical, { redirectUrl });
-      return { signature: result.signature, signedPayload: result.signedPayload };
-    };
-    return { vaultPubkey, signMessage };
-  }, [usePasskeyMasterSeed, isConnected, smartWalletPubkey, lazorSignMessage]);
-
   const appendLog = useCallback((line: string) => {
     setLogs((prev) => [...prev, `[${fmtTime()}] ${line}`]);
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
@@ -114,26 +97,26 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
     switch (event.stage) {
       case 'signer-created':
         setSignerAddress(event.address);
-        appendLog(`signer ${event.reused ? 'restored' : 'created'} · ${event.address}`);
+        appendLog(`Account ${event.reused ? 'loaded' : 'created'} · ${event.address}`);
         break;
       case 'client-built':
-        appendLog('umbra client built');
+        appendLog('Connected to Umbra');
         break;
       case 'prover-ready':
-        appendLog('zk prover ready (userregistration.zkey loaded)');
+        appendLog('Privacy proof system ready');
         break;
       case 'registering':
-        appendLog('starting registration (3 instructions)…');
+        appendLog('Registering (3 steps)…');
         break;
       case 'step-pre':
-        appendLog(`→ ${STEP_LABEL[event.step]} sending`);
+        appendLog(`→ ${STEP_LABEL[event.step]}`);
         break;
       case 'step-post':
-        appendLog(`✓ ${STEP_LABEL[event.step]} confirmed · ${shortSig(event.signature)}`);
+        appendLog(`✓ ${STEP_LABEL[event.step]} · ${shortSig(event.signature)}`);
         setSignatures((prev) => [...prev, { step: event.step, signature: event.signature }]);
         break;
       case 'success':
-        appendLog(`done · ${event.signatures.length} txs landed`);
+        appendLog(`Registration complete · ${event.signatures.length} txs landed`);
         break;
     }
   }, [appendLog]);
@@ -143,25 +126,53 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
     setLogs([]);
     setSignatures([]);
     setErrorMessage(null);
+    // Hard ceiling on registration so a hung SDK promise can't trap the UI.
+    // 90s covers passkey-prompt wait + 3 confirmations on a slow devnet.
+    const timeoutMs = 90_000;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`registration timed out after ${timeoutMs / 1000}s`)), timeoutMs),
+    );
     try {
-      if (passkeyMasterSeed) appendLog(`passkey master-seed mode · vault ${passkeyMasterSeed.vaultPubkey.slice(0, 8)}…`);
-      await runHelloWorldRegistration(handleProgress, passkeyMasterSeed ? { passkeyMasterSeed } : undefined);
+      const result: any = await Promise.race([
+        runHelloWorldRegistration(handleProgress),
+        timeoutPromise,
+      ]);
+      // Sanity check: derived viewing key must match what's on chain. If they
+      // diverge after a fresh registration there is a real SDK regression.
+      try {
+        const sdk: any = await import('@umbra-privacy/sdk');
+        const deriver = sdk.getMasterViewingKeyX25519KeypairDeriver({ client: result.client });
+        const derivedKp = await deriver();
+        const derived = Array.from(derivedKp?.x25519Keypair?.publicKey ?? []);
+        const querier = sdk.getUserAccountQuerierFunction({ client: result.client });
+        const onChain = await querier(result.signer.address as any);
+        const onChainPub = Array.from((onChain as any)?.data?.x25519PublicKey ?? []);
+        const match = derived.length === onChainPub.length && derived.every((v, i) => v === onChainPub[i]);
+        if (!match) {
+          appendLog('⚠ Viewing key mismatch — please reset and re-register');
+          console.warn('[umbra] viewing-key mismatch', { derived, onChain: onChainPub });
+        } else {
+          appendLog('✓ Viewing key verified on chain');
+        }
+      } catch (e) {
+        console.warn('[umbra] viewing-key check skipped:', (e as any)?.message ?? e);
+      }
       setRunState('success');
     } catch (err: any) {
       const detail = unwrapErrorDetail(err);
-      appendLog(`error · ${detail}`);
+      appendLog(`Failed · ${detail}`);
       setErrorMessage(detail);
       setRunState('error');
-      console.error('[umbra] hello-world registration failed:', err);
+      console.error('[umbra] registration failed:', err);
     }
-  }, [handleProgress, appendLog, passkeyMasterSeed]);
+  }, [handleProgress, appendLog]);
 
   const handleResetSigner = useCallback(async () => {
     await resetThrowawaySigner();
     setSignerAddress(null);
     setSignatures([]);
     setErrorMessage(null);
-    appendLog('signer cleared — next run will mint a fresh address');
+    appendLog('Account cleared — registration will create a fresh one');
   }, [appendLog]);
 
   const [ops, setOps] = useState<Record<OpId, OpState>>({
@@ -181,22 +192,22 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
 
   const runOp = useCallback(async (id: OpId, fn: () => Promise<{ message: string; signatures?: { label: string; signature: string }[] }>) => {
     setOp(id, { status: 'running', message: undefined, signatures: undefined });
-    appendLog(`▶ ${id} starting…`);
+    appendLog(`▶ Running…`);
     try {
       const out = await fn();
       setOp(id, { status: 'success', message: out.message, signatures: out.signatures });
-      appendLog(`✓ ${id} · ${out.message}`);
+      appendLog(`✓ ${out.message}`);
     } catch (err: any) {
       const detail = unwrapErrorDetail(err);
       setOp(id, { status: 'error', message: detail });
-      appendLog(`✗ ${id} · ${detail}`);
+      appendLog(`✗ Failed · ${detail}`);
       console.error(`[umbra] ${id} failed:`, err);
     }
   }, [appendLog, setOp]);
 
   const handleDeposit = useCallback(() => {
     runOp('deposit', async () => {
-      const { signer, client } = await getStoredSignerAndClient(passkeyMasterSeed ? { passkeyMasterSeed } : undefined);
+      const { signer, client } = await getStoredSignerAndClient();
       const result = await depositToEncryptedBalance({
         client,
         destinationAddress: signer.address,
@@ -207,13 +218,13 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
         { label: 'queue', signature: result.queueSignature },
       ];
       if (result.callbackSignature) sigs.push({ label: 'callback', signature: result.callbackSignature });
-      return { message: `deposited ${SOL_DISPLAY} to ETA`, signatures: sigs };
+      return { message: `Moved ${SOL_DISPLAY} into encrypted balance`, signatures: sigs };
     });
-  }, [runOp, passkeyMasterSeed]);
+  }, [runOp]);
 
   const handleWithdraw = useCallback(() => {
     runOp('withdraw', async () => {
-      const { signer, client } = await getStoredSignerAndClient(passkeyMasterSeed ? { passkeyMasterSeed } : undefined);
+      const { signer, client } = await getStoredSignerAndClient();
       const ata = getAssociatedTokenAddressSync(
         new PublicKey(UMBRA_TEST_MINT_DEVNET),
         new PublicKey(signer.address),
@@ -229,13 +240,13 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
         { label: 'queue', signature: result.queueSignature },
       ];
       if (result.callbackSignature) sigs.push({ label: 'callback', signature: result.callbackSignature });
-      return { message: `withdrew ${SOL_DISPLAY} → ATA ${ata.slice(0, 6)}…${ata.slice(-4)}`, signatures: sigs };
+      return { message: `Withdrew ${SOL_DISPLAY} to ${ata.slice(0, 6)}…${ata.slice(-4)}`, signatures: sigs };
     });
-  }, [runOp, passkeyMasterSeed]);
+  }, [runOp]);
 
   const handleCreateUtxo = useCallback(() => {
     runOp('create-utxo', async () => {
-      const { signer, client } = await getStoredSignerAndClient(passkeyMasterSeed ? { passkeyMasterSeed } : undefined);
+      const { signer, client } = await getStoredSignerAndClient();
       const result = await createReceiverClaimableFromPublicBalance({
         client,
         destinationAddress: signer.address,
@@ -245,61 +256,39 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
       const anyResult = result as any;
       const sig = anyResult.signature ?? anyResult.queueSignature;
       const sigs = sig ? [{ label: 'create', signature: sig as string }] : undefined;
-      return { message: `created receiver-claimable UTXO (${SOL_DISPLAY}) → self`, signatures: sigs };
+      return { message: `Created a private receivable for ${SOL_DISPLAY}`, signatures: sigs };
     });
-  }, [runOp, passkeyMasterSeed]);
+  }, [runOp]);
 
   const handleScanUtxo = useCallback(() => {
     runOp('scan-utxo', async () => {
-      const { signer, client } = await getStoredSignerAndClient(passkeyMasterSeed ? { passkeyMasterSeed } : undefined);
-
-      // Diagnostic: derive the X25519 key the scanner will use, compare to
-      // the on-chain X25519 the recipient registered. If they don't match,
-      // the master seed is divergent and decryption can never succeed.
-      try {
-        const sdk: any = await import('@umbra-privacy/sdk');
-        if (typeof sdk.getUserAccountX25519KeypairDeriver === 'function') {
-          const deriver = sdk.getUserAccountX25519KeypairDeriver({ client });
-          const kp = await deriver();
-          const derivedPub = kp?.publicKey ?? kp?.x25519PublicKey ?? kp;
-          console.log('[umbra] derived X25519 (scanner)', signer.address, derivedPub);
-        }
-        const querier = sdk.getUserAccountQuerierFunction({ client });
-        const onChain = await querier(signer.address as any);
-        console.log('[umbra] on-chain X25519 (registered)', signer.address, (onChain as any)?.data?.x25519PublicKey);
-      } catch (e) {
-        console.warn('[umbra] x25519 diagnostic skipped:', (e as any)?.message ?? e);
-      }
-
-      // Try up to 4 times with backoff — create-utxo's leaf can take a few
-      // seconds to surface in the indexer.
+      const { client } = await getStoredSignerAndClient();
+      // Two short retries cover indexer warmup after a fresh create-utxo.
       let r = await scanClaimableUtxosAcrossTrees({ client, maxTreeIndex: 7 });
-      for (let attempt = 1; attempt <= 3 && r.ephemeral.length + r.receiver.length + r.publicEphemeral.length + r.publicReceiver.length === 0; attempt++) {
-        await new Promise((res) => setTimeout(res, 3000 * attempt));
-        console.log(`[umbra] scan retry ${attempt} (indexer warmup)`);
+      const isEmpty = (rr: typeof r) =>
+        rr.selfBurnable.length + rr.received.length + rr.publicSelfBurnable.length + rr.publicReceived.length === 0;
+      for (let attempt = 1; attempt <= 2 && isEmpty(r); attempt++) {
+        await new Promise((res) => setTimeout(res, 1500 * attempt));
         r = await scanClaimableUtxosAcrossTrees({ client, maxTreeIndex: 7 });
       }
 
       const utxos: readonly ScannedUtxoData[] = [
-        ...r.ephemeral,
-        ...r.receiver,
-        ...r.publicEphemeral,
-        ...r.publicReceiver,
+        ...r.selfBurnable,
+        ...r.received,
+        ...r.publicSelfBurnable,
+        ...r.publicReceived,
       ];
       setScannedUtxos(utxos);
-      const totals = `${r.ephemeral.length}e/${r.receiver.length}r/${r.publicEphemeral.length}pe/${r.publicReceiver.length}pr`;
-      const perTree = r.perTree.map((p) => `t${p.treeIndex}:${p.counts}`).join(' ');
-      console.log('[umbra] scan complete', { totals, perTree, treesScanned: r.treesScanned });
-      return { message: `scan complete · ${utxos.length} utxo(s) across ${r.treesScanned} tree(s) (${totals})` };
+      return { message: `Found ${utxos.length} private receipt(s)` };
     });
-  }, [runOp, passkeyMasterSeed]);
+  }, [runOp]);
 
   const handleClaimUtxo = useCallback(() => {
     runOp('claim-utxo', async () => {
       if (scannedUtxos.length === 0) {
-        throw new Error('Run scan-utxo first — no UTXOs in memory to claim.');
+        throw new Error('Run "scan for private receipts" first — nothing to claim.');
       }
-      const { client } = await getStoredSignerAndClient(passkeyMasterSeed ? { passkeyMasterSeed } : undefined);
+      const { client } = await getStoredSignerAndClient();
       const result = await claimReceiverClaimableUtxosToEncryptedBalance({
         client,
         utxos: scannedUtxos,
@@ -314,11 +303,11 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
       // the same nullified leaves.
       setScannedUtxos([]);
       return {
-        message: `claimed ${scannedUtxos.length} utxo(s) → encrypted balance`,
+        message: `Claimed ${scannedUtxos.length} receipt(s) into encrypted balance`,
         signatures: sigs.length ? sigs : undefined,
       };
     });
-  }, [runOp, passkeyMasterSeed, scannedUtxos]);
+  }, [runOp, scannedUtxos]);
 
   const isRunning = runState === 'running';
   const phase1Done = runState === 'success' || signerAddress !== null;
@@ -330,49 +319,19 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} disabled={isRunning}>
-          <Text style={[styles.backText, isRunning && styles.backDisabled]}>← Back</Text>
+        <TouchableOpacity onPress={onBack}>
+          <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Umbra debug</Text>
+        <Text style={styles.headerTitle}>Umbra Privacy</Text>
         <View style={{ width: 50 }} />
       </View>
 
       <Text style={styles.lede}>
-        End-to-end smoke test: throwaway Ed25519 signer → Umbra client → ZK
-        prover → 3-instruction registration on devnet. The signer is persisted
-        to secure storage, so airdrop devnet SOL once to the address below and
-        re-run. Use "reset signer" to mint a fresh address.
+        Test the privacy stack end to end. This screen creates a private account,
+        moves a small amount in and out of an encrypted balance, and claims any
+        private receipts. Make sure the account address below has a tiny bit of
+        SOL for rent — everything else is automatic.
       </Text>
-
-      <View style={styles.toggleCard}>
-        <View style={styles.toggleRow}>
-          <View style={{ flex: 1, paddingRight: 12 }}>
-            <Text style={styles.toggleTitle}>Passkey master seed (Phase 3)</Text>
-            <Text style={styles.toggleHint}>
-              {isConnected && smartWalletPubkey
-                ? `Bind encrypted state to vault ${smartWalletPubkey.toBase58().slice(0, 8)}…${smartWalletPubkey.toBase58().slice(-4)} via passkey signature.`
-                : 'Connect your LazorKit wallet first to enable.'}
-            </Text>
-          </View>
-          <Switch
-            value={usePasskeyMasterSeed}
-            onValueChange={setUsePasskeyMasterSeed}
-            disabled={!isConnected || !smartWalletPubkey || isRunning}
-          />
-        </View>
-        {usePasskeyMasterSeed && smartWalletPubkey && (
-          <TouchableOpacity
-            onPress={async () => {
-              await clearCachedMasterSeed(smartWalletPubkey.toBase58());
-              appendLog(`master seed cache cleared for vault ${smartWalletPubkey.toBase58().slice(0, 8)}…`);
-            }}
-            activeOpacity={0.6}
-            style={{ marginTop: 8 }}
-          >
-            <Text style={[styles.linkText, styles.linkDanger]}>clear cached master seed</Text>
-          </TouchableOpacity>
-        )}
-      </View>
 
       <TouchableOpacity
         style={[styles.primaryButton, isRunning && styles.buttonDisabled]}
@@ -384,14 +343,14 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
           <ActivityIndicator color="#fff" size="small" />
         ) : (
           <Text style={styles.primaryButtonText}>
-            {runState === 'idle' ? 'Run hello-world register' : 'Run again'}
+            {runState === 'idle' ? 'Set up private account' : 'Re-run setup'}
           </Text>
         )}
       </TouchableOpacity>
 
       {signerAddress && (
         <View style={styles.signerCard}>
-          <Text style={styles.signerLabel}>Throwaway signer (persisted — airdrop devnet SOL once)</Text>
+          <Text style={styles.signerLabel}>Your private account · fund this with a small amount of SOL for rent</Text>
           <TouchableOpacity
             onPress={async () => {
               await Clipboard.setStringAsync(signerAddress);
@@ -405,10 +364,10 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
               onPress={() => Linking.openURL(getAccountExplorerUrl(signerAddress))}
               activeOpacity={0.6}
             >
-              <Text style={styles.linkText}>view on solscan ↗</Text>
+              <Text style={styles.linkText}>View on Solscan ↗</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleResetSigner} activeOpacity={0.6} disabled={isRunning}>
-              <Text style={[styles.linkText, styles.linkDanger, isRunning && styles.backDisabled]}>reset signer</Text>
+              <Text style={[styles.linkText, styles.linkDanger, isRunning && styles.backDisabled]}>Reset account</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -440,11 +399,11 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
 
       {phase1Done && (
         <View style={styles.phase2Block}>
-          <Text style={styles.sectionTitle}>Phase 2 — encrypted ops ({SOL_DISPLAY})</Text>
+          <Text style={styles.sectionTitle}>Encrypted operations ({SOL_DISPLAY})</Text>
           <Text style={styles.phase2Hint}>
-            Each op uses the persisted signer above and the WSOL devnet mint
-            (auto-wrapped). Run register first; then deposit before withdraw,
-            create-utxo before scan.
+            Each step uses the account above with wrapped SOL. Order:
+            deposit before withdraw; create a private receivable before scanning;
+            scan before claiming.
           </Text>
 
           {(['deposit', 'withdraw', 'create-utxo', 'scan-utxo', 'claim-utxo'] as OpId[]).map((id) => {
@@ -456,11 +415,11 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
               : id === 'scan-utxo' ? handleScanUtxo
               : handleClaimUtxo;
             const label =
-              id === 'deposit' ? `Deposit ${SOL_DISPLAY} → ETA`
-              : id === 'withdraw' ? `Withdraw ${SOL_DISPLAY} → ATA`
-              : id === 'create-utxo' ? `Create receiver-claimable UTXO`
-              : id === 'scan-utxo' ? `Scan claimable UTXOs (tree 0)`
-              : `Claim ${scannedUtxos.length || '0'} scanned UTXO(s) → ETA`;
+              id === 'deposit' ? `Deposit ${SOL_DISPLAY} into encrypted balance`
+              : id === 'withdraw' ? `Withdraw ${SOL_DISPLAY} to public balance`
+              : id === 'create-utxo' ? `Create a private receivable to self`
+              : id === 'scan-utxo' ? `Scan for incoming private receipts`
+              : `Claim ${scannedUtxos.length || '0'} private receipt(s)`;
             const opRunning = op.status === 'running';
             return (
               <View key={id} style={styles.opCard}>
@@ -618,19 +577,4 @@ const styles = StyleSheet.create({
   },
   opSigLabel: { fontSize: 11, color: '#555' },
   opSigText: { fontSize: 11, color: '#7c3aed', fontFamily: 'Menlo' },
-  toggleCard: {
-    backgroundColor: '#fafafa',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#eee',
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  toggleTitle: { fontSize: 13, fontWeight: '600', color: '#000', marginBottom: 4 },
-  toggleHint: { fontSize: 11, color: '#666', lineHeight: 16 },
 });

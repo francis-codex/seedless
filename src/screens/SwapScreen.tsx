@@ -11,7 +11,9 @@ import {
 } from 'react-native';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import * as Linking from 'expo-linking';
-import { SOL_MINT, USDC_MINT, SEED_MINT, TOKEN_DECIMALS, SEED_DECIMALS, CLUSTER_SIMULATION } from '../constants';
+import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { getAccount, getAssociatedTokenAddress } from '@solana/spl-token';
+import { SOL_MINT, USDC_MINT, SEED_MINT, TOKEN_DECIMALS, SEED_DECIMALS, CLUSTER_SIMULATION, SOLANA_RPC_URL, MIN_SOL_FOR_TX } from '../constants';
 import { prepareSwap, QuoteResponse } from '../utils/jupiter';
 import { getBagsQuote, createBagsSwapTransaction, BagsQuoteResponse } from '../utils/bags';
 import { DEFAULT_AUTH_EXPIRY_SLOTS, shouldUseDeferredExec } from '../utils/deferredExec';
@@ -20,7 +22,7 @@ interface SwapScreenProps {
   onBack: () => void;
 }
 
-type SwapPair = 'SOL_TO_USDC' | 'USDC_TO_SOL' | 'SOL_TO_SEED' | 'SEED_TO_SOL';
+type SwapPair = 'SOL_TO_USDC' | 'USDC_TO_SOL' | 'SOL_TO_SEED' | 'SEED_TO_SOL' | 'USDC_TO_SEED' | 'SEED_TO_USDC';
 type SwapSource = 'jupiter' | 'bags';
 
 const SWAP_PAIRS: Record<SwapPair, { input: string; output: string; inputMint: string; outputMint: string; inputDecimals: number; outputDecimals: number }> = {
@@ -28,6 +30,8 @@ const SWAP_PAIRS: Record<SwapPair, { input: string; output: string; inputMint: s
   USDC_TO_SOL: { input: 'USDC', output: 'SOL', inputMint: USDC_MINT, outputMint: SOL_MINT, inputDecimals: TOKEN_DECIMALS.USDC, outputDecimals: TOKEN_DECIMALS.SOL },
   SOL_TO_SEED: { input: 'SOL', output: 'SEED', inputMint: SOL_MINT, outputMint: SEED_MINT, inputDecimals: TOKEN_DECIMALS.SOL, outputDecimals: SEED_DECIMALS },
   SEED_TO_SOL: { input: 'SEED', output: 'SOL', inputMint: SEED_MINT, outputMint: SOL_MINT, inputDecimals: SEED_DECIMALS, outputDecimals: TOKEN_DECIMALS.SOL },
+  USDC_TO_SEED: { input: 'USDC', output: 'SEED', inputMint: USDC_MINT, outputMint: SEED_MINT, inputDecimals: TOKEN_DECIMALS.USDC, outputDecimals: SEED_DECIMALS },
+  SEED_TO_USDC: { input: 'SEED', output: 'USDC', inputMint: SEED_MINT, outputMint: USDC_MINT, inputDecimals: SEED_DECIMALS, outputDecimals: TOKEN_DECIMALS.USDC },
 };
 
 export function SwapScreen({ onBack }: SwapScreenProps) {
@@ -36,7 +40,7 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
   // Form state
   const [amount, setAmount] = useState('');
   const [pair, setPair] = useState<SwapPair>('SOL_TO_SEED');
-  const [swapSource, setSwapSource] = useState<SwapSource>('bags');
+  const [swapSource, setSwapSource] = useState<SwapSource>('jupiter');
 
   // Quote state
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
@@ -48,6 +52,28 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
 
   // Get input/output token info based on pair
   const { input: inputToken, output: outputToken, inputMint, outputMint, inputDecimals, outputDecimals } = SWAP_PAIRS[pair];
+
+  // Max button — fill input with full balance of input token (SOL keeps rent buffer)
+  const handleMax = useCallback(async () => {
+    if (!smartWalletPubkey) return;
+    try {
+      const conn = new Connection(SOLANA_RPC_URL, 'confirmed');
+      const owner = new PublicKey(smartWalletPubkey);
+      if (inputMint === SOL_MINT) {
+        const lamports = await conn.getBalance(owner);
+        const usable = Math.max(0, lamports / LAMPORTS_PER_SOL - MIN_SOL_FOR_TX);
+        setAmount(usable > 0 ? usable.toFixed(4) : '0');
+      } else {
+        const ata = await getAssociatedTokenAddress(new PublicKey(inputMint), owner, true);
+        const acc = await getAccount(conn, ata);
+        setAmount((Number(acc.amount) / Math.pow(10, inputDecimals)).toString());
+      }
+      setQuote(null);
+      setBagsQuote(null);
+    } catch {
+      Alert.alert('Max failed', 'Could not fetch balance — try again');
+    }
+  }, [smartWalletPubkey, inputMint, inputDecimals]);
 
   // Convert human-readable amount to smallest units
   const toSmallestUnit = (humanAmount: string, decimals: number): string => {
@@ -65,7 +91,7 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
 
   // Cycle through swap pairs
   const cyclePair = () => {
-    const pairs: SwapPair[] = ['SOL_TO_SEED', 'SEED_TO_SOL', 'SOL_TO_USDC', 'USDC_TO_SOL'];
+    const pairs: SwapPair[] = ['SOL_TO_SEED', 'SEED_TO_SOL', 'SOL_TO_USDC', 'USDC_TO_SOL', 'USDC_TO_SEED', 'SEED_TO_USDC'];
     const currentIndex = pairs.indexOf(pair);
     setPair(pairs[(currentIndex + 1) % pairs.length]);
     setQuote(null);
@@ -222,22 +248,6 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
         <View style={{ width: 50 }} />
       </View>
 
-      {/* Source Toggle */}
-      <View style={styles.sourceToggle}>
-        <TouchableOpacity
-          style={[styles.sourceOption, swapSource === 'bags' && styles.sourceOptionActive]}
-          onPress={() => { setSwapSource('bags'); setQuote(null); setBagsQuote(null); }}
-        >
-          <Text style={[styles.sourceOptionText, swapSource === 'bags' && styles.sourceOptionTextActive]}>Bags</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.sourceOption, swapSource === 'jupiter' && styles.sourceOptionActive]}
-          onPress={() => { setSwapSource('jupiter'); setQuote(null); setBagsQuote(null); }}
-        >
-          <Text style={[styles.sourceOptionText, swapSource === 'jupiter' && styles.sourceOptionTextActive]}>Jupiter</Text>
-        </TouchableOpacity>
-      </View>
-
       <View style={styles.swapCard}>
         {/* Input Section */}
         <View style={styles.tokenSection}>
@@ -255,6 +265,9 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
               }}
               keyboardType="decimal-pad"
             />
+            <TouchableOpacity onPress={handleMax} style={styles.maxButton}>
+              <Text style={styles.maxButtonText}>MAX</Text>
+            </TouchableOpacity>
             <View style={styles.tokenBadge}>
               <Text style={styles.tokenBadgeText}>{inputToken}</Text>
             </View>
@@ -428,6 +441,19 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '600',
     color: '#000',
+  },
+  maxButton: {
+    backgroundColor: '#e8e8e8',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    marginRight: 8,
+  },
+  maxButtonText: {
+    color: '#000',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   tokenBadge: {
     backgroundColor: '#000',

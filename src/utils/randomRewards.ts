@@ -164,7 +164,7 @@ export async function checkEligibility(
 
   try {
     const { getAssociatedTokenAddress, getAccount } = await import('@solana/spl-token');
-    const ata = await getAssociatedTokenAddress(seedMint, wallet);
+    const ata = await getAssociatedTokenAddress(seedMint, wallet, true);
     const account = await getAccount(connection, ata);
     const balance = Number(account.amount) / Math.pow(10, SEED_DECIMALS);
 

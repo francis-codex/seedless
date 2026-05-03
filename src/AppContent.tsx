@@ -6,8 +6,6 @@ import { WalletScreen } from './screens/WalletScreen';
 import { SwapScreen } from './screens/SwapScreen';
 import { StealthScreen } from './screens/StealthScreen';
 import { BurnerScreen } from './screens/BurnerScreen';
-import { BagsScreen } from './screens/BagsScreen';
-import { LaunchScreen } from './screens/LaunchScreen';
 import { AuthoritiesScreen } from './screens/AuthoritiesScreen';
 import { UmbraDebugScreen } from './screens/UmbraDebugScreen';
 
@@ -65,8 +63,6 @@ export function AppContent() {
             onSwap={() => setCurrentScreen('swap')}
             onStealth={() => setCurrentScreen('stealth')}
             onBurner={() => setCurrentScreen('burner')}
-            onBags={() => setCurrentScreen('bags')}
-            onLaunch={() => setCurrentScreen('launch')}
             onAuthorities={() => setCurrentScreen('authorities')}
             onUmbraDebug={() => setCurrentScreen('umbradebug')}
           />
@@ -74,8 +70,6 @@ export function AppContent() {
         {effectiveScreen === 'swap' && <View style={styles.overlay}><SwapScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         {effectiveScreen === 'stealth' && <View style={styles.overlay}><StealthScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         {effectiveScreen === 'burner' && <View style={styles.overlay}><BurnerScreen onBack={() => setCurrentScreen('wallet')} /></View>}
-        {effectiveScreen === 'bags' && <View style={styles.overlay}><BagsScreen onBack={() => setCurrentScreen('wallet')} /></View>}
-        {effectiveScreen === 'launch' && <View style={styles.overlay}><LaunchScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         {effectiveScreen === 'authorities' && <View style={styles.overlay}><AuthoritiesScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         {effectiveScreen === 'umbradebug' && <View style={styles.overlay}><UmbraDebugScreen onBack={() => setCurrentScreen('wallet')} /></View>}
       </>

@@ -17,9 +17,16 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import { Connection, PublicKey, LAMPORTS_PER_SOL, SystemProgram, Transaction } from '@solana/web3.js';
+import {
+    getAssociatedTokenAddress,
+    getAccount,
+    createAssociatedTokenAccountIdempotentInstruction,
+    createTransferCheckedInstruction,
+    createCloseAccountInstruction,
+} from '@solana/spl-token';
 import QRCode from 'react-native-qrcode-svg';
 
-import { SOLANA_RPC_URL, IS_DEVNET, STEALTH_SWEEP_RENT, STEALTH_SWEEP_FEE } from '../constants';
+import { SOLANA_RPC_URL, IS_DEVNET, STEALTH_SWEEP_RENT, STEALTH_SWEEP_FEE, USDC_MINT, SOL_MINT } from '../constants';
 import {
     getStealthMetaAddress,
     generateStealthAddress,
@@ -53,7 +60,8 @@ interface StealthScreenProps {
 }
 
 interface AddressWithBalance extends StealthAddress {
-    balance: number;
+    balance: number; // SOL
+    usdcBalance: number;
 }
 
 export function StealthScreen({ onBack }: StealthScreenProps) {
@@ -64,7 +72,9 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [metaAddress, setMetaAddress] = useState<StealthMetaAddress | null>(null);
     const [addresses, setAddresses] = useState<AddressWithBalance[]>([]);
-    const [totalBalance, setTotalBalance] = useState(0);
+    const [totalBalance, setTotalBalance] = useState(0); // SOL
+    const [totalUsdcBalance, setTotalUsdcBalance] = useState(0);
+    const [solPrice, setSolPrice] = useState(0);
     const [isSweeping, setIsSweeping] = useState(false);
 
     // Payment request modal
@@ -100,26 +110,49 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
     const loadAddresses = async () => {
         try {
             const allAddresses = await getAllStealthAddresses(walletId);
+            const usdcMint = new PublicKey(USDC_MINT);
 
-            // Fetch all balances in parallel — fallback to public RPC
-            const balances = await Promise.all(
-                allAddresses.map(addr => {
+            // Fetch SOL + USDC balance for every stealth address in parallel
+            const perAddress = await Promise.all(
+                allAddresses.map(async (addr) => {
                     const pubkey = new PublicKey(addr.address);
-                    return connection.getBalance(pubkey).catch(() =>
+                    const lamports = await connection.getBalance(pubkey).catch(() =>
                         fallbackConnection.getBalance(pubkey).catch(() => 0)
                     );
+                    let usdc = 0;
+                    try {
+                        const ata = await getAssociatedTokenAddress(usdcMint, pubkey);
+                        const acc = await getAccount(connection, ata);
+                        usdc = Number(acc.amount) / 1_000_000;
+                    } catch {
+                        usdc = 0;
+                    }
+                    return { sol: lamports / LAMPORTS_PER_SOL, usdc };
                 })
             );
 
-            let total = 0;
+            let totalSol = 0;
+            let totalUsdc = 0;
             const addressesWithBalances: AddressWithBalance[] = allAddresses.map((addr, i) => {
-                const solBalance = balances[i] / LAMPORTS_PER_SOL;
-                total += solBalance;
-                return { ...addr, balance: solBalance };
+                totalSol += perAddress[i].sol;
+                totalUsdc += perAddress[i].usdc;
+                return { ...addr, balance: perAddress[i].sol, usdcBalance: perAddress[i].usdc };
             });
 
             setAddresses(addressesWithBalances);
-            setTotalBalance(total);
+            setTotalBalance(totalSol);
+            setTotalUsdcBalance(totalUsdc);
+
+            // Fetch SOL price for USD total display
+            try {
+                const res = await fetch(`https://lite-api.jup.ag/price/v3?ids=${SOL_MINT}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setSolPrice(data?.[SOL_MINT]?.usdPrice ?? 0);
+                }
+            } catch {
+                // keep last known price
+            }
         } catch (error) {
             console.error('Failed to load addresses:', error);
         }
@@ -143,7 +176,7 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
         setIsLoading(true);
         try {
             const newAddress = await generateStealthAddress(undefined, walletId);
-            setAddresses((prev) => [...prev, { ...newAddress, balance: 0 }]);
+            setAddresses((prev) => [...prev, { ...newAddress, balance: 0, usdcBalance: 0 }]);
             Alert.alert('Created', `New stealth address: ${shortenAddress(newAddress.address)}`);
         } catch (error) {
             console.error('Failed to generate address:', error);
@@ -188,7 +221,7 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
             return;
         }
 
-        const fundedAddresses = addresses.filter((a) => a.balance > 0);
+        const fundedAddresses = addresses.filter((a) => a.balance > 0 || a.usdcBalance > 0);
         if (fundedAddresses.length === 0) {
             Alert.alert('No Funds', 'No stealth addresses have funds to sweep');
             return;
@@ -202,54 +235,118 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
             return;
         }
 
+        const usdcLine = totalUsdcBalance > 0 ? ` + ${totalUsdcBalance.toFixed(2)} USDC` : '';
         Alert.alert(
             'Sweep All',
-            `Sweep ${totalBalance.toFixed(4)} SOL from ${fundedAddresses.length} address(es) to your main wallet?`,
+            `Sweep ${totalBalance.toFixed(4)} SOL${usdcLine} from ${fundedAddresses.length} address(es) to your main wallet?`,
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
                     text: 'Sweep',
                     onPress: async () => {
                         setIsSweeping(true);
+                        const sweptCount = { ok: 0 };
+                        const underfunded: string[] = [];
                         try {
-                            // For each funded address, create a transfer to main wallet
+                            const usdcMint = new PublicKey(USDC_MINT);
+                            const mainUsdcAta = await getAssociatedTokenAddress(usdcMint, smartWalletPubkey, true);
+                            const mainAtaExists = (await connection.getAccountInfo(mainUsdcAta)) !== null;
+
                             for (const addr of fundedAddresses) {
                                 const keypair = await getStealthKeypair(addr.address, addr.index, walletId);
-                                if (!keypair) {
-                                    continue;
+                                if (!keypair) continue;
+
+                                const ixs = [];
+                                let createAtaCost = 0;
+
+                                // USDC sweep: optionally create main ATA, then transfer USDC.
+                                // We do NOT close the stealth ATA (it stays empty on-chain) — keeps math simple
+                                // and avoids subtle pre-flight rent edge cases.
+                                if (addr.usdcBalance > 0) {
+                                    const stealthUsdcAta = await getAssociatedTokenAddress(usdcMint, keypair.publicKey);
+                                    let usdcAmount = 0n;
+                                    try {
+                                        const acc = await getAccount(connection, stealthUsdcAta);
+                                        usdcAmount = acc.amount;
+                                    } catch {
+                                        usdcAmount = 0n;
+                                    }
+                                    if (usdcAmount > 0n) {
+                                        if (!mainAtaExists) {
+                                            ixs.push(
+                                                createAssociatedTokenAccountIdempotentInstruction(
+                                                    keypair.publicKey,
+                                                    mainUsdcAta,
+                                                    smartWalletPubkey,
+                                                    usdcMint,
+                                                ),
+                                            );
+                                            createAtaCost = 2039280;
+                                        }
+                                        ixs.push(
+                                            createTransferCheckedInstruction(
+                                                stealthUsdcAta,
+                                                usdcMint,
+                                                mainUsdcAta,
+                                                keypair.publicKey,
+                                                usdcAmount,
+                                                6,
+                                            ),
+                                        );
+                                    }
                                 }
 
-                                // Calculate amount to send (leave some for rent/fees)
-                                const balance = await connection.getBalance(keypair.publicKey);
-                                const rentExempt = STEALTH_SWEEP_RENT;
+                                // SOL sweep: leave the rent-exempt minimum on stealth to avoid runtime
+                                // rent checks. Cheaper than the alternatives (closeAccount edge cases,
+                                // draining-to-zero pre-flight failures). Costs ~0.0009 SOL per address.
+                                const liveBalance = await connection.getBalance(keypair.publicKey);
                                 const fee = STEALTH_SWEEP_FEE;
-                                const sendAmount = balance - rentExempt - fee;
+                                const rentBuffer = STEALTH_SWEEP_RENT;
+                                const sendLamports = liveBalance - fee - createAtaCost - rentBuffer;
 
-                                if (sendAmount <= 0) {
+                                if (sendLamports < 0) {
+                                    underfunded.push(addr.address);
                                     continue;
                                 }
 
-                                // Create and sign transaction locally (stealth keypair signs)
+                                if (sendLamports > 0) {
+                                    ixs.push(
+                                        SystemProgram.transfer({
+                                            fromPubkey: keypair.publicKey,
+                                            toPubkey: smartWalletPubkey,
+                                            lamports: sendLamports,
+                                        }),
+                                    );
+                                }
+
+                                if (ixs.length === 0) continue;
+
                                 const { blockhash } = await connection.getLatestBlockhash();
                                 const transaction = new Transaction({
                                     recentBlockhash: blockhash,
                                     feePayer: keypair.publicKey,
-                                }).add(
-                                    SystemProgram.transfer({
-                                        fromPubkey: keypair.publicKey,
-                                        toPubkey: smartWalletPubkey,
-                                        lamports: sendAmount,
-                                    })
-                                );
-
+                                }).add(...ixs);
                                 transaction.sign(keypair);
                                 const signature = await connection.sendRawTransaction(transaction.serialize());
                                 await connection.confirmTransaction(signature, 'confirmed');
-                                // Sweep successful
+                                sweptCount.ok += 1;
                             }
 
-                            Alert.alert('Success', 'Funds swept to main wallet');
-                            await loadAddresses(); // Refresh balances
+                            // Build a single truthful summary of what actually happened.
+                            const lines: string[] = [];
+                            if (sweptCount.ok > 0) {
+                                lines.push(`✓ Swept ${sweptCount.ok} address(es) to main wallet.`);
+                            }
+                            if (underfunded.length > 0) {
+                                lines.push(
+                                    `⚠ ${underfunded.length} address(es) need a tiny bit of SOL to pay fees. Solana requires ~0.000896 SOL per address (rent + fee). Send 0.001 SOL from any wallet to:\n\n${underfunded.map(shortenAddress).join('\n')}`,
+                                );
+                            }
+                            if (lines.length === 0) {
+                                lines.push('Nothing to sweep.');
+                            }
+                            Alert.alert(sweptCount.ok > 0 ? 'Sweep Complete' : 'Action Needed', lines.join('\n\n'));
+                            await loadAddresses();
                         } catch (error: any) {
                             console.error('Sweep failed:', error);
                             Alert.alert('Sweep Failed', error.message || 'Could not sweep funds');
@@ -319,13 +416,20 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
             {/* Total Balance */}
             <View style={styles.balanceCard}>
                 <Text style={styles.balanceLabel}>Stealth Balance</Text>
-                <Text style={styles.balanceAmount}>{totalBalance.toFixed(4)} SOL</Text>
-                <Text style={styles.addressCount}>{addresses.length} address(es)</Text>
+                <Text style={styles.balanceAmount}>
+                    ${(totalBalance * solPrice + totalUsdcBalance).toFixed(2)}
+                </Text>
+                <Text style={styles.addressCount}>
+                    {totalBalance > 0 ? `${totalBalance.toFixed(4)} SOL` : ''}
+                    {totalBalance > 0 && totalUsdcBalance > 0 ? ' · ' : ''}
+                    {totalUsdcBalance > 0 ? `${totalUsdcBalance.toFixed(2)} USDC` : ''}
+                    {totalBalance === 0 && totalUsdcBalance === 0 ? `${addresses.length} address(es)` : ` · ${addresses.length} address(es)`}
+                </Text>
 
                 <TouchableOpacity
                     style={[styles.sweepButton, isSweeping && styles.buttonDisabled]}
                     onPress={handleSweepAll}
-                    disabled={isSweeping || totalBalance === 0}
+                    disabled={isSweeping || (totalBalance === 0 && totalUsdcBalance === 0)}
                 >
                     {isSweeping ? (
                         <ActivityIndicator size="small" color="#fff" />
@@ -354,7 +458,10 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                                 <TouchableOpacity onPress={() => copyAddress(addr.address)}>
                                     <Text style={styles.addressText}>{shortenAddress(addr.address)}</Text>
                                 </TouchableOpacity>
-                                <Text style={styles.addressBalance}>{addr.balance.toFixed(4)} SOL</Text>
+                                <Text style={styles.addressBalance}>
+                                    {addr.balance.toFixed(4)} SOL
+                                    {addr.usdcBalance > 0 ? ` · ${addr.usdcBalance.toFixed(2)} USDC` : ''}
+                                </Text>
                             </View>
                             <TouchableOpacity
                                 style={styles.requestButton}
