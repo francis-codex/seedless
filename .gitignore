@@ -43,3 +43,7 @@ docs/adam-call-notes.md
 
 # Umbra ZK assets — fetched from https://zk.api.umbraprivacy.com (see assets/zk/README.md)
 assets/zk/*.zkey
+
+# Claude Code local session artifacts
+.claude/
+claude-session.jsonl
