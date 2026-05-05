@@ -39,6 +39,15 @@ installEd25519();
 import { Buffer } from 'buffer';
 global.Buffer = global.Buffer || Buffer;
 
+// Hermes ships partial Intl on iOS but no PluralRules. @mysten/sui's utils.mjs
+// (transitively pulled by @ika.xyz/sdk) constructs a `new Intl.PluralRules(...)`
+// at module init and crashes with "Cannot read property 'prototype' of
+// undefined". Polyfill before any SDK import path runs.
+import '@formatjs/intl-getcanonicallocales/polyfill';
+import '@formatjs/intl-locale/polyfill';
+import '@formatjs/intl-pluralrules/polyfill';
+import '@formatjs/intl-pluralrules/locale-data/en';
+
 // Hermes ships AbortSignal but is missing throwIfAborted (ES2022). Umbra SDK
 // calls callerAbortSignal.throwIfAborted() between registration steps.
 {
