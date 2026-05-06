@@ -47,3 +47,11 @@ assets/zk/*.zkey
 # Claude Code local session artifacts
 .claude/
 claude-session.jsonl
+
+# Internal — keep out of public repo
+/Atlas documents - (Seedless Labs_ Inc.)/
+/Code/
+/UDOKA_ONBOARDING.html
+/UDOKA_ONBOARDING.pdf
+/expo-recovery-codes.txt
+/assets/wells-ui/

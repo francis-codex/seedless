@@ -6,7 +6,7 @@ A passkey-native Solana wallet. No seed phrases. No gas fees. Just biometrics.
 
 ## Download
 
-**[Android APK](https://expo.dev/accounts/solana-bridge/projects/seedless/builds/58386687-b1e2-4d43-a6cc-4efcba8f27ac)**
+**[Android APK]()**
 
 ## Screenshots
 
