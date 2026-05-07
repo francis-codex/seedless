@@ -135,6 +135,11 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
             Alert.alert('Error', 'Fill all fields');
             return;
         }
+        const recipient = sendRecipient.trim();
+        if (!isValidSolanaAddress(recipient)) {
+            Alert.alert('Invalid recipient', 'Enter a valid Solana address.');
+            return;
+        }
 
         const amount = parseFloat(sendAmount);
         if (isNaN(amount) || amount <= 0) {
@@ -160,7 +165,7 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
 
         setIsSending(true);
         try {
-            const signature = await sendFromBurner(selectedBurner.id, sendRecipient, amount);
+            const signature = await sendFromBurner(selectedBurner.id, recipient, amount);
             Alert.alert('Transaction Successful', `Sent ${amount} SOL.\n\nTx: ${signature.slice(0, 20)}...`);
             setShowSendModal(false);
             await loadBurners();
@@ -194,7 +199,8 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
 
     const handlePrivateSend = async () => {
         if (!selectedBurner) return;
-        if (!isValidSolanaAddress(privateRecipient)) {
+        const recipient = privateRecipient.trim();
+        if (!isValidSolanaAddress(recipient)) {
             Alert.alert('Invalid recipient', 'Enter a valid Solana address.');
             return;
         }
@@ -243,7 +249,7 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
             const result = await privateSendFromBurner(
                 {
                     burnerId: selectedBurner.id,
-                    destinationAddress: privateRecipient,
+                    destinationAddress: recipient,
                     amountLamports: BigInt(amountLamports),
                     onDegradationRequested: askDegradationConsent,
                 },
@@ -260,7 +266,7 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                 : 'Sent — sender hidden, amount visible';
             Alert.alert(
                 'Sent',
-                `${modeLabel}\n\n${amount} SOL → ${privateRecipient.slice(0, 6)}…${privateRecipient.slice(-6)}`,
+                `${modeLabel}\n\n${amount} SOL → ${recipient.slice(0, 6)}…${recipient.slice(-6)}`,
                 sig
                     ? [
                         { text: 'View on explorer', onPress: () => Linking.openURL(getTxExplorerUrl(sig)) },

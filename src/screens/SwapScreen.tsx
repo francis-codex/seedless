@@ -111,6 +111,10 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
       Alert.alert('Invalid amount', 'Enter a valid amount to swap');
       return;
     }
+    if (parsedAmount < 0.0001) {
+      Alert.alert('Amount too small', `Enter at least 0.0001 ${inputToken} to get a quote.`);
+      return;
+    }
 
     if (!smartWalletPubkey) {
       Alert.alert('Not connected', 'Connect your wallet first');
@@ -138,11 +142,18 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
       }
     } catch (error: any) {
       console.error('Quote failed:', error);
-      Alert.alert('Quote failed', error.message || 'Could not get quote');
+      const raw = String(error?.message ?? error ?? '');
+      let friendly = 'Could not get a quote — try a different amount or pair.';
+      if (raw.includes('NO_ROUTES_FOUND') || raw.toLowerCase().includes('no routes')) {
+        friendly = `No route available for ${inputToken} → ${outputToken} right now. Try a larger amount or a different pair.`;
+      } else if (raw.toLowerCase().includes('network') || raw.toLowerCase().includes('fetch')) {
+        friendly = 'Network issue — check your connection and try again.';
+      }
+      Alert.alert('Quote failed', friendly);
     } finally {
       setIsLoadingQuote(false);
     }
-  }, [amount, inputMint, outputMint, inputDecimals, smartWalletPubkey, swapSource]);
+  }, [amount, inputMint, outputMint, inputDecimals, smartWalletPubkey, swapSource, inputToken, outputToken]);
 
   // Get the active quote's output amount
   const activeQuote = swapSource === 'bags' ? bagsQuote : quote;

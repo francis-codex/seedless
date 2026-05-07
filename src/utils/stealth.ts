@@ -7,6 +7,7 @@ import { Keypair, PublicKey } from '@solana/web3.js';
 
 const MASTER_SEED_KEY = 'lazor_stealth_master_seed';
 const STEALTH_INDEX_KEY = 'lazor_stealth_index';
+const STEALTH_HIDDEN_KEY = 'lazor_stealth_hidden';
 
 // Scope storage keys to connected wallet so each passkey gets its own addresses
 function scopeKey(key: string, walletId?: string): string {
@@ -172,16 +173,34 @@ export async function getStealthKeypair(
   }
 }
 
-// Get all previously generated stealth addresses
+async function getHiddenStealthIndexes(walletId?: string): Promise<Set<number>> {
+  try {
+    const raw = await SecureStore.getItemAsync(scopeKey(STEALTH_HIDDEN_KEY, walletId));
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as number[]);
+  } catch {
+    return new Set();
+  }
+}
+
+export async function hideStealthAddress(index: number, walletId?: string): Promise<void> {
+  const hidden = await getHiddenStealthIndexes(walletId);
+  hidden.add(index);
+  await SecureStore.setItemAsync(scopeKey(STEALTH_HIDDEN_KEY, walletId), JSON.stringify([...hidden]));
+}
+
+// Get all previously generated stealth addresses (excludes ones the user removed locally)
 export async function getAllStealthAddresses(walletId?: string): Promise<StealthAddress[]> {
   try {
     const masterSeed = await getOrCreateMasterSeed();
     const indexStr = await SecureStore.getItemAsync(scopeKey(STEALTH_INDEX_KEY, walletId));
     const maxIndex = indexStr ? parseInt(indexStr, 10) : 0;
+    const hidden = await getHiddenStealthIndexes(walletId);
 
     const addresses: StealthAddress[] = [];
 
     for (let i = 0; i < maxIndex; i++) {
+      if (hidden.has(i)) continue;
       const keypair = await deriveStealthKeypairForIndex(masterSeed, i, walletId);
       addresses.push({
         index: i,

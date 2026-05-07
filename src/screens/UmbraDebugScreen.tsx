@@ -84,6 +84,20 @@ function unwrapErrorDetail(err: unknown): string {
   return parts.join('\n\n') || String(err);
 }
 
+function friendlyError(detail: string): string {
+  const lamportMatch = detail.match(/insufficient lamports (\d+),?\s*need\s*(\d+)/i);
+  if (lamportMatch) {
+    const have = Number(lamportMatch[1]) / 1e9;
+    const need = Number(lamportMatch[2]) / 1e9;
+    const recommend = Math.max(0.01, Math.ceil(need * 1e3) / 1e3 + 0.005);
+    return `Your private address needs more SOL.\n\nFunded: ${have.toFixed(4)} SOL\nNeeded: ${need.toFixed(4)} SOL\n\nSend at least ${recommend.toFixed(3)} SOL to the private address shown above, then tap "Refresh private mode".`;
+  }
+  if (/timed out/i.test(detail)) {
+    return 'Setup timed out. Check your connection and tap "Refresh private mode".';
+  }
+  return detail;
+}
+
 export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
   const [runState, setRunState] = useState<RunState>('idle');
   const [signerAddress, setSignerAddress] = useState<string | null>(null);
@@ -159,8 +173,9 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
       setRunState('success');
     } catch (err: any) {
       const detail = unwrapErrorDetail(err);
-      appendLog(`Failed · ${detail}`);
-      setErrorMessage(detail);
+      const friendly = friendlyError(detail);
+      appendLog(`Failed · ${friendly}`);
+      setErrorMessage(friendly);
       setRunState('error');
     }
   }, [handleProgress, appendLog]);
@@ -195,8 +210,9 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
       appendLog(`✓ ${out.message}`);
     } catch (err: any) {
       const detail = unwrapErrorDetail(err);
-      setOp(id, { status: 'error', message: detail });
-      appendLog(`✗ Failed · ${detail}`);
+      const friendly = friendlyError(detail);
+      setOp(id, { status: 'error', message: friendly });
+      appendLog(`✗ Failed · ${friendly}`);
     }
   }, [appendLog, setOp]);
 
@@ -325,7 +341,7 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
         {signerAddress && (
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Your private address</Text>
-            <Text style={styles.cardHint}>Add a little SOL here so private mode can cover network fees</Text>
+            <Text style={styles.cardHint}>Send at least 0.01 SOL here before tapping setup. Private mode uses it for network fees.</Text>
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => Clipboard.setStringAsync(signerAddress)}

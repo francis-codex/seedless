@@ -35,6 +35,7 @@ import {
     getStealthKeypair,
     isStealthInitialized,
     getOrCreateMasterSeed,
+    hideStealthAddress,
     StealthMetaAddress,
     StealthAddress,
     STEALTH_LIMITS,
@@ -181,6 +182,28 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleRemoveAddress = (addr: AddressWithBalance) => {
+        const hasBalance = addr.balance > 0 || addr.usdcBalance > 0;
+        const warning = hasBalance
+            ? `This address still has ${addr.balance.toFixed(4)} SOL${addr.usdcBalance > 0 ? ` + ${addr.usdcBalance.toFixed(2)} USDC` : ''}. Sweep first or you'll lose access in this view (the address still exists on-chain).\n\nRemove anyway?`
+            : 'Remove this stealth address from your list? It still exists on-chain — you just won\'t see it here.';
+        Alert.alert(
+            'Remove address',
+            warning,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Remove',
+                    style: 'destructive',
+                    onPress: async () => {
+                        await hideStealthAddress(addr.index, walletId);
+                        setAddresses((prev) => prev.filter((a) => a.address !== addr.address));
+                    },
+                },
+            ],
+        );
     };
 
     const handleRequestPayment = (address: string) => {
@@ -441,6 +464,14 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                                 <Icon name="qr" size={16} color={colors.text} />
                                 <Text style={styles.requestBtnText}>Request</Text>
                             </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.removeBtn}
+                                onPress={() => handleRemoveAddress(addr)}
+                                activeOpacity={0.7}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                                <Icon name="close" size={16} color={colors.dangerText} />
+                            </TouchableOpacity>
                         </View>
                     ))
                 )}
@@ -644,6 +675,15 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '600' as const,
         color: colors.text,
+    },
+    removeBtn: {
+        marginLeft: spacing.sm,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: colors.dangerBg,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
 
     limitsCard: {
