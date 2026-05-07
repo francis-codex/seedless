@@ -1,18 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet, BackHandler, SafeAreaView, StatusBar } from 'react-native';
+import {
+  View,
+  Text,
+  ActivityIndicator,
+  StyleSheet,
+  BackHandler,
+  StatusBar,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import { HomeScreen } from './screens/HomeScreen';
 import { WalletScreen } from './screens/WalletScreen';
 import { SwapScreen } from './screens/SwapScreen';
 import { StealthScreen } from './screens/StealthScreen';
 import { BurnerScreen } from './screens/BurnerScreen';
-import { AuthoritiesScreen } from './screens/AuthoritiesScreen';
 import { UmbraDebugScreen } from './screens/UmbraDebugScreen';
 import { IkaScreen } from './screens/IkaScreen';
 import { colors, typography, spacing } from './theme';
 import { Icon } from './components/ui';
 
-type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'bags' | 'launch' | 'authorities' | 'umbradebug' | 'ika';
+type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'bags' | 'launch' | 'umbradebug' | 'ika';
 
 // Navigation state for tracking screen transitions
 export type NavigationState = {
@@ -71,7 +78,6 @@ export function AppContent() {
             onSwap={() => setCurrentScreen('swap')}
             onStealth={() => setCurrentScreen('stealth')}
             onBurner={() => setCurrentScreen('burner')}
-            onAuthorities={() => setCurrentScreen('authorities')}
             onUmbraDebug={() => setCurrentScreen('umbradebug')}
             onIka={() => setCurrentScreen('ika')}
           />
@@ -79,7 +85,6 @@ export function AppContent() {
         {effectiveScreen === 'swap' && <View style={styles.overlay}><SwapScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         {effectiveScreen === 'stealth' && <View style={styles.overlay}><StealthScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         {effectiveScreen === 'burner' && <View style={styles.overlay}><BurnerScreen onBack={() => setCurrentScreen('wallet')} /></View>}
-        {effectiveScreen === 'authorities' && <View style={styles.overlay}><AuthoritiesScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         {effectiveScreen === 'umbradebug' && <View style={styles.overlay}><UmbraDebugScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         {effectiveScreen === 'ika' && <View style={styles.overlay}><IkaScreen onBack={() => setCurrentScreen('wallet')} /></View>}
       </>

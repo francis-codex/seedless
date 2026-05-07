@@ -3,7 +3,7 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { colors, spacing } from '../../theme';
 import { Icon, IconName } from './Icon';
 
-export type NavTab = 'wallet' | 'discover' | 'settings';
+export type NavTab = 'wallet' | 'swap' | 'settings';
 
 interface BottomNavProps {
   active: NavTab;
@@ -12,7 +12,7 @@ interface BottomNavProps {
 
 const TABS: { key: NavTab; icon: IconName }[] = [
   { key: 'wallet', icon: 'wallet' },
-  { key: 'discover', icon: 'discover' },
+  { key: 'swap', icon: 'swap' },
   { key: 'settings', icon: 'settings' },
 ];
 
@@ -31,8 +31,8 @@ export function BottomNav({ active, onChange }: BottomNavProps) {
             <View style={[styles.circle, isActive && styles.activeCircle]}>
               <Icon
                 name={t.icon}
-                size={24}
-                color={isActive ? colors.white : colors.textSubtle}
+                size={22}
+                color={isActive ? colors.white : colors.textMuted}
                 strokeWidth={2}
               />
             </View>
@@ -48,19 +48,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    paddingHorizontal: spacing.xxxl,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xl,
-    backgroundColor: colors.bg,
+    marginHorizontal: spacing.xl,
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(11,37,69,0.05)',
+    shadowColor: '#0B2545',
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
   btn: {
     alignItems: 'center',
     justifyContent: 'center',
+    flex: 1,
   },
   circle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },

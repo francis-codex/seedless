@@ -8,11 +8,11 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import * as Linking from 'expo-linking';
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
@@ -303,36 +303,6 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
             </View>
           </View>
 
-          {/* Source toggle */}
-          <View style={styles.sourceToggle}>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => {
-                setSwapSource('jupiter');
-                setQuote(null);
-                setBagsQuote(null);
-              }}
-              style={[styles.sourceOption, swapSource === 'jupiter' && styles.sourceOptionActive]}
-            >
-              <Text style={[styles.sourceText, swapSource === 'jupiter' && styles.sourceTextActive]}>
-                Jupiter
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => {
-                setSwapSource('bags');
-                setQuote(null);
-                setBagsQuote(null);
-              }}
-              style={[styles.sourceOption, swapSource === 'bags' && styles.sourceOptionActive]}
-            >
-              <Text style={[styles.sourceText, swapSource === 'bags' && styles.sourceTextActive]}>
-                Bags.fm
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           {/* Quote info */}
           {activeQuote && (
             <View style={styles.quoteCard}>
@@ -373,14 +343,6 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
             )}
           </View>
 
-          {/* Info */}
-          <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>How it works</Text>
-            <InfoLine text="Routed via Jupiter aggregation or Bags.fm" />
-            <InfoLine text="SOL, USDC, and SEED token pairs" />
-            <InfoLine text="Sign with Face ID or fingerprint" />
-            <InfoLine text="Gas sponsored by Kora paymaster" />
-          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

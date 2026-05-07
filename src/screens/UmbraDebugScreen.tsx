@@ -6,10 +6,10 @@ import {
   Text,
   TouchableOpacity,
   View,
-  SafeAreaView,
   StatusBar,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import {
@@ -313,12 +313,6 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.lede}>
-          Test the privacy stack end to end. This screen creates a private account, moves a small
-          amount in and out of an encrypted balance, and claims any private receipts. Make sure the
-          account address below has a tiny bit of SOL for rent — everything else is automatic.
-        </Text>
-
         <PrimaryButton
           label={runState === 'idle' ? 'Set up private account' : 'Re-run setup'}
           onPress={handleRun}
@@ -383,10 +377,6 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
         {phase1Done && (
           <View style={styles.phase2Block}>
             <Text style={styles.sectionTitle}>Encrypted operations · {SOL_DISPLAY}</Text>
-            <Text style={styles.phase2Hint}>
-              Each step uses the account above with wrapped SOL. Order: deposit before withdraw;
-              create a private receivable before scanning; scan before claiming.
-            </Text>
 
             {(['deposit', 'withdraw', 'create-utxo', 'scan-utxo', 'claim-utxo'] as OpId[]).map((id) => {
               const op = ops[id];

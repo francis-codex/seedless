@@ -1,21 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    View,
-    Text,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    StyleSheet,
-    TextInput,
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    Modal,
-    RefreshControl,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    StatusBar,
+  View,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  StyleSheet,
+  TextInput,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  Modal,
+  RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
@@ -352,20 +352,6 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                     />
                 }
             >
-                <View style={styles.warningCard}>
-                    <View style={styles.warningHead}>
-                        <Icon name="lightning" size={18} color={colors.warningText} />
-                        <Text style={styles.warningTitle}>Isolated wallets</Text>
-                    </View>
-                    <Text style={styles.warningText}>
-                        Burner wallets are completely separate identities with no on-chain link to your main
-                        wallet. They require SOL for gas fees.
-                    </Text>
-                    <Text style={styles.warningNote}>
-                        For true privacy, fund from an external source — not your main wallet.
-                    </Text>
-                </View>
-
                 <PrimaryButton
                     label="New burner wallet"
                     onPress={() => setShowCreateModal(true)}
@@ -439,10 +425,6 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                     ))
                 )}
 
-                <View style={styles.limitsCard}>
-                    <Text style={styles.limitsTitle}>Limits</Text>
-                    <Text style={styles.limitsText}>Max per transaction: {BURNER_LIMITS.MAX_SEND_SOL} SOL</Text>
-                </View>
             </ScrollView>
 
             {/* Create Modal */}

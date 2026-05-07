@@ -8,11 +8,11 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  SafeAreaView,
   StatusBar,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -193,20 +193,9 @@ export function IkaScreen({ onBack }: IkaScreenProps) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.banner}>
-            <View style={styles.bannerHead}>
-              <View style={styles.chainDot} />
-              <Text style={styles.bannerTitle}>{CHAIN.label}</Text>
-            </View>
-            <Text style={styles.bannerSub}>
-              Sign Ethereum natively from your passkey via the Ika dWallet primitive.
-            </Text>
-            <View style={{ marginTop: spacing.md }}>
-              <Pill
-                label={IKA_MODE === 'local' ? 'Local signing demo' : 'SDK wired · local fallback'}
-                variant="neutral"
-              />
-            </View>
+          <View style={styles.chainRow}>
+            <View style={styles.chainDot} />
+            <Text style={styles.chainLabel}>{CHAIN.label}</Text>
           </View>
 
           {!dWallet && (
@@ -219,9 +208,6 @@ export function IkaScreen({ onBack }: IkaScreenProps) {
                 fullWidth
                 icon={<Icon name="plus" size={18} color={colors.white} />}
               />
-              <Text style={styles.helper}>
-                Generates a distributed key. Requires Face ID or fingerprint.
-              </Text>
             </View>
           )}
 
@@ -317,33 +303,22 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxxl * 2,
   },
 
-  banner: {
-    backgroundColor: colors.text,
-    borderRadius: radii.lg,
-    padding: spacing.xl,
-    marginBottom: spacing.xl,
-  },
-  bannerHead: {
+  chainRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.lg,
   },
   chainDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: '#627EEA',
   },
-  bannerTitle: {
-    color: colors.white,
+  chainLabel: {
     fontSize: 17,
     fontWeight: '600' as const,
-  },
-  bannerSub: {
-    color: '#9DA9BC',
-    fontSize: 14,
-    lineHeight: 21,
+    color: colors.text,
   },
   helper: {
     ...typography.caption,

@@ -12,11 +12,12 @@ import {
   Platform,
   RefreshControl,
   Modal,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import * as LocalAuthentication from 'expo-local-authentication';
+import QRCode from 'react-native-qrcode-svg';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import { Connection, PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { getAccount, getAssociatedTokenAddress } from '@solana/spl-token';
@@ -51,7 +52,6 @@ interface WalletScreenProps {
   onBurner?: () => void;
   onBags?: () => void;
   onLaunch?: () => void;
-  onAuthorities?: () => void;
   onUmbraDebug?: () => void;
   onIka?: () => void;
 }
@@ -67,7 +67,7 @@ const fallbackConnection = new Connection(
   { commitment: 'confirmed' },
 );
 
-export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags, onLaunch, onAuthorities, onUmbraDebug, onIka }: WalletScreenProps) {
+export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags, onLaunch, onUmbraDebug, onIka }: WalletScreenProps) {
   const {
     smartWalletPubkey,
     disconnect,
@@ -84,8 +84,10 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
   const [isSessionBusy, setIsSessionBusy] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
   const [receiveModalOpen, setReceiveModalOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'tokens' | 'tools'>('tokens');
   const [navTab, setNavTab] = useState<NavTab>('wallet');
+  const [priceChange24h, setPriceChange24h] = useState<{ sol: number | null; usdc: number | null }>({ sol: null, usdc: null });
 
   const walletIdRef = useRef<string | null>(null);
   const walletId = smartWalletPubkey?.toBase58();
@@ -195,6 +197,22 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
       }
     } catch {
       // keep last known prices
+    }
+
+    // Fetch 24h change for SOL + USDC from CoinGecko free tier (SEED isn't listed)
+    try {
+      const cg = await fetch(
+        'https://api.coingecko.com/api/v3/simple/price?ids=solana,usd-coin&vs_currencies=usd&include_24hr_change=true',
+      );
+      if (cg.ok) {
+        const data = await cg.json();
+        setPriceChange24h({
+          sol: typeof data?.solana?.usd_24h_change === 'number' ? data.solana.usd_24h_change : null,
+          usdc: typeof data?.['usd-coin']?.usd_24h_change === 'number' ? data['usd-coin'].usd_24h_change : null,
+        });
+      }
+    } catch {
+      // keep last known change
     }
 
     hasFetchedRef.current = true;
@@ -440,34 +458,49 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
 
   const totalUsd = solBalance * prices.sol + usdcBalance * prices.usdc + seedBalance * prices.seed;
 
-  // Token list for the Tokens tab
+  // Token list for the Tokens tab — hide zero-balance tokens
   const tokens = useMemo(() => {
-    const list = [];
-    if (seedBalance > 0 || prices.seed > 0) {
+    const fmtPrice = (p: number) => (p >= 1 ? `$${p.toFixed(2)}` : `$${p.toFixed(4)}`);
+    const list: Array<{
+      symbol: string;
+      name: string;
+      balance: string;
+      usdValue: string;
+      price: string;
+      changePct: number | null;
+    }> = [];
+    if (solBalance > 0) {
+      list.push({
+        symbol: 'SOL',
+        name: 'Solana',
+        balance: `${solBalance.toFixed(4)} SOL`,
+        usdValue: `$${(solBalance * prices.sol).toFixed(2)}`,
+        price: fmtPrice(prices.sol),
+        changePct: priceChange24h.sol,
+      });
+    }
+    if (usdcBalance > 0) {
+      list.push({
+        symbol: 'USDC',
+        name: 'USD Coin',
+        balance: `${usdcBalance.toFixed(2)} USDC`,
+        usdValue: `$${(usdcBalance * prices.usdc).toFixed(2)}`,
+        price: fmtPrice(prices.usdc),
+        changePct: priceChange24h.usdc,
+      });
+    }
+    if (seedBalance > 0) {
       list.push({
         symbol: 'SEED',
         name: 'Seedless',
         balance: `${seedBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })} SEED`,
         usdValue: `$${(seedBalance * prices.seed).toFixed(2)}`,
+        price: prices.seed > 0 ? fmtPrice(prices.seed) : '—',
         changePct: null,
       });
     }
-    list.push({
-      symbol: 'SOL',
-      name: 'Solana',
-      balance: `${solBalance.toFixed(4)} SOL`,
-      usdValue: `$${(solBalance * prices.sol).toFixed(2)}`,
-      changePct: null,
-    });
-    list.push({
-      symbol: 'USDC',
-      name: 'USDC',
-      balance: `${usdcBalance.toFixed(2)} USDC`,
-      usdValue: `$${(usdcBalance * prices.usdc).toFixed(2)}`,
-      changePct: null,
-    });
     return list;
-  }, [solBalance, usdcBalance, seedBalance, prices]);
+  }, [solBalance, usdcBalance, seedBalance, prices, priceChange24h]);
 
   const renderToolsTab = () => (
     <View style={styles.toolsCol}>
@@ -495,14 +528,6 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
           onPress={onUmbraDebug}
         />
       )}
-      {onAuthorities && (
-        <ToolRow
-          title="Devices"
-          subtitle="Add or remove signers"
-          iconName="settings"
-          onPress={onAuthorities}
-        />
-      )}
       {onIka && (
         <ToolRow
           title="Multi-chain"
@@ -527,13 +552,6 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
           onPress={onLaunch}
         />
       )}
-      <ToolRow
-        title="Disconnect"
-        subtitle="Sign out of this wallet"
-        iconName="close"
-        onPress={handleDisconnect}
-        danger
-      />
     </View>
   );
 
@@ -555,62 +573,50 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
             }
           >
             <WalletHeader
-              walletName="Wallet 01"
-              truncatedAddress={shortAddress || '...'}
-              onProfilePress={handleCopyAddress}
-              rightIcon={isPrivateMode ? 'eyeOff' : 'eye'}
-              onRightPress={togglePrivacyMode}
+              onMenuPress={() => setDrawerOpen(true)}
+              onScanPress={() => Alert.alert('Coming soon', 'QR scanning ships in v0.5')}
             />
 
             {IS_DEVNET && (
               <View style={styles.devnetBanner}>
                 <Pill label="DEVNET BETA" variant="warning" size="md" />
-                <Text style={styles.devnetSub}>Test tokens only — not real funds</Text>
               </View>
             )}
 
-            {/* Balance hero */}
-            <View style={styles.heroSection}>
+            {/* Balance hero — tap to toggle hide/show */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={togglePrivacyMode}
+              style={styles.heroSection}
+            >
               <Text style={styles.heroBalance}>
                 {isPrivateMode ? '••••' : `$${totalUsd.toFixed(2)}`}
               </Text>
-              <View style={styles.heroSub}>
-                {balanceError && !isPrivateMode ? (
-                  <Pill label={balanceError} variant="danger" />
-                ) : isLoadingBalance && !hasFetchedRef.current ? (
-                  <ActivityIndicator color={colors.textMuted} size="small" />
-                ) : (
-                  <Pill
-                    label={isPrivateMode ? 'Tap eye to reveal' : 'Mainnet beta'}
-                    variant={isPrivateMode ? 'neutral' : 'success'}
-                  />
-                )}
-              </View>
-            </View>
+              {balanceError && !isPrivateMode ? (
+                <Text style={styles.heroError}>{balanceError}</Text>
+              ) : isLoadingBalance && !hasFetchedRef.current ? (
+                <ActivityIndicator color={colors.textMuted} size="small" style={{ marginTop: spacing.sm }} />
+              ) : null}
+            </TouchableOpacity>
 
-            {/* Action row */}
+            {/* Action row — Send + Receive only (bigger, Jupiter-style) */}
             <View style={styles.actionRow}>
-              <ActionButton
-                icon={<Icon name="send" size={22} color={colors.text} />}
-                label="Send"
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.bigAction}
                 onPress={() => setSendModalOpen(true)}
-              />
-              <ActionButton
-                icon={<Icon name="swap" size={22} color={colors.text} />}
-                label="Swap"
-                onPress={onSwap}
-                disabled={!onSwap}
-              />
-              <ActionButton
-                icon={<Icon name="qr" size={22} color={colors.text} />}
-                label="Receive"
+              >
+                <Icon name="send" size={22} color={colors.text} strokeWidth={2} />
+                <Text style={styles.bigActionLabel}>Send</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.bigAction}
                 onPress={() => setReceiveModalOpen(true)}
-              />
-              <ActionButton
-                icon={<Icon name="scan" size={22} color={colors.text} />}
-                label="Scan"
-                onPress={() => Alert.alert('Coming soon', 'QR scanning ships in v0.5')}
-              />
+              >
+                <Icon name="arrowDown" size={22} color={colors.text} strokeWidth={2} />
+                <Text style={styles.bigActionLabel}>Receive</Text>
+              </TouchableOpacity>
             </View>
 
             {/* Tabs */}
@@ -633,16 +639,25 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
 
             {activeTab === 'tokens' ? (
               <View style={styles.tokenList}>
-                {tokens.map((t) => (
-                  <TokenRow
-                    key={t.symbol}
-                    symbol={t.symbol}
-                    name={t.name}
-                    balance={isPrivateMode ? '••••' : t.balance}
-                    usdValue={isPrivateMode ? '••••' : t.usdValue}
-                    changePct={t.changePct}
-                  />
-                ))}
+                {tokens.length === 0 ? (
+                  <View style={styles.emptyTokens}>
+                    <Text style={styles.emptyTokensText}>No tokens yet</Text>
+                    <Text style={styles.emptyTokensHint}>Tap Receive to fund this wallet.</Text>
+                  </View>
+                ) : (
+                  tokens.map((t) => (
+                    <View key={t.symbol} style={styles.tokenCard}>
+                      <TokenRow
+                        symbol={t.symbol}
+                        name={t.name}
+                        balance={isPrivateMode ? '••••' : t.balance}
+                        usdValue={isPrivateMode ? '••••' : t.usdValue}
+                        price={t.price}
+                        changePct={t.changePct}
+                      />
+                    </View>
+                  ))
+                )}
               </View>
             ) : (
               renderToolsTab()
@@ -652,12 +667,95 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
           <BottomNav
             active={navTab}
             onChange={(t) => {
-              if (t === 'wallet') setNavTab(t);
-              else if (t === 'settings') setActiveTab('tools');
-              else Alert.alert('Coming soon', 'Discover ships in v0.5');
+              if (t === 'wallet') {
+                setNavTab('wallet');
+                setActiveTab('tokens');
+              } else if (t === 'swap') {
+                onSwap?.();
+              } else if (t === 'settings') {
+                setNavTab('settings');
+                setActiveTab('tools');
+              }
             }}
           />
         </View>
+
+        {/* Wallet Drawer */}
+        <Modal
+          visible={drawerOpen}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setDrawerOpen(false)}
+        >
+          <View style={styles.drawerScrim}>
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => setDrawerOpen(false)}
+              style={StyleSheet.absoluteFill}
+            />
+            <SafeAreaView style={styles.drawerSheet}>
+              <View style={styles.drawerHandle} />
+              <View style={styles.drawerHead}>
+                <View style={styles.drawerAvatar}>
+                  <Icon name="wallet" size={24} color={colors.white} strokeWidth={2.2} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.drawerName}>Wallet 01</Text>
+                  <Text style={styles.drawerAddr}>{shortAddress || '...'}</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                style={styles.drawerRow}
+                onPress={async () => {
+                  await handleCopyAddress();
+                }}
+              >
+                <View style={[styles.drawerIcon, { backgroundColor: colors.surface }]}>
+                  <Icon name="copy" size={20} color={colors.text} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.drawerRowTitle}>Copy address</Text>
+                  <Text style={styles.drawerRowSub} numberOfLines={1}>{fullAddress}</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                style={styles.drawerRow}
+                onPress={() => {
+                  setDrawerOpen(false);
+                  setTimeout(() => setReceiveModalOpen(true), 250);
+                }}
+              >
+                <View style={[styles.drawerIcon, { backgroundColor: colors.surface }]}>
+                  <Icon name="qr" size={20} color={colors.text} />
+                </View>
+                <Text style={styles.drawerRowTitle}>Show QR code</Text>
+              </TouchableOpacity>
+
+              <View style={{ flex: 1 }} />
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                style={[styles.drawerRow, styles.drawerDanger]}
+                onPress={() => {
+                  setDrawerOpen(false);
+                  setTimeout(() => handleDisconnect(), 200);
+                }}
+              >
+                <View style={[styles.drawerIcon, { backgroundColor: colors.dangerBg }]}>
+                  <Icon name="close" size={20} color={colors.dangerText} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.drawerRowTitle, { color: colors.dangerText }]}>Disconnect</Text>
+                  <Text style={styles.drawerRowSub}>Sign out of this wallet</Text>
+                </View>
+              </TouchableOpacity>
+            </SafeAreaView>
+          </View>
+        </Modal>
 
         {/* Send Modal */}
         <Modal
@@ -743,19 +841,6 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.quickRow}>
-                  {QUICK_AMOUNTS.map((qa) => (
-                    <TouchableOpacity
-                      key={qa}
-                      activeOpacity={0.7}
-                      style={styles.quickBtn}
-                      onPress={() => setAmount(String(qa))}
-                    >
-                      <Text style={styles.quickBtnText}>{qa} SOL</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
                 <View style={{ marginTop: spacing.xxl }}>
                   <PrimaryButton
                     label={isSending ? 'Sending...' : 'Send SOL'}
@@ -783,8 +868,17 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
         >
           <SafeAreaView style={styles.safe}>
             <ScreenHeader title="Receive" onClose={() => setReceiveModalOpen(false)} />
-            <View style={styles.receiveBody}>
-              <Text style={styles.receiveLabel}>Your address</Text>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.receiveBody} showsVerticalScrollIndicator={false}>
+              {fullAddress ? (
+                <View style={styles.qrFrame}>
+                  <QRCode
+                    value={fullAddress}
+                    size={220}
+                    backgroundColor={colors.white}
+                    color={colors.text}
+                  />
+                </View>
+              ) : null}
               <View style={styles.addressCard}>
                 <Text style={styles.addressText}>{fullAddress}</Text>
               </View>
@@ -793,12 +887,8 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
                 onPress={handleCopyAddress}
                 icon={<Icon name="copy" size={18} color={colors.white} />}
                 fullWidth
-                style={{ marginTop: spacing.xl }}
               />
-              <Text style={styles.helperText}>
-                Send SOL or any SPL token to this address from any Solana wallet.
-              </Text>
-            </View>
+            </ScrollView>
           </SafeAreaView>
         </Modal>
       </KeyboardAvoidingView>
@@ -854,28 +944,143 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     marginBottom: spacing.lg,
   },
-  devnetSub: {
-    ...typography.caption,
-    flexShrink: 1,
-  },
 
   heroSection: {
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xxxl,
+    paddingTop: spacing.xxl,
+    paddingBottom: spacing.xxl,
+    alignItems: 'center',
   },
   heroBalance: {
-    ...typography.display,
+    fontSize: 56,
+    fontWeight: '700' as const,
+    color: colors.text,
+    letterSpacing: -1.6,
+    textAlign: 'center',
   },
-  heroSub: {
+  heroError: {
+    ...typography.caption,
+    color: colors.dangerText,
     marginTop: spacing.sm,
+  },
+
+  emptyTokens: {
+    paddingVertical: spacing.xxxl,
+    alignItems: 'center',
+    gap: 4,
+  },
+  emptyTokensText: {
+    ...typography.heading,
+  },
+  emptyTokensHint: {
+    ...typography.caption,
+  },
+
+  // Wallet drawer
+  drawerScrim: {
+    flex: 1,
+    backgroundColor: 'rgba(11, 37, 69, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  drawerSheet: {
+    backgroundColor: colors.bg,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
+    minHeight: 380,
+  },
+  drawerHandle: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    marginBottom: spacing.lg,
+  },
+  drawerHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.md,
+  },
+  drawerAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  drawerName: {
+    ...typography.title,
+    fontSize: 20,
+  },
+  drawerAddr: {
+    ...typography.caption,
+    marginTop: 2,
+  },
+  drawerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  drawerDanger: {
+    backgroundColor: colors.dangerBg,
+    marginBottom: 0,
+  },
+  drawerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  drawerRowTitle: {
+    ...typography.body,
+    fontWeight: '600' as const,
+  },
+  drawerRowSub: {
+    ...typography.caption,
+    marginTop: 2,
   },
 
   actionRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     paddingHorizontal: spacing.xl,
     marginBottom: spacing.xxxl,
+    gap: spacing.md,
+    justifyContent: 'center',
+  },
+  bigAction: {
+    width: 96,
+    height: 84,
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(11,37,69,0.04)',
+  },
+  bigActionLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: colors.text,
+    letterSpacing: -0.2,
+  },
+  tokenCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 4,
+    marginBottom: spacing.sm,
   },
 
   tabRow: {
@@ -1029,21 +1234,28 @@ const styles = StyleSheet.create({
 
   receiveBody: {
     padding: spacing.xl,
+    paddingTop: spacing.lg,
+    alignItems: 'center',
+    gap: spacing.lg,
   },
-  receiveLabel: {
-    ...typography.caption,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: spacing.sm,
+  qrFrame: {
+    backgroundColor: colors.white,
+    padding: spacing.xl,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   addressCard: {
     backgroundColor: colors.surface,
     padding: spacing.lg,
     borderRadius: radii.md,
+    width: '100%',
   },
   addressText: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.text,
-    lineHeight: 22,
+    lineHeight: 20,
+    textAlign: 'center',
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
   },
 });

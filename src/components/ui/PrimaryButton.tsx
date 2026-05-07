@@ -43,7 +43,7 @@ export function PrimaryButton({
       style={[
         styles.btn,
         { backgroundColor: v.bg },
-        fullWidth && { flex: 1 },
+        fullWidth && { alignSelf: 'stretch' },
         (disabled || loading) && { opacity: 0.5 },
         style,
       ]}

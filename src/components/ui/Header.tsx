@@ -4,47 +4,22 @@ import { colors, radii, spacing, typography } from '../../theme';
 import { Icon, IconName } from './Icon';
 
 interface WalletHeaderProps {
-  walletName: string;
-  truncatedAddress: string;
-  extraCount?: number;
-  onProfilePress?: () => void;
-  rightIcon?: IconName;
-  onRightPress?: () => void;
+  onMenuPress?: () => void;
+  onScanPress?: () => void;
   style?: ViewStyle;
 }
 
-export function WalletHeader({
-  walletName,
-  truncatedAddress,
-  extraCount,
-  onProfilePress,
-  rightIcon = 'history',
-  onRightPress,
-  style,
-}: WalletHeaderProps) {
+export function WalletHeader({ onMenuPress, onScanPress, style }: WalletHeaderProps) {
   return (
     <View style={[styles.row, style]}>
-      <TouchableOpacity activeOpacity={0.7} onPress={onProfilePress} style={styles.left}>
-        <View style={styles.avatar}>
-          <Icon name="wallet" size={22} color={colors.white} strokeWidth={2.2} />
-        </View>
-        <View style={styles.idCol}>
-          <Text style={styles.walletName}>{walletName}</Text>
-          <View style={styles.addrRow}>
-            <View style={styles.addrPill}>
-              <Text style={styles.addrText}>{truncatedAddress}</Text>
-            </View>
-            {extraCount && extraCount > 0 ? (
-              <View style={styles.extraPill}>
-                <Text style={styles.addrText}>+{extraCount}</Text>
-              </View>
-            ) : null}
-          </View>
-        </View>
+      <TouchableOpacity activeOpacity={0.7} onPress={onMenuPress} style={styles.menuBtn}>
+        <Icon name="wallet" size={22} color={colors.white} strokeWidth={2.2} />
       </TouchableOpacity>
-      <TouchableOpacity activeOpacity={0.7} onPress={onRightPress} style={styles.rightBtn}>
-        <Icon name={rightIcon} size={20} color={colors.text} strokeWidth={2} />
-      </TouchableOpacity>
+      {onScanPress ? (
+        <TouchableOpacity activeOpacity={0.7} onPress={onScanPress} style={styles.iconBtn}>
+          <Icon name="scan" size={20} color={colors.text} />
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -64,12 +39,12 @@ export function ScreenHeader({ title, onClose, rightIcon, onRightPress }: Screen
       </View>
       <View style={styles.headerRight}>
         {rightIcon ? (
-          <TouchableOpacity activeOpacity={0.7} onPress={onRightPress} style={styles.rightBtn}>
+          <TouchableOpacity activeOpacity={0.7} onPress={onRightPress} style={styles.iconBtn}>
             <Icon name={rightIcon} size={20} color={colors.text} />
           </TouchableOpacity>
         ) : null}
         {onClose ? (
-          <TouchableOpacity activeOpacity={0.7} onPress={onClose} style={styles.rightBtn}>
+          <TouchableOpacity activeOpacity={0.7} onPress={onClose} style={styles.iconBtn}>
             <Icon name="close" size={20} color={colors.text} />
           </TouchableOpacity>
         ) : null}
@@ -87,12 +62,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.lg,
   },
-  left: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  avatar: {
+  menuBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -100,38 +70,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  idCol: {
-    gap: 4,
-  },
-  walletName: {
-    ...typography.heading,
-    color: colors.text,
-  },
-  addrRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  addrPill: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radii.pill,
-  },
-  extraPill: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radii.pill,
-  },
-  addrText: {
-    fontSize: 12,
-    fontWeight: '600' as const,
-    color: colors.text,
-  },
-  rightBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',

@@ -1,21 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    View,
-    Text,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    StyleSheet,
-    TextInput,
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    Modal,
-    RefreshControl,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    StatusBar,
+  View,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  StyleSheet,
+  TextInput,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  Modal,
+  RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import { Connection, PublicKey, LAMPORTS_PER_SOL, SystemProgram, Transaction } from '@solana/web3.js';
@@ -380,17 +380,6 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                     />
                 }
             >
-                <View style={styles.infoCard}>
-                    <View style={styles.infoHead}>
-                        <Icon name="shield" size={18} color={colors.accent} />
-                        <Text style={styles.infoTitle}>Privacy receiving</Text>
-                    </View>
-                    <Text style={styles.infoText}>
-                        Each stealth address is a unique one-time address. Payments cannot be linked to your
-                        main wallet on-chain.
-                    </Text>
-                </View>
-
                 <View style={styles.balanceHero}>
                     <Text style={styles.balanceLabel}>Stealth balance</Text>
                     <Text style={styles.balanceAmount}>
@@ -456,11 +445,6 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                     ))
                 )}
 
-                <View style={styles.limitsCard}>
-                    <Text style={styles.limitsTitle}>Testing limits</Text>
-                    <Text style={styles.limitsText}>Max sweep: {STEALTH_LIMITS.MAX_SWEEP_SOL} SOL</Text>
-                    <Text style={styles.limitsText}>Max request: {STEALTH_LIMITS.MAX_REQUEST_SOL} SOL</Text>
-                </View>
             </ScrollView>
 
             {/* Payment Request Modal */}
