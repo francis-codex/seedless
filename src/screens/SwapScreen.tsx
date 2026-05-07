@@ -28,6 +28,20 @@ interface SwapScreenProps {
   onBack: () => void;
 }
 
+const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
+
+const toSmallestUnit = (humanAmount: string, decimals: number): string => {
+  const num = parseFloat(humanAmount);
+  if (isNaN(num)) return '0';
+  return Math.floor(num * Math.pow(10, decimals)).toString();
+};
+
+const toHumanAmount = (smallestUnit: string, decimals: number): string => {
+  const num = parseInt(smallestUnit, 10);
+  if (isNaN(num)) return '0';
+  return (num / Math.pow(10, decimals)).toFixed(decimals === 6 ? 2 : 4);
+};
+
 type SwapPair = 'SOL_TO_USDC' | 'USDC_TO_SOL' | 'SOL_TO_SEED' | 'SEED_TO_SOL' | 'USDC_TO_SEED' | 'SEED_TO_USDC';
 type SwapSource = 'jupiter' | 'bags';
 
@@ -63,15 +77,14 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
   const handleMax = useCallback(async () => {
     if (!smartWalletPubkey) return;
     try {
-      const conn = new Connection(SOLANA_RPC_URL, 'confirmed');
       const owner = new PublicKey(smartWalletPubkey);
       if (inputMint === SOL_MINT) {
-        const lamports = await conn.getBalance(owner);
+        const lamports = await connection.getBalance(owner);
         const usable = Math.max(0, lamports / LAMPORTS_PER_SOL - MIN_SOL_FOR_TX);
         setAmount(usable > 0 ? usable.toFixed(4) : '0');
       } else {
         const ata = await getAssociatedTokenAddress(new PublicKey(inputMint), owner, true);
-        const acc = await getAccount(conn, ata);
+        const acc = await getAccount(connection, ata);
         setAmount((Number(acc.amount) / Math.pow(10, inputDecimals)).toString());
       }
       setQuote(null);
@@ -80,20 +93,6 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
       Alert.alert('Max failed', 'Could not fetch balance — try again');
     }
   }, [smartWalletPubkey, inputMint, inputDecimals]);
-
-  // Convert human-readable amount to smallest units
-  const toSmallestUnit = (humanAmount: string, decimals: number): string => {
-    const num = parseFloat(humanAmount);
-    if (isNaN(num)) return '0';
-    return Math.floor(num * Math.pow(10, decimals)).toString();
-  };
-
-  // Convert smallest units to human-readable
-  const toHumanAmount = (smallestUnit: string, decimals: number): string => {
-    const num = parseInt(smallestUnit, 10);
-    if (isNaN(num)) return '0';
-    return (num / Math.pow(10, decimals)).toFixed(decimals === 6 ? 2 : 4);
-  };
 
   // Cycle through swap pairs
   const cyclePair = () => {
