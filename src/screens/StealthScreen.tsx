@@ -13,6 +13,8 @@ import {
     RefreshControl,
     KeyboardAvoidingView,
     Platform,
+    SafeAreaView,
+    StatusBar,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
@@ -22,7 +24,6 @@ import {
     getAccount,
     createAssociatedTokenAccountIdempotentInstruction,
     createTransferCheckedInstruction,
-    createCloseAccountInstruction,
 } from '@solana/spl-token';
 import QRCode from 'react-native-qrcode-svg';
 
@@ -44,6 +45,8 @@ import {
     getPaymentLimit,
     shortenAddress,
 } from '../utils/paymentRequest';
+import { colors, radii, spacing, typography } from '../theme';
+import { ScreenHeader, PrimaryButton, Pill, Icon } from '../components/ui';
 
 const connection = new Connection(SOLANA_RPC_URL, {
     commitment: 'confirmed',
@@ -60,7 +63,7 @@ interface StealthScreenProps {
 }
 
 interface AddressWithBalance extends StealthAddress {
-    balance: number; // SOL
+    balance: number;
     usdcBalance: number;
 }
 
@@ -72,12 +75,11 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [metaAddress, setMetaAddress] = useState<StealthMetaAddress | null>(null);
     const [addresses, setAddresses] = useState<AddressWithBalance[]>([]);
-    const [totalBalance, setTotalBalance] = useState(0); // SOL
+    const [totalBalance, setTotalBalance] = useState(0);
     const [totalUsdcBalance, setTotalUsdcBalance] = useState(0);
     const [solPrice, setSolPrice] = useState(0);
     const [isSweeping, setIsSweeping] = useState(false);
 
-    // Payment request modal
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [paymentAddress, setPaymentAddress] = useState('');
     const [paymentAmount, setPaymentAmount] = useState('');
@@ -87,32 +89,11 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
 
     const walletId = smartWalletPubkey?.toBase58();
 
-    const initialize = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const initialized = await isStealthInitialized(walletId);
-            if (!initialized) {
-                await getOrCreateMasterSeed();
-            }
-
-            const meta = await getStealthMetaAddress();
-            setMetaAddress(meta);
-            setIsInitialized(true);
-            await loadAddresses();
-        } catch (error) {
-            console.error('Failed to initialize stealth:', error);
-            Alert.alert('Error', 'Failed to initialize stealth addresses');
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
-
     const loadAddresses = async () => {
         try {
             const allAddresses = await getAllStealthAddresses(walletId);
             const usdcMint = new PublicKey(USDC_MINT);
 
-            // Fetch SOL + USDC balance for every stealth address in parallel
             const perAddress = await Promise.all(
                 allAddresses.map(async (addr) => {
                     const pubkey = new PublicKey(addr.address);
@@ -143,20 +124,36 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
             setTotalBalance(totalSol);
             setTotalUsdcBalance(totalUsdc);
 
-            // Fetch SOL price for USD total display
             try {
                 const res = await fetch(`https://lite-api.jup.ag/price/v3?ids=${SOL_MINT}`);
                 if (res.ok) {
                     const data = await res.json();
                     setSolPrice(data?.[SOL_MINT]?.usdPrice ?? 0);
                 }
-            } catch {
-                // keep last known price
-            }
+            } catch {}
         } catch (error) {
             console.error('Failed to load addresses:', error);
         }
     };
+
+    const initialize = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const initialized = await isStealthInitialized(walletId);
+            if (!initialized) {
+                await getOrCreateMasterSeed();
+            }
+            const meta = await getStealthMetaAddress();
+            setMetaAddress(meta);
+            setIsInitialized(true);
+            await loadAddresses();
+        } catch (error) {
+            console.error('Failed to initialize stealth:', error);
+            Alert.alert('Error', 'Failed to initialize stealth addresses');
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
         initialize();
@@ -196,7 +193,6 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
 
     const handleGenerateQr = () => {
         const amount = paymentAmount ? parseFloat(paymentAmount) : undefined;
-
         if (amount !== undefined) {
             const limit = getPaymentLimit(paymentToken);
             if (amount > limit) {
@@ -204,14 +200,12 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                 return;
             }
         }
-
         const url = createSolanaPayUrl({
             recipient: paymentAddress,
             amount,
             token: paymentToken,
             label: paymentLabel || 'Seedless Wallet',
         });
-
         setGeneratedQrUrl(url);
     };
 
@@ -259,9 +253,6 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                                 const ixs = [];
                                 let createAtaCost = 0;
 
-                                // USDC sweep: optionally create main ATA, then transfer USDC.
-                                // We do NOT close the stealth ATA (it stays empty on-chain) — keeps math simple
-                                // and avoids subtle pre-flight rent edge cases.
                                 if (addr.usdcBalance > 0) {
                                     const stealthUsdcAta = await getAssociatedTokenAddress(usdcMint, keypair.publicKey);
                                     let usdcAmount = 0n;
@@ -296,9 +287,6 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                                     }
                                 }
 
-                                // SOL sweep: leave the rent-exempt minimum on stealth to avoid runtime
-                                // rent checks. Cheaper than the alternatives (closeAccount edge cases,
-                                // draining-to-zero pre-flight failures). Costs ~0.0009 SOL per address.
                                 const liveBalance = await connection.getBalance(keypair.publicKey);
                                 const fee = STEALTH_SWEEP_FEE;
                                 const rentBuffer = STEALTH_SWEEP_RENT;
@@ -332,7 +320,6 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                                 sweptCount.ok += 1;
                             }
 
-                            // Build a single truthful summary of what actually happened.
                             const lines: string[] = [];
                             if (sweptCount.ok > 0) {
                                 lines.push(`✓ Swept ${sweptCount.ok} address(es) to main wallet.`);
@@ -359,7 +346,6 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
         );
     };
 
-    // Copy address to clipboard
     const copyAddress = async (address: string) => {
         await Clipboard.setStringAsync(address);
         Alert.alert('Copied', 'Address copied to clipboard');
@@ -367,119 +353,115 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
 
     if (isLoading) {
         return (
-            <View style={styles.loading}>
-                <ActivityIndicator size="large" color="#000" />
-                <Text style={styles.loadingText}>Initializing stealth addresses...</Text>
-            </View>
+            <SafeAreaView style={styles.safe}>
+                <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
+                <ScreenHeader title="Stealth" onClose={onBack} />
+                <View style={styles.loadingBody}>
+                    <ActivityIndicator size="large" color={colors.text} />
+                    <Text style={styles.loadingText}>Initializing stealth addresses...</Text>
+                </View>
+            </SafeAreaView>
         );
     }
 
     return (
-        <ScrollView
-            style={styles.container}
-            contentContainerStyle={styles.content}
-            refreshControl={
-                <RefreshControl
-                    refreshing={isRefreshing}
-                    onRefresh={handleRefresh}
-                    tintColor="#000"
-                    colors={['#000']}
-                    title="Refreshing..."
-                    titleColor="#666"
+        <SafeAreaView style={styles.safe}>
+            <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
+            <ScreenHeader title="Stealth" onClose={onBack} />
+            <ScrollView
+                style={styles.container}
+                contentContainerStyle={styles.content}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={isRefreshing}
+                        onRefresh={handleRefresh}
+                        tintColor={colors.text}
+                    />
+                }
+            >
+                <View style={styles.infoCard}>
+                    <View style={styles.infoHead}>
+                        <Icon name="shield" size={18} color={colors.accent} />
+                        <Text style={styles.infoTitle}>Privacy receiving</Text>
+                    </View>
+                    <Text style={styles.infoText}>
+                        Each stealth address is a unique one-time address. Payments cannot be linked to your
+                        main wallet on-chain.
+                    </Text>
+                </View>
+
+                <View style={styles.balanceHero}>
+                    <Text style={styles.balanceLabel}>Stealth balance</Text>
+                    <Text style={styles.balanceAmount}>
+                        ${(totalBalance * solPrice + totalUsdcBalance).toFixed(2)}
+                    </Text>
+                    <Text style={styles.balanceSub}>
+                        {totalBalance > 0 ? `${totalBalance.toFixed(4)} SOL` : ''}
+                        {totalBalance > 0 && totalUsdcBalance > 0 ? ' · ' : ''}
+                        {totalUsdcBalance > 0 ? `${totalUsdcBalance.toFixed(2)} USDC` : ''}
+                        {totalBalance === 0 && totalUsdcBalance === 0 ? `${addresses.length} address(es)` : ` · ${addresses.length} address(es)`}
+                    </Text>
+
+                    <View style={{ marginTop: spacing.lg }}>
+                        <PrimaryButton
+                            label="Sweep all to main wallet"
+                            onPress={handleSweepAll}
+                            loading={isSweeping}
+                            disabled={totalBalance === 0 && totalUsdcBalance === 0}
+                            fullWidth
+                            variant="secondary"
+                        />
+                    </View>
+                </View>
+
+                <PrimaryButton
+                    label="New stealth address"
+                    onPress={handleGenerateAddress}
+                    fullWidth
+                    icon={<Icon name="plus" size={18} color={colors.white} />}
+                    style={{ marginBottom: spacing.xxl }}
                 />
-            }
-        >
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={onBack}>
-                    <Text style={styles.backText}>Back</Text>
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Stealth</Text>
-                <TouchableOpacity onPress={handleRefresh} disabled={isRefreshing} style={styles.refreshIcon}>
-                    {isRefreshing ? (
-                        <ActivityIndicator size="small" color="#000" />
-                    ) : (
-                        <Text style={styles.refreshIconText}>↻</Text>
-                    )}
-                </TouchableOpacity>
-            </View>
 
-            {/* Info Card */}
-            <View style={styles.infoCard}>
-                <Text style={styles.infoTitle}>Privacy Receiving</Text>
-                <Text style={styles.infoText}>
-                    Each stealth address is a unique one-time address. Payments cannot be linked to your main
-                    wallet on-chain.
-                </Text>
-            </View>
-
-            {/* Total Balance */}
-            <View style={styles.balanceCard}>
-                <Text style={styles.balanceLabel}>Stealth Balance</Text>
-                <Text style={styles.balanceAmount}>
-                    ${(totalBalance * solPrice + totalUsdcBalance).toFixed(2)}
-                </Text>
-                <Text style={styles.addressCount}>
-                    {totalBalance > 0 ? `${totalBalance.toFixed(4)} SOL` : ''}
-                    {totalBalance > 0 && totalUsdcBalance > 0 ? ' · ' : ''}
-                    {totalUsdcBalance > 0 ? `${totalUsdcBalance.toFixed(2)} USDC` : ''}
-                    {totalBalance === 0 && totalUsdcBalance === 0 ? `${addresses.length} address(es)` : ` · ${addresses.length} address(es)`}
-                </Text>
-
-                <TouchableOpacity
-                    style={[styles.sweepButton, isSweeping && styles.buttonDisabled]}
-                    onPress={handleSweepAll}
-                    disabled={isSweeping || (totalBalance === 0 && totalUsdcBalance === 0)}
-                >
-                    {isSweeping ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                        <Text style={styles.sweepButtonText}>Sweep All to Main Wallet</Text>
-                    )}
-                </TouchableOpacity>
-            </View>
-
-            {/* Generate New Address */}
-            <TouchableOpacity style={styles.generateButton} onPress={handleGenerateAddress}>
-                <Text style={styles.generateButtonText}>New Stealth Address</Text>
-                <Text style={styles.generateButtonSub}>For receiving private payments</Text>
-            </TouchableOpacity>
-
-            {/* Address List */}
-            <View style={styles.addressList}>
-                <Text style={styles.sectionTitle}>Your Stealth Addresses</Text>
+                <View style={styles.listHeader}>
+                    <Text style={styles.sectionTitle}>Your stealth addresses</Text>
+                    <Pill label={`${addresses.length}`} variant="neutral" />
+                </View>
 
                 {addresses.length === 0 ? (
-                    <Text style={styles.emptyText}>No stealth addresses yet. Create one above.</Text>
+                    <View style={styles.emptyCard}>
+                        <Text style={styles.emptyText}>No stealth addresses yet. Create one above.</Text>
+                    </View>
                 ) : (
                     addresses.map((addr) => (
-                        <View key={addr.address} style={styles.addressItem}>
-                            <View style={styles.addressInfo}>
-                                <TouchableOpacity onPress={() => copyAddress(addr.address)}>
-                                    <Text style={styles.addressText}>{shortenAddress(addr.address)}</Text>
+                        <View key={addr.address} style={styles.addrItem}>
+                            <View style={{ flex: 1 }}>
+                                <TouchableOpacity onPress={() => copyAddress(addr.address)} activeOpacity={0.7}>
+                                    <Text style={styles.addrText}>{shortenAddress(addr.address)}</Text>
                                 </TouchableOpacity>
-                                <Text style={styles.addressBalance}>
+                                <Text style={styles.addrBalance}>
                                     {addr.balance.toFixed(4)} SOL
                                     {addr.usdcBalance > 0 ? ` · ${addr.usdcBalance.toFixed(2)} USDC` : ''}
                                 </Text>
                             </View>
                             <TouchableOpacity
-                                style={styles.requestButton}
+                                style={styles.requestBtn}
                                 onPress={() => handleRequestPayment(addr.address)}
+                                activeOpacity={0.7}
                             >
-                                <Text style={styles.requestButtonText}>Request</Text>
+                                <Icon name="qr" size={16} color={colors.text} />
+                                <Text style={styles.requestBtnText}>Request</Text>
                             </TouchableOpacity>
                         </View>
                     ))
                 )}
-            </View>
 
-            {/* Limits Info */}
-            <View style={styles.limitsCard}>
-                <Text style={styles.limitsTitle}>Testing Limits</Text>
-                <Text style={styles.limitsText}>Max sweep: {STEALTH_LIMITS.MAX_SWEEP_SOL} SOL</Text>
-                <Text style={styles.limitsText}>Max request: {STEALTH_LIMITS.MAX_REQUEST_SOL} SOL</Text>
-            </View>
+                <View style={styles.limitsCard}>
+                    <Text style={styles.limitsTitle}>Testing limits</Text>
+                    <Text style={styles.limitsText}>Max sweep: {STEALTH_LIMITS.MAX_SWEEP_SOL} SOL</Text>
+                    <Text style={styles.limitsText}>Max request: {STEALTH_LIMITS.MAX_REQUEST_SOL} SOL</Text>
+                </View>
+            </ScrollView>
 
             {/* Payment Request Modal */}
             <Modal visible={showPaymentModal} animationType="slide" transparent onRequestClose={() => setShowPaymentModal(false)}>
@@ -488,354 +470,310 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                         style={styles.modalOverlay}
                         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     >
-                        <TouchableWithoutFeedback onPress={() => {}}><View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Payment Request</Text>
-                        <Text style={styles.modalAddress}>{shortenAddress(paymentAddress)}</Text>
+                        <TouchableWithoutFeedback onPress={() => {}}>
+                            <View style={styles.sheet}>
+                                <View style={styles.sheetHandle} />
+                                <Text style={styles.sheetTitle}>Payment request</Text>
+                                <Text style={styles.sheetSub}>{shortenAddress(paymentAddress)}</Text>
 
-                        {/* Token selector */}
-                        <View style={styles.tokenSelector}>
-                            <TouchableOpacity
-                                style={[styles.tokenOption, paymentToken === 'SOL' && styles.tokenOptionActive]}
-                                onPress={() => setPaymentToken('SOL')}
-                            >
-                                <Text
-                                    style={[
-                                        styles.tokenOptionText,
-                                        paymentToken === 'SOL' && styles.tokenOptionTextActive,
-                                    ]}
-                                >
-                                    SOL
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.tokenOption, paymentToken === 'USDC' && styles.tokenOptionActive]}
-                                onPress={() => setPaymentToken('USDC')}
-                            >
-                                <Text
-                                    style={[
-                                        styles.tokenOptionText,
-                                        paymentToken === 'USDC' && styles.tokenOptionTextActive,
-                                    ]}
-                                >
-                                    USDC
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
+                                <View style={styles.tokenSelector}>
+                                    <TouchableOpacity
+                                        activeOpacity={0.7}
+                                        style={[styles.tokenOption, paymentToken === 'SOL' && styles.tokenOptionActive]}
+                                        onPress={() => setPaymentToken('SOL')}
+                                    >
+                                        <Text style={[styles.tokenOptionText, paymentToken === 'SOL' && styles.tokenOptionTextActive]}>
+                                            SOL
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        activeOpacity={0.7}
+                                        style={[styles.tokenOption, paymentToken === 'USDC' && styles.tokenOptionActive]}
+                                        onPress={() => setPaymentToken('USDC')}
+                                    >
+                                        <Text style={[styles.tokenOptionText, paymentToken === 'USDC' && styles.tokenOptionTextActive]}>
+                                            USDC
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
 
-                        <TextInput
-                            style={styles.modalInput}
-                            placeholder={`Amount (max ${getPaymentLimit(paymentToken)} ${paymentToken})`}
-                            placeholderTextColor="#999"
-                            value={paymentAmount}
-                            onChangeText={setPaymentAmount}
-                            keyboardType="decimal-pad"
-                        />
+                                <TextInput
+                                    style={styles.modalInput}
+                                    placeholder={`Amount (max ${getPaymentLimit(paymentToken)} ${paymentToken})`}
+                                    placeholderTextColor={colors.textSubtle}
+                                    value={paymentAmount}
+                                    onChangeText={setPaymentAmount}
+                                    keyboardType="decimal-pad"
+                                />
 
-                        <TextInput
-                            style={styles.modalInput}
-                            placeholder="Label (optional)"
-                            placeholderTextColor="#999"
-                            value={paymentLabel}
-                            onChangeText={setPaymentLabel}
-                        />
+                                <TextInput
+                                    style={styles.modalInput}
+                                    placeholder="Label (optional)"
+                                    placeholderTextColor={colors.textSubtle}
+                                    value={paymentLabel}
+                                    onChangeText={setPaymentLabel}
+                                />
 
-                        <TouchableOpacity style={styles.generateQrButton} onPress={handleGenerateQr}>
-                            <Text style={styles.generateQrButtonText}>Generate QR Code</Text>
-                        </TouchableOpacity>
+                                <PrimaryButton
+                                    label="Generate QR code"
+                                    onPress={handleGenerateQr}
+                                    fullWidth
+                                />
 
-                        {generatedQrUrl ? (
-                            <View style={styles.qrContainer}>
-                                <QRCode value={generatedQrUrl} size={200} backgroundColor="#fff" color="#000" />
-                                <Text style={styles.qrLabel}>Scan with a Solana Pay wallet</Text>
-                                <TouchableOpacity onPress={() => Clipboard.setStringAsync(generatedQrUrl)}>
-                                    <Text style={styles.copyUrlText}>Copy Link</Text>
+                                {generatedQrUrl ? (
+                                    <View style={styles.qrContainer}>
+                                        <View style={styles.qrFrame}>
+                                            <QRCode value={generatedQrUrl} size={200} backgroundColor="#fff" color={colors.text} />
+                                        </View>
+                                        <Text style={styles.qrLabel}>Scan with a Solana Pay wallet</Text>
+                                        <TouchableOpacity
+                                            onPress={() => Clipboard.setStringAsync(generatedQrUrl)}
+                                            activeOpacity={0.7}
+                                        >
+                                            <Text style={styles.copyUrlText}>Copy link</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ) : null}
+
+                                <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowPaymentModal(false)} activeOpacity={0.7}>
+                                    <Text style={styles.cancelText}>Close</Text>
                                 </TouchableOpacity>
                             </View>
-                        ) : null}
-
-                        <TouchableOpacity style={styles.closeButton} onPress={() => setShowPaymentModal(false)}>
-                            <Text style={styles.closeButtonText}>Close</Text>
-                        </TouchableOpacity>
-                    </View></TouchableWithoutFeedback>
+                        </TouchableWithoutFeedback>
                     </KeyboardAvoidingView>
                 </TouchableWithoutFeedback>
             </Modal>
-        </ScrollView>
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#fff',
-    },
+    safe: { flex: 1, backgroundColor: colors.bg },
+    container: { flex: 1 },
     content: {
-        padding: 24,
-        paddingTop: 60,
+        paddingHorizontal: spacing.xl,
+        paddingBottom: spacing.xxxl * 2,
     },
-    loading: {
+    loadingBody: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#fff',
+        gap: spacing.md,
     },
     loadingText: {
-        marginTop: 16,
-        fontSize: 16,
-        color: '#666',
+        ...typography.caption,
     },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 24,
-    },
-    backText: {
-        fontSize: 16,
-        color: '#666',
-    },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#000',
-    },
-    refreshIcon: {
-        width: 40,
-        alignItems: 'flex-end',
-    },
-    refreshIconText: {
-        fontSize: 22,
-        color: '#000',
-    },
+
     infoCard: {
-        backgroundColor: '#f0f9ff',
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 16,
+        backgroundColor: '#EAF6FF',
+        borderRadius: radii.lg,
+        padding: spacing.lg,
+        marginBottom: spacing.lg,
+    },
+    infoHead: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        marginBottom: spacing.sm,
     },
     infoTitle: {
         fontSize: 16,
-        fontWeight: '600',
-        color: '#0369a1',
-        marginBottom: 8,
+        fontWeight: '600' as const,
+        color: colors.accentDeep,
     },
     infoText: {
         fontSize: 14,
-        color: '#0c4a6e',
+        color: '#0C4A6E',
         lineHeight: 20,
     },
-    balanceCard: {
-        backgroundColor: '#000',
-        borderRadius: 16,
-        padding: 20,
-        marginBottom: 16,
+
+    balanceHero: {
+        backgroundColor: colors.text,
+        borderRadius: radii.lg,
+        padding: spacing.xl,
+        marginBottom: spacing.xl,
     },
     balanceLabel: {
         fontSize: 13,
-        color: '#999',
-        marginBottom: 4,
+        color: '#9DA9BC',
+        marginBottom: spacing.xs,
     },
     balanceAmount: {
-        fontSize: 32,
-        fontWeight: '700',
-        color: '#fff',
-        marginBottom: 4,
+        fontSize: 40,
+        fontWeight: '700' as const,
+        color: colors.white,
+        letterSpacing: -1.5,
     },
-    addressCount: {
+    balanceSub: {
         fontSize: 14,
-        color: '#666',
-        marginBottom: 16,
+        color: '#9DA9BC',
+        marginTop: spacing.xs,
     },
-    sweepButton: {
-        backgroundColor: '#22c55e',
-        paddingVertical: 12,
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    buttonDisabled: {
-        opacity: 0.5,
-    },
-    sweepButtonText: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#fff',
-    },
-    generateButton: {
-        backgroundColor: '#f5f5f5',
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 24,
-    },
-    generateButtonText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#000',
-    },
-    generateButtonSub: {
-        fontSize: 13,
-        color: '#666',
-        marginTop: 4,
-    },
-    addressList: {
-        marginBottom: 24,
-    },
-    sectionTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#000',
-        marginBottom: 12,
-    },
-    emptyText: {
-        fontSize: 14,
-        color: '#999',
-        fontStyle: 'italic',
-    },
-    addressItem: {
+
+    listHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: '#fafafa',
-        borderRadius: 8,
-        padding: 12,
-        marginBottom: 8,
+        marginBottom: spacing.md,
     },
-    addressInfo: {
-        flex: 1,
+    sectionTitle: {
+        ...typography.heading,
     },
-    addressText: {
+    emptyCard: {
+        backgroundColor: colors.surface,
+        borderRadius: radii.md,
+        padding: spacing.xl,
+        alignItems: 'center',
+    },
+    emptyText: {
+        ...typography.caption,
+    },
+
+    addrItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        backgroundColor: colors.surface,
+        borderRadius: radii.md,
+        padding: spacing.lg,
+        marginBottom: spacing.sm,
+    },
+    addrText: {
         fontSize: 15,
-        fontWeight: '500',
-        color: '#000',
+        color: colors.text,
+        fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
+        marginBottom: 4,
     },
-    addressBalance: {
+    addrBalance: {
+        ...typography.caption,
+    },
+    requestBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: colors.bg,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        borderRadius: radii.pill,
+    },
+    requestBtnText: {
         fontSize: 13,
-        color: '#666',
-        marginTop: 2,
+        fontWeight: '600' as const,
+        color: colors.text,
     },
-    requestButton: {
-        backgroundColor: '#000',
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderRadius: 6,
-    },
-    requestButtonText: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#fff',
-    },
+
     limitsCard: {
-        backgroundColor: '#fef3c7',
-        borderRadius: 12,
-        padding: 16,
+        backgroundColor: colors.surface,
+        borderRadius: radii.md,
+        padding: spacing.lg,
+        marginTop: spacing.lg,
     },
     limitsTitle: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#92400e',
-        marginBottom: 8,
+        fontSize: 13,
+        fontWeight: '600' as const,
+        color: colors.textMuted,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 6,
     },
     limitsText: {
-        fontSize: 13,
-        color: '#78350f',
+        fontSize: 14,
+        color: colors.text,
+        marginBottom: 2,
     },
+
+    // Modal
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(11, 37, 69, 0.5)',
         justifyContent: 'flex-end',
     },
-    modalContent: {
-        backgroundColor: '#fff',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        padding: 24,
-        paddingBottom: 40,
+    sheet: {
+        backgroundColor: colors.bg,
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        padding: spacing.xl,
+        paddingBottom: spacing.xxxl,
     },
-    modalTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#000',
-        textAlign: 'center',
-        marginBottom: 8,
+    sheetHandle: {
+        alignSelf: 'center',
+        width: 36,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: colors.border,
+        marginBottom: spacing.lg,
     },
-    modalAddress: {
-        fontSize: 14,
-        color: '#666',
+    sheetTitle: {
+        ...typography.title,
         textAlign: 'center',
-        marginBottom: 20,
+    },
+    sheetSub: {
+        ...typography.caption,
+        textAlign: 'center',
+        marginTop: 4,
+        marginBottom: spacing.xl,
     },
     tokenSelector: {
         flexDirection: 'row',
-        marginBottom: 16,
-        gap: 12,
+        backgroundColor: colors.surface,
+        borderRadius: radii.pill,
+        padding: 4,
+        marginBottom: spacing.md,
     },
     tokenOption: {
         flex: 1,
-        paddingVertical: 12,
-        borderRadius: 8,
-        backgroundColor: '#f5f5f5',
+        paddingVertical: spacing.md,
+        borderRadius: radii.pill,
         alignItems: 'center',
     },
     tokenOptionActive: {
-        backgroundColor: '#000',
+        backgroundColor: colors.bg,
     },
     tokenOptionText: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#666',
+        ...typography.body,
+        color: colors.textMuted,
     },
     tokenOptionTextActive: {
-        color: '#fff',
+        color: colors.text,
+        fontWeight: '600' as const,
     },
     modalInput: {
-        borderWidth: 1,
-        borderColor: '#e5e5e5',
-        borderRadius: 10,
-        padding: 14,
-        fontSize: 16,
-        color: '#000',
-        marginBottom: 12,
-        backgroundColor: '#fafafa',
-    },
-    generateQrButton: {
-        backgroundColor: '#000',
-        paddingVertical: 14,
-        borderRadius: 10,
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    generateQrButtonText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#fff',
+        backgroundColor: colors.surface,
+        borderRadius: radii.md,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.lg,
+        fontSize: 15,
+        color: colors.text,
+        marginBottom: spacing.sm,
     },
     qrContainer: {
         alignItems: 'center',
-        padding: 20,
-        backgroundColor: '#fff',
-        borderRadius: 12,
-        marginBottom: 16,
+        marginTop: spacing.xl,
+        gap: spacing.md,
+    },
+    qrFrame: {
+        backgroundColor: colors.white,
+        padding: spacing.lg,
+        borderRadius: radii.md,
+        borderWidth: 1,
+        borderColor: colors.border,
     },
     qrLabel: {
-        fontSize: 13,
-        color: '#666',
-        marginTop: 12,
+        ...typography.caption,
+        textAlign: 'center',
     },
     copyUrlText: {
+        color: colors.accent,
         fontSize: 14,
-        color: '#0066cc',
-        marginTop: 8,
+        fontWeight: '600' as const,
     },
-    urlActions: {
-        flexDirection: 'row',
-        gap: 20,
-        marginTop: 4,
-    },
-    closeButton: {
-        paddingVertical: 12,
+    cancelBtn: {
+        paddingVertical: spacing.md,
         alignItems: 'center',
+        marginTop: spacing.sm,
     },
-    closeButtonText: {
-        fontSize: 16,
-        color: '#666',
+    cancelText: {
+        ...typography.body,
+        color: colors.textMuted,
     },
 });

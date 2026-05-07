@@ -11,6 +11,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
+  Modal,
+  SafeAreaView,
+  StatusBar,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -27,6 +30,19 @@ import {
   getActiveSession,
   storeSession,
 } from '../utils/session';
+import { colors, radii, spacing, typography } from '../theme';
+import {
+  Pill,
+  ActionButton,
+  Icon,
+  TokenLogo,
+  TokenRow,
+  WalletHeader,
+  ScreenHeader,
+  BottomNav,
+  PrimaryButton,
+  NavTab,
+} from '../components/ui';
 
 interface WalletScreenProps {
   onDisconnect: () => void;
@@ -37,6 +53,7 @@ interface WalletScreenProps {
   onLaunch?: () => void;
   onAuthorities?: () => void;
   onUmbraDebug?: () => void;
+  onIka?: () => void;
 }
 
 const connection = new Connection(SOLANA_RPC_URL, {
@@ -50,7 +67,7 @@ const fallbackConnection = new Connection(
   { commitment: 'confirmed' },
 );
 
-export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags, onLaunch, onAuthorities, onUmbraDebug }: WalletScreenProps) {
+export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags, onLaunch, onAuthorities, onUmbraDebug, onIka }: WalletScreenProps) {
   const {
     smartWalletPubkey,
     disconnect,
@@ -65,6 +82,10 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
   const [isSending, setIsSending] = useState(false);
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [isSessionBusy, setIsSessionBusy] = useState(false);
+  const [sendModalOpen, setSendModalOpen] = useState(false);
+  const [receiveModalOpen, setReceiveModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'tokens' | 'tools'>('tokens');
+  const [navTab, setNavTab] = useState<NavTab>('wallet');
 
   const walletIdRef = useRef<string | null>(null);
   const walletId = smartWalletPubkey?.toBase58();
@@ -276,6 +297,12 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
     onDisconnect();
   }, [disconnect, onDisconnect]);
 
+  const handleCopyAddress = useCallback(async () => {
+    if (!fullAddress) return;
+    await Clipboard.setStringAsync(fullAddress);
+    Alert.alert('Copied', 'Address copied to clipboard');
+  }, [fullAddress]);
+
   const handleSend = useCallback(async () => {
     if (!smartWalletPubkey || !recipient || !amount) {
       Alert.alert('Missing fields', 'Enter recipient and amount');
@@ -369,6 +396,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
       );
       setRecipient('');
       setAmount('');
+      setSendModalOpen(false);
       // Refresh balances after successful send (delay for RPC to reflect changes)
       setTimeout(() => handleRefresh(), 2000);
     } catch (error: any) {
@@ -406,665 +434,616 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
     }
   }, [smartWalletPubkey, walletId, recipient, amount, solBalance, activeSession, signAndSendWithSession, transferSol]);
 
-  return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-      refreshControl={
-        <RefreshControl refreshing={isLoadingBalance} onRefresh={handleRefresh} />
-      }
-    >
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Wallet</Text>
-        <TouchableOpacity onPress={handleDisconnect}>
-          <Text style={styles.disconnectText}>Disconnect</Text>
-        </TouchableOpacity>
-      </View>
+  // ============================================================
+  // Render — visual layer only (Wells UI). All logic is above.
+  // ============================================================
 
-      {IS_DEVNET && (
-        <View style={styles.devnetBanner}>
-          <Text style={styles.devnetBannerText}>DEVNET BETA</Text>
-          <Text style={styles.devnetBannerSub}>Test tokens only - not real funds</Text>
-        </View>
-      )}
+  const totalUsd = solBalance * prices.sol + usdcBalance * prices.usdc + seedBalance * prices.seed;
 
-      <View style={styles.addressSection}>
-        <Text style={styles.addressLabel}>Address</Text>
-        <TouchableOpacity
-          onPress={async () => {
-            await Clipboard.setStringAsync(fullAddress);
-            Alert.alert('Copied', 'Address copied to clipboard');
-          }}
-          activeOpacity={0.6}
-        >
-          <Text style={styles.address}>{shortAddress}</Text>
-          <Text style={styles.viewFull}>Tap to copy</Text>
-        </TouchableOpacity>
-      </View>
+  // Token list for the Tokens tab
+  const tokens = useMemo(() => {
+    const list = [];
+    if (seedBalance > 0 || prices.seed > 0) {
+      list.push({
+        symbol: 'SEED',
+        name: 'Seedless',
+        balance: `${seedBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })} SEED`,
+        usdValue: `$${(seedBalance * prices.seed).toFixed(2)}`,
+        changePct: null,
+      });
+    }
+    list.push({
+      symbol: 'SOL',
+      name: 'Solana',
+      balance: `${solBalance.toFixed(4)} SOL`,
+      usdValue: `$${(solBalance * prices.sol).toFixed(2)}`,
+      changePct: null,
+    });
+    list.push({
+      symbol: 'USDC',
+      name: 'USDC',
+      balance: `${usdcBalance.toFixed(2)} USDC`,
+      usdValue: `$${(usdcBalance * prices.usdc).toFixed(2)}`,
+      changePct: null,
+    });
+    return list;
+  }, [solBalance, usdcBalance, seedBalance, prices]);
 
-      {/* Balance Display */}
-      <View style={styles.balanceSection}>
-        <View style={styles.balanceHeader}>
-          <Text style={styles.balanceLabel}>Balance</Text>
-          <View style={styles.balanceActions}>
-            <TouchableOpacity
-              onPress={togglePrivacyMode}
-              style={styles.privacyToggle}
-            >
-              <Text style={styles.privacyToggleText}>
-                {isPrivateMode ? 'Show' : 'Hide'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleRefresh} disabled={isLoadingBalance}>
-              <Text style={styles.refreshText}>{isLoadingBalance ? 'Loading...' : 'Refresh'}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.balanceRow}>
-          <Text style={styles.balanceAmount}>
-            {isPrivateMode
-              ? '••••••'
-              : `$${(solBalance * prices.sol + usdcBalance * prices.usdc + seedBalance * prices.seed).toFixed(2)}`}
-          </Text>
-        </View>
-
-        {!isPrivateMode && solBalance > 0 && (
-          <View style={styles.balanceRow}>
-            <Text style={styles.balanceAmountSecondary}>{solBalance.toFixed(4)}</Text>
-            <Text style={styles.balanceTokenSecondary}>SOL</Text>
-          </View>
-        )}
-
-        {!isPrivateMode && usdcBalance > 0 && (
-          <View style={styles.balanceRow}>
-            <Text style={styles.balanceAmountSecondary}>{usdcBalance.toFixed(2)}</Text>
-            <Text style={styles.balanceTokenSecondary}>USDC</Text>
-          </View>
-        )}
-
-        {!isPrivateMode && seedBalance > 0 && (
-          <View style={styles.balanceRow}>
-            <Text style={styles.balanceAmountSecondary}>{seedBalance.toFixed(2)}</Text>
-            <Text style={styles.balanceTokenSecondary}>SEED</Text>
-          </View>
-        )}
-
-        {isPrivateMode && (
-          <Text style={styles.privateModeHint}>Tap "Show" and authenticate to reveal</Text>
-        )}
-
-        {balanceError && !isPrivateMode && (
-          <Text style={styles.balanceErrorText}>{balanceError}</Text>
-        )}
-      </View>
-
-      <View style={styles.statusBar}>
-        <View style={styles.statusDot} />
-        <Text style={styles.statusText}>Gasless mode</Text>
-      </View>
-
-      {/* Swap Button - Mainnet Only */}
-      {onSwap && !IS_DEVNET && (
-        <TouchableOpacity style={styles.swapButton} onPress={onSwap} activeOpacity={0.8}>
-          <Text style={styles.swapButtonText}>Swap Tokens</Text>
-          <Text style={styles.swapButtonSubtext}>SOL ↔ USDC - Gasless</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Privacy Features */}
-      <View style={styles.privacySection}>
-        <Text style={styles.privacySectionTitle}>Privacy Features</Text>
-        <View style={styles.privacyButtons}>
-          {onStealth && (
-            <TouchableOpacity style={styles.privacyButton} onPress={onStealth} activeOpacity={0.8}>
-              <Text style={styles.privacyButtonText}>Stealth</Text>
-              <Text style={styles.privacyButtonSub}>Private receiving</Text>
-            </TouchableOpacity>
-          )}
-          {onBurner && (
-            <TouchableOpacity style={styles.privacyButton} onPress={onBurner} activeOpacity={0.8}>
-              <Text style={styles.privacyButtonText}>Burners</Text>
-              <Text style={styles.privacyButtonSub}>Isolated wallets</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        {onAuthorities && (
-          <TouchableOpacity style={styles.devicesButton} onPress={onAuthorities} activeOpacity={0.8}>
-            <Text style={styles.devicesButtonText}>Devices</Text>
-            <Text style={styles.devicesButtonSub}>Add or remove signers</Text>
-          </TouchableOpacity>
-        )}
-        {onUmbraDebug && (
-          <TouchableOpacity style={styles.devicesButton} onPress={onUmbraDebug} activeOpacity={0.8}>
-            <Text style={styles.devicesButtonText}>Privacy Setup</Text>
-            <Text style={styles.devicesButtonSub}>Register for Umbra private receiving</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* SEED Rewards - Bags.fm Fee Sharing */}
-      {onBags && (
-        <TouchableOpacity style={styles.bagsButton} onPress={onBags} activeOpacity={0.8}>
-          <Text style={styles.bagsButtonText}>SEED Rewards</Text>
-          <Text style={styles.bagsButtonSub}>Fee sharing + claim earnings</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Launch Token via Bags */}
-      {onLaunch && (
-        <TouchableOpacity style={styles.launchTokenButton} onPress={onLaunch} activeOpacity={0.8}>
-          <Text style={styles.launchTokenButtonText}>Launch Token</Text>
-          <Text style={styles.launchTokenButtonSub}>Create + list on Bags.fm</Text>
-        </TouchableOpacity>
-      )}
-
-      <View style={styles.divider} />
-
-      <View style={styles.formSection}>
-        <View style={styles.formTitleRow}>
-          <Text style={styles.formTitle}>Send SOL</Text>
-          <View style={styles.fastSendBadge}>
-            <View style={[styles.fastSendDot, activeSession ? styles.fastSendDotOn : styles.fastSendDotOff]} />
-            <Text style={styles.fastSendBadgeText}>
-              {activeSession
-                ? `Fast Send · ${Math.max(1, Math.round(activeSession.remainingMs / 60000))}m`
-                : 'Fast Send off'}
-            </Text>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={[styles.fastSendToggle, isSessionBusy && styles.fastSendToggleDisabled]}
-          onPress={activeSession ? handleEndSession : handleStartSession}
-          disabled={isSessionBusy || !smartWalletPubkey}
-          activeOpacity={0.7}
-        >
-          {isSessionBusy ? (
-            <ActivityIndicator color="#000" size="small" />
-          ) : (
-            <Text style={styles.fastSendToggleText}>
-              {activeSession ? 'End Fast Send' : 'Enable Fast Send (one Face ID)'}
-            </Text>
-          )}
-        </TouchableOpacity>
-
-        <Text style={styles.label}>To</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Recipient address"
-          placeholderTextColor="#999"
-          value={recipient}
-          onChangeText={setRecipient}
-          autoCapitalize="none"
-          autoCorrect={false}
+  const renderToolsTab = () => (
+    <View style={styles.toolsCol}>
+      {onStealth && (
+        <ToolRow
+          title="Stealth"
+          subtitle="Receive privately via stealth addresses"
+          iconName="shield"
+          onPress={onStealth}
         />
+      )}
+      {onBurner && (
+        <ToolRow
+          title="Burners"
+          subtitle="Isolated single-use wallets"
+          iconName="lightning"
+          onPress={onBurner}
+        />
+      )}
+      {onUmbraDebug && (
+        <ToolRow
+          title="Privacy Setup"
+          subtitle="Register for Umbra private receiving"
+          iconName="lock"
+          onPress={onUmbraDebug}
+        />
+      )}
+      {onAuthorities && (
+        <ToolRow
+          title="Devices"
+          subtitle="Add or remove signers"
+          iconName="settings"
+          onPress={onAuthorities}
+        />
+      )}
+      {onIka && (
+        <ToolRow
+          title="Multi-chain"
+          subtitle="Sign Ethereum from your passkey via Ika"
+          iconName="lightning"
+          onPress={onIka}
+        />
+      )}
+      {onBags && (
+        <ToolRow
+          title="SEED Rewards"
+          subtitle="Fee sharing & claim earnings"
+          iconName="check"
+          onPress={onBags}
+        />
+      )}
+      {onLaunch && (
+        <ToolRow
+          title="Launch Token"
+          subtitle="Create + list on Bags.fm"
+          iconName="plus"
+          onPress={onLaunch}
+        />
+      )}
+      <ToolRow
+        title="Disconnect"
+        subtitle="Sign out of this wallet"
+        iconName="close"
+        onPress={handleDisconnect}
+        danger
+      />
+    </View>
+  );
 
-        <Text style={styles.label}>Amount</Text>
-        <View style={styles.amountRow}>
-          <TextInput
-            style={[styles.input, styles.amountInput]}
-            placeholder="0.00"
-            placeholderTextColor="#999"
-            value={amount}
-            onChangeText={(text) => setAmount(text.replace(',', '.'))}
-            keyboardType="decimal-pad"
-          />
-          <TouchableOpacity
-            style={styles.maxButton}
-            onPress={() => {
-              if (solBalance !== null && solBalance > MIN_SOL_FOR_TX) {
-                // Floor to 4 decimals so the parsed value can never exceed
-                // (solBalance - MIN_SOL_FOR_TX) due to floating-point drift.
-                const usable = Math.floor((solBalance - MIN_SOL_FOR_TX) * 10000) / 10000;
-                setAmount(usable.toFixed(4));
-              }
-            }}
-            activeOpacity={0.6}
+  return (
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={{ flex: 1 }}>
+          <ScrollView
+            style={styles.container}
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={isLoadingBalance} onRefresh={handleRefresh} tintColor={colors.text} />
+            }
           >
-            <Text style={styles.maxButtonText}>Max</Text>
-          </TouchableOpacity>
+            <WalletHeader
+              walletName="Wallet 01"
+              truncatedAddress={shortAddress || '...'}
+              onProfilePress={handleCopyAddress}
+              rightIcon={isPrivateMode ? 'eyeOff' : 'eye'}
+              onRightPress={togglePrivacyMode}
+            />
+
+            {IS_DEVNET && (
+              <View style={styles.devnetBanner}>
+                <Pill label="DEVNET BETA" variant="warning" size="md" />
+                <Text style={styles.devnetSub}>Test tokens only — not real funds</Text>
+              </View>
+            )}
+
+            {/* Balance hero */}
+            <View style={styles.heroSection}>
+              <Text style={styles.heroBalance}>
+                {isPrivateMode ? '••••' : `$${totalUsd.toFixed(2)}`}
+              </Text>
+              <View style={styles.heroSub}>
+                {balanceError && !isPrivateMode ? (
+                  <Pill label={balanceError} variant="danger" />
+                ) : isLoadingBalance && !hasFetchedRef.current ? (
+                  <ActivityIndicator color={colors.textMuted} size="small" />
+                ) : (
+                  <Pill
+                    label={isPrivateMode ? 'Tap eye to reveal' : 'Mainnet beta'}
+                    variant={isPrivateMode ? 'neutral' : 'success'}
+                  />
+                )}
+              </View>
+            </View>
+
+            {/* Action row */}
+            <View style={styles.actionRow}>
+              <ActionButton
+                icon={<Icon name="send" size={22} color={colors.text} />}
+                label="Send"
+                onPress={() => setSendModalOpen(true)}
+              />
+              <ActionButton
+                icon={<Icon name="swap" size={22} color={colors.text} />}
+                label="Swap"
+                onPress={onSwap}
+                disabled={!onSwap}
+              />
+              <ActionButton
+                icon={<Icon name="qr" size={22} color={colors.text} />}
+                label="Receive"
+                onPress={() => setReceiveModalOpen(true)}
+              />
+              <ActionButton
+                icon={<Icon name="scan" size={22} color={colors.text} />}
+                label="Scan"
+                onPress={() => Alert.alert('Coming soon', 'QR scanning ships in v0.5')}
+              />
+            </View>
+
+            {/* Tabs */}
+            <View style={styles.tabRow}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setActiveTab('tokens')}
+                style={[styles.tab, activeTab === 'tokens' && styles.tabActive]}
+              >
+                <Text style={[styles.tabText, activeTab === 'tokens' && styles.tabTextActive]}>Tokens</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setActiveTab('tools')}
+                style={[styles.tab, activeTab === 'tools' && styles.tabActive]}
+              >
+                <Text style={[styles.tabText, activeTab === 'tools' && styles.tabTextActive]}>Tools</Text>
+              </TouchableOpacity>
+            </View>
+
+            {activeTab === 'tokens' ? (
+              <View style={styles.tokenList}>
+                {tokens.map((t) => (
+                  <TokenRow
+                    key={t.symbol}
+                    symbol={t.symbol}
+                    name={t.name}
+                    balance={isPrivateMode ? '••••' : t.balance}
+                    usdValue={isPrivateMode ? '••••' : t.usdValue}
+                    changePct={t.changePct}
+                  />
+                ))}
+              </View>
+            ) : (
+              renderToolsTab()
+            )}
+          </ScrollView>
+
+          <BottomNav
+            active={navTab}
+            onChange={(t) => {
+              if (t === 'wallet') setNavTab(t);
+              else if (t === 'settings') setActiveTab('tools');
+              else Alert.alert('Coming soon', 'Discover ships in v0.5');
+            }}
+          />
         </View>
 
-        <View style={styles.quickAmountRow}>
-          {QUICK_AMOUNTS.map((qa) => (
-            <TouchableOpacity
-              key={qa}
-              style={styles.quickAmountButton}
-              onPress={() => setAmount(String(qa))}
-              activeOpacity={0.6}
-            >
-              <Text style={styles.quickAmountText}>{qa} SOL</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <TouchableOpacity
-          style={[styles.sendButton, isSending && styles.sendButtonDisabled]}
-          onPress={handleSend}
-          disabled={isSending}
-          activeOpacity={0.8}
+        {/* Send Modal */}
+        <Modal
+          visible={sendModalOpen}
+          animationType="slide"
+          transparent={false}
+          presentationStyle="pageSheet"
+          onRequestClose={() => setSendModalOpen(false)}
         >
-          {isSending ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text style={styles.sendButtonText}>Send</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+          <SafeAreaView style={styles.safe}>
+            <KeyboardAvoidingView
+              style={{ flex: 1 }}
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
+              <ScreenHeader title="Send" onClose={() => setSendModalOpen(false)} />
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={styles.modalContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View style={styles.fastSendRow}>
+                  <View style={styles.fastSendLeft}>
+                    <View
+                      style={[
+                        styles.fastDot,
+                        { backgroundColor: activeSession ? colors.successText : colors.textSubtle },
+                      ]}
+                    />
+                    <Text style={styles.fastSendLabel}>
+                      {activeSession
+                        ? `Fast Send · ${Math.max(1, Math.round(activeSession.remainingMs / 60000))}m left`
+                        : 'Fast Send off'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={activeSession ? handleEndSession : handleStartSession}
+                    disabled={isSessionBusy || !smartWalletPubkey}
+                    style={styles.fastSendBtn}
+                  >
+                    {isSessionBusy ? (
+                      <ActivityIndicator color={colors.text} size="small" />
+                    ) : (
+                      <Text style={styles.fastSendBtnText}>
+                        {activeSession ? 'End' : 'Enable'}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
 
-      <View style={styles.infoSection}>
-        <Text style={styles.infoTitle}>How it works</Text>
-        <Text style={styles.infoItem}>No SOL needed for fees</Text>
-        <Text style={styles.infoItem}>Paymaster sponsors transactions</Text>
-        <Text style={styles.infoItem}>Instant confirmation</Text>
+                <Text style={styles.fieldLabel}>To</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Recipient address"
+                  placeholderTextColor={colors.textSubtle}
+                  value={recipient}
+                  onChangeText={setRecipient}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+
+                <Text style={styles.fieldLabel}>Amount</Text>
+                <View style={styles.amountRow}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                    placeholder="0.00 SOL"
+                    placeholderTextColor={colors.textSubtle}
+                    value={amount}
+                    onChangeText={(text) => setAmount(text.replace(',', '.'))}
+                    keyboardType="decimal-pad"
+                  />
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    style={styles.maxBtn}
+                    onPress={() => {
+                      if (solBalance !== null && solBalance > MIN_SOL_FOR_TX) {
+                        const usable = Math.floor((solBalance - MIN_SOL_FOR_TX) * 10000) / 10000;
+                        setAmount(usable.toFixed(4));
+                      }
+                    }}
+                  >
+                    <Text style={styles.maxBtnText}>Max</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.quickRow}>
+                  {QUICK_AMOUNTS.map((qa) => (
+                    <TouchableOpacity
+                      key={qa}
+                      activeOpacity={0.7}
+                      style={styles.quickBtn}
+                      onPress={() => setAmount(String(qa))}
+                    >
+                      <Text style={styles.quickBtnText}>{qa} SOL</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <View style={{ marginTop: spacing.xxl }}>
+                  <PrimaryButton
+                    label={isSending ? 'Sending...' : 'Send SOL'}
+                    onPress={handleSend}
+                    loading={isSending}
+                    fullWidth
+                  />
+                </View>
+
+                <Text style={styles.helperText}>
+                  No SOL needed for fees · Paymaster sponsors gas · Instant confirmation
+                </Text>
+              </ScrollView>
+            </KeyboardAvoidingView>
+          </SafeAreaView>
+        </Modal>
+
+        {/* Receive Modal */}
+        <Modal
+          visible={receiveModalOpen}
+          animationType="slide"
+          transparent={false}
+          presentationStyle="pageSheet"
+          onRequestClose={() => setReceiveModalOpen(false)}
+        >
+          <SafeAreaView style={styles.safe}>
+            <ScreenHeader title="Receive" onClose={() => setReceiveModalOpen(false)} />
+            <View style={styles.receiveBody}>
+              <Text style={styles.receiveLabel}>Your address</Text>
+              <View style={styles.addressCard}>
+                <Text style={styles.addressText}>{fullAddress}</Text>
+              </View>
+              <PrimaryButton
+                label="Copy address"
+                onPress={handleCopyAddress}
+                icon={<Icon name="copy" size={18} color={colors.white} />}
+                fullWidth
+                style={{ marginTop: spacing.xl }}
+              />
+              <Text style={styles.helperText}>
+                Send SOL or any SPL token to this address from any Solana wallet.
+              </Text>
+            </View>
+          </SafeAreaView>
+        </Modal>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+// Internal tools-tab row component
+function ToolRow({
+  title,
+  subtitle,
+  iconName,
+  onPress,
+  danger,
+}: {
+  title: string;
+  subtitle: string;
+  iconName: any;
+  onPress: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <TouchableOpacity activeOpacity={0.7} onPress={onPress} style={styles.toolRow}>
+      <View style={[styles.toolIcon, danger && { backgroundColor: colors.dangerBg }]}>
+        <Icon name={iconName} size={20} color={danger ? colors.dangerText : colors.text} />
       </View>
-    </ScrollView>
-    </KeyboardAvoidingView>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.toolTitle, danger && { color: colors.dangerText }]}>{title}</Text>
+        <Text style={styles.toolSub}>{subtitle}</Text>
+      </View>
+      <Icon name="chevronRight" size={18} color={colors.textSubtle} />
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.bg,
   },
   content: {
-    padding: 24,
-    paddingTop: 60,
-    paddingBottom: 100,
+    paddingBottom: spacing.xxxl,
   },
-  header: {
+
+  devnetBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.xl,
+    marginBottom: spacing.lg,
+  },
+  devnetSub: {
+    ...typography.caption,
+    flexShrink: 1,
+  },
+
+  heroSection: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxxl,
+  },
+  heroBalance: {
+    ...typography.display,
+  },
+  heroSub: {
+    marginTop: spacing.sm,
+  },
+
+  actionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 32,
+    paddingHorizontal: spacing.xl,
+    marginBottom: spacing.xxxl,
   },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#000',
-  },
-  disconnectText: {
-    fontSize: 15,
-    color: '#666',
-  },
-  addressSection: {
-    marginBottom: 24,
-  },
-  addressLabel: {
-    fontSize: 13,
-    color: '#999',
-    marginBottom: 4,
-  },
-  address: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 4,
-  },
-  viewFull: {
-    fontSize: 14,
-    color: '#666',
-  },
-  balanceSection: {
-    backgroundColor: '#000',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-  },
-  balanceHeader: {
+
+  tabRow: {
     flexDirection: 'row',
+    paddingHorizontal: spacing.xl,
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  tab: {
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radii.pill,
+  },
+  tabActive: {
+    backgroundColor: colors.surface,
+  },
+  tabText: {
+    ...typography.heading,
+    color: colors.textMuted,
+  },
+  tabTextActive: {
+    color: colors.text,
+  },
+
+  tokenList: {
+    paddingHorizontal: spacing.xl,
+  },
+
+  toolsCol: {
+    paddingHorizontal: spacing.xl,
+    gap: spacing.sm,
+  },
+  toolRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.md,
+  },
+  toolIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toolTitle: {
+    ...typography.heading,
+  },
+  toolSub: {
+    ...typography.caption,
+    marginTop: 2,
+  },
+
+  // Modals
+  modalContent: {
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xxxl,
+  },
+  fastSendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radii.md,
+    marginBottom: spacing.xl,
   },
-  balanceLabel: {
-    fontSize: 13,
-    color: '#999',
-  },
-  balanceActions: {
+  fastSendLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.sm,
   },
-  privacyToggle: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    backgroundColor: '#333',
-    borderRadius: 6,
-  },
-  privacyToggleText: {
-    fontSize: 12,
-    color: '#fff',
-    fontWeight: '500',
-  },
-  refreshText: {
-    fontSize: 13,
-    color: '#666',
-  },
-  privateModeHint: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 8,
-    fontStyle: 'italic',
-  },
-  balanceErrorText: {
-    fontSize: 12,
-    color: '#f87171',
-    marginTop: 8,
-  },
-  balanceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: 4,
-  },
-  balanceAmount: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: '#fff',
-    marginRight: 8,
-  },
-  balanceToken: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#999',
-  },
-  balanceAmountSecondary: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#666',
-    marginRight: 6,
-  },
-  balanceTokenSecondary: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#555',
-  },
-  statusBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    marginBottom: 24,
-  },
-  statusDot: {
+  fastDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#22c55e',
-    marginRight: 10,
   },
-  statusText: {
+  fastSendLabel: {
+    ...typography.body,
+  },
+  fastSendBtn: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.bg,
+    borderRadius: radii.pill,
+  },
+  fastSendBtnText: {
     fontSize: 14,
-    color: '#333',
+    fontWeight: '600' as const,
+    color: colors.text,
   },
-  swapButton: {
-    backgroundColor: '#000',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  swapButtonText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  swapButtonSubtext: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#e5e5e5',
-    marginBottom: 24,
-  },
-  formSection: {
-    marginBottom: 32,
-  },
-  formTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#000',
-  },
-  formTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  fastSendBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: '#f3f3f3',
-  },
-  fastSendDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  fastSendDotOn: {
-    backgroundColor: '#16a34a',
-  },
-  fastSendDotOff: {
-    backgroundColor: '#bbb',
-  },
-  fastSendBadgeText: {
-    fontSize: 12,
-    color: '#333',
-    fontWeight: '500',
-  },
-  fastSendToggle: {
-    borderWidth: 1,
-    borderColor: '#e5e5e5',
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  fastSendToggleDisabled: {
-    opacity: 0.6,
-  },
-  fastSendToggleText: {
-    fontSize: 14,
-    color: '#000',
-    fontWeight: '500',
-  },
-  label: {
-    fontSize: 13,
-    color: '#666',
-    marginBottom: 8,
+  fieldLabel: {
+    ...typography.caption,
+    marginBottom: spacing.sm,
+    marginTop: spacing.lg,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#e5e5e5',
-    borderRadius: 10,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
     fontSize: 16,
-    color: '#000',
-    marginBottom: 16,
-    backgroundColor: '#fafafa',
+    color: colors.text,
+    marginBottom: spacing.md,
   },
   amountRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
-  amountInput: {
-    flex: 1,
-    marginBottom: 16,
+  maxBtn: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 18,
+    backgroundColor: colors.text,
+    borderRadius: radii.md,
   },
-  maxButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    backgroundColor: '#000',
-    borderRadius: 8,
-    marginBottom: 16,
+  maxBtnText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: colors.white,
   },
-  maxButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  quickAmountRow: {
+  quickRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
+    gap: spacing.sm,
+    marginTop: spacing.md,
   },
-  quickAmountButton: {
+  quickBtn: {
     flex: 1,
-    paddingVertical: 8,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radii.sm,
     alignItems: 'center',
   },
-  quickAmountText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#333',
-  },
-  sendButton: {
-    backgroundColor: '#000',
-    paddingVertical: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#333',
-  },
-  sendButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  infoSection: {
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e5e5',
-  },
-  infoTitle: {
+  quickBtnText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 12,
+    fontWeight: '600' as const,
+    color: colors.text,
   },
-  infoItem: {
+  helperText: {
+    ...typography.caption,
+    textAlign: 'center',
+    marginTop: spacing.xl,
+  },
+
+  receiveBody: {
+    padding: spacing.xl,
+  },
+  receiveLabel: {
+    ...typography.caption,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.sm,
+  },
+  addressCard: {
+    backgroundColor: colors.surface,
+    padding: spacing.lg,
+    borderRadius: radii.md,
+  },
+  addressText: {
     fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-  },
-  privacySection: {
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  privacySectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 12,
-  },
-  privacyButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  privacyButton: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    padding: 16,
-  },
-  privacyButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#000',
-  },
-  privacyButtonSub: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-  },
-  devicesButton: {
-    marginTop: 12,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    padding: 16,
-  },
-  devicesButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#000',
-  },
-  devicesButtonSub: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-  },
-  launchTokenButton: {
-    marginTop: 12,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    padding: 16,
-  },
-  launchTokenButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#000',
-  },
-  launchTokenButtonSub: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-  },
-  bagsButton: {
-    marginTop: 12,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    padding: 16,
-  },
-  bagsButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#000',
-  },
-  bagsButtonSub: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-  },
-  devnetBanner: {
-    backgroundColor: '#fef3c7',
-    borderWidth: 1,
-    borderColor: '#f59e0b',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  devnetBannerText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#92400e',
-  },
-  devnetBannerSub: {
-    fontSize: 12,
-    color: '#b45309',
-    marginTop: 2,
+    color: colors.text,
+    lineHeight: 22,
   },
 });

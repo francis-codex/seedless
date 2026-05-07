@@ -2,15 +2,17 @@ import React from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   Alert,
+  SafeAreaView,
+  StatusBar,
 } from 'react-native';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import * as Linking from 'expo-linking';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { APP_VERSION } from '../constants';
+import { colors, radii, spacing, typography } from '../theme';
+import { Icon, PrimaryButton } from '../components/ui';
 
 interface HomeScreenProps {
   onConnected: () => void;
@@ -74,120 +76,141 @@ export function HomeScreen({ onConnected }: HomeScreenProps) {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Seedless</Text>
-        <Text style={styles.subtitle}>Wallet</Text>
-      </View>
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.brandMark}>
+            <Icon name="shield" size={28} color={colors.white} strokeWidth={2.4} />
+          </View>
+          <View>
+            <Text style={styles.brandText}>Seedless</Text>
+            <Text style={styles.brandSub}>passkey wallet on Solana</Text>
+          </View>
+        </View>
 
-      <View style={styles.content}>
-        <Text style={styles.tagline}>
-          No seed phrase.{'\n'}
-          No extension.{'\n'}
-          No gas fees.
-        </Text>
+        <View style={styles.content}>
+          <Text style={styles.tagline}>
+            Your face{'\n'}is your wallet.
+          </Text>
 
-        <View style={styles.features}>
-          <Text style={styles.featureText}>Passkey authentication</Text>
-          <View style={styles.divider} />
-          <Text style={styles.featureText}>Gasless transactions</Text>
-          <View style={styles.divider} />
-          <Text style={styles.featureText}>Smart wallet</Text>
+          <Text style={styles.taglineSub}>
+            No seed phrases. No browser extensions. No gas fees. Just your passkey.
+          </Text>
+
+          <View style={styles.features}>
+            <Feature label="Passkey authentication" />
+            <Feature label="Gasless transactions" />
+            <Feature label="Private sends via Umbra" />
+            <Feature label="Multi-chain via Ika" />
+          </View>
+        </View>
+
+        <View style={styles.footer}>
+          <PrimaryButton
+            label={isConnecting ? 'Connecting...' : 'Create or connect wallet'}
+            onPress={handleConnect}
+            loading={isConnecting}
+            fullWidth
+          />
+          <Text style={styles.poweredBy}>
+            Seedless Labs, Inc. · v{APP_VERSION}
+          </Text>
         </View>
       </View>
+    </SafeAreaView>
+  );
+}
 
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.button, isConnecting && styles.buttonDisabled]}
-          onPress={handleConnect}
-          disabled={isConnecting}
-          activeOpacity={0.8}
-        >
-          {isConnecting ? (
-            <ActivityIndicator color="#000" size="small" />
-          ) : (
-            <Text style={styles.buttonText}>Create / Connect Wallet</Text>
-          )}
-        </TouchableOpacity>
-
-        <Text style={styles.poweredBy}>
-          Seedless Labs, Inc. | v{APP_VERSION}
-        </Text>
+function Feature({ label }: { label: string }) {
+  return (
+    <View style={styles.featureRow}>
+      <View style={styles.featureDot}>
+        <Icon name="check" size={14} color={colors.successText} strokeWidth={3} />
       </View>
+      <Text style={styles.featureText}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    paddingHorizontal: 24,
-    paddingTop: 80,
-    paddingBottom: 48,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xxxl,
+    paddingBottom: spacing.xl,
   },
   header: {
-    marginBottom: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.xxxl,
   },
-  title: {
-    fontSize: 48,
-    fontWeight: '700',
-    color: '#000',
-    letterSpacing: -1,
+  brandMark: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  subtitle: {
-    fontSize: 48,
-    fontWeight: '300',
-    color: '#000',
-    letterSpacing: -1,
-    marginTop: -8,
+  brandText: {
+    ...typography.title,
+    fontSize: 24,
+  },
+  brandSub: {
+    ...typography.caption,
+    marginTop: 2,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
   },
   tagline: {
-    fontSize: 28,
-    fontWeight: '500',
-    color: '#000',
-    lineHeight: 38,
-    marginBottom: 48,
+    fontSize: 48,
+    fontWeight: '700' as const,
+    color: colors.text,
+    letterSpacing: -1.5,
+    lineHeight: 54,
+    marginBottom: spacing.xl,
+  },
+  taglineSub: {
+    ...typography.body,
+    color: colors.textMuted,
+    fontSize: 17,
+    lineHeight: 26,
+    marginBottom: spacing.xxxl,
   },
   features: {
-    borderTopWidth: 1,
-    borderTopColor: '#e5e5e5',
-    paddingTop: 24,
+    gap: spacing.md,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  featureDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.successBg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   featureText: {
-    fontSize: 16,
-    color: '#666',
-    paddingVertical: 12,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#e5e5e5',
+    ...typography.body,
   },
   footer: {
-    paddingTop: 24,
-  },
-  button: {
-    backgroundColor: '#000',
-    paddingVertical: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    backgroundColor: '#333',
-  },
-  buttonText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#fff',
+    paddingTop: spacing.xl,
   },
   poweredBy: {
     textAlign: 'center',
-    color: '#999',
-    marginTop: 20,
+    color: colors.textSubtle,
+    marginTop: spacing.lg,
     fontSize: 13,
   },
 });

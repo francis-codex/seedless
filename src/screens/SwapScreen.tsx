@@ -8,6 +8,10 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  SafeAreaView,
+  StatusBar,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import * as Linking from 'expo-linking';
@@ -17,6 +21,8 @@ import { SOL_MINT, USDC_MINT, SEED_MINT, TOKEN_DECIMALS, SEED_DECIMALS, CLUSTER_
 import { prepareSwap, QuoteResponse } from '../utils/jupiter';
 import { getBagsQuote, createBagsSwapTransaction, BagsQuoteResponse } from '../utils/bags';
 import { DEFAULT_AUTH_EXPIRY_SLOTS, shouldUseDeferredExec } from '../utils/deferredExec';
+import { colors, radii, spacing, typography } from '../theme';
+import { ScreenHeader, TokenLogo, PrimaryButton, Pill, Icon } from '../components/ui';
 
 interface SwapScreenProps {
   onBack: () => void;
@@ -153,10 +159,6 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
       const amountInSmallestUnit = toSmallestUnit(amount, inputDecimals);
       const redirectUrl = Linking.createURL('swap-callback');
 
-      // Build instruction set for the active source, then branch by size:
-      // under the threshold → single-tx signAndSendTransaction;
-      // over → authorizeAndExecute (2-tx deferred) so the passkey signature
-      // doesn't have to fit alongside the swap payload.
       let instructions;
       let addressLookupTableAccounts;
       let successLabel: string;
@@ -239,311 +241,333 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
   ]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Swap</Text>
-        <View style={{ width: 50 }} />
-      </View>
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScreenHeader title="Swap" onClose={onBack} />
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Input card */}
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>You pay</Text>
+            <View style={styles.row}>
+              <TextInput
+                style={styles.amountInput}
+                placeholder="0.00"
+                placeholderTextColor={colors.textSubtle}
+                value={amount}
+                onChangeText={(text) => {
+                  setAmount(text.replace(',', '.'));
+                  setQuote(null);
+                  setBagsQuote(null);
+                }}
+                keyboardType="decimal-pad"
+              />
+              <View style={styles.tokenChip}>
+                <TokenLogo symbol={inputToken} size={28} />
+                <Text style={styles.tokenChipText}>{inputToken}</Text>
+              </View>
+            </View>
+            <View style={styles.actionsRow}>
+              <TouchableOpacity activeOpacity={0.7} onPress={handleMax} style={styles.maxBtn}>
+                <Text style={styles.maxBtnText}>MAX</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
-      <View style={styles.swapCard}>
-        {/* Input Section */}
-        <View style={styles.tokenSection}>
-          <Text style={styles.tokenLabel}>You pay</Text>
-          <View style={styles.inputRow}>
-            <TextInput
-              style={styles.amountInput}
-              placeholder="0.00"
-              placeholderTextColor="#666"
-              value={amount}
-              onChangeText={(text) => {
-                setAmount(text);
+          {/* Flip button */}
+          <View style={styles.flipWrap}>
+            <TouchableOpacity activeOpacity={0.7} style={styles.flipBtn} onPress={cyclePair}>
+              <Icon name="swap" size={20} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Output card */}
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>You receive</Text>
+            <View style={styles.row}>
+              <Text style={styles.outputAmount}>
+                {activeQuote ? toHumanAmount(outAmount, outputDecimals) : '0.00'}
+              </Text>
+              <View style={styles.tokenChip}>
+                <TokenLogo symbol={outputToken} size={28} />
+                <Text style={styles.tokenChipText}>{outputToken}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Source toggle */}
+          <View style={styles.sourceToggle}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => {
+                setSwapSource('jupiter');
                 setQuote(null);
                 setBagsQuote(null);
               }}
-              keyboardType="decimal-pad"
-            />
-            <TouchableOpacity onPress={handleMax} style={styles.maxButton}>
-              <Text style={styles.maxButtonText}>MAX</Text>
+              style={[styles.sourceOption, swapSource === 'jupiter' && styles.sourceOptionActive]}
+            >
+              <Text style={[styles.sourceText, swapSource === 'jupiter' && styles.sourceTextActive]}>
+                Jupiter
+              </Text>
             </TouchableOpacity>
-            <View style={styles.tokenBadge}>
-              <Text style={styles.tokenBadgeText}>{inputToken}</Text>
-            </View>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => {
+                setSwapSource('bags');
+                setQuote(null);
+                setBagsQuote(null);
+              }}
+              style={[styles.sourceOption, swapSource === 'bags' && styles.sourceOptionActive]}
+            >
+              <Text style={[styles.sourceText, swapSource === 'bags' && styles.sourceTextActive]}>
+                Bags.fm
+              </Text>
+            </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Cycle Pair Button */}
-        <TouchableOpacity style={styles.flipButton} onPress={cyclePair}>
-          <Text style={styles.flipButtonText}>↓↑</Text>
-        </TouchableOpacity>
-
-        {/* Output Section */}
-        <View style={styles.tokenSection}>
-          <Text style={styles.tokenLabel}>You receive</Text>
-          <View style={styles.inputRow}>
-            <Text style={styles.outputAmount}>
-              {activeQuote ? toHumanAmount(outAmount, outputDecimals) : '—'}
-            </Text>
-            <View style={styles.tokenBadge}>
-              <Text style={styles.tokenBadgeText}>{outputToken}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Quote Info */}
-        {activeQuote && (
-          <View style={styles.quoteInfo}>
-            <View style={styles.quoteRow}>
-              <Text style={styles.quoteLabel}>Price Impact</Text>
-              <Text style={styles.quoteValue}>{parseFloat(activeQuote.priceImpactPct).toFixed(4)}%</Text>
-            </View>
-            <View style={styles.quoteRow}>
-              <Text style={styles.quoteLabel}>Source</Text>
-              <Text style={styles.quoteValue}>{swapSource === 'bags' ? 'Bags.fm' : 'Jupiter'}</Text>
-            </View>
-            {quote && quote.routePlan && (
+          {/* Quote info */}
+          {activeQuote && (
+            <View style={styles.quoteCard}>
+              <QuoteRow
+                label="Price impact"
+                value={`${parseFloat(activeQuote.priceImpactPct).toFixed(4)}%`}
+              />
+              <QuoteRow label="Source" value={swapSource === 'bags' ? 'Bags.fm' : 'Jupiter'} />
+              {quote && quote.routePlan && (
+                <QuoteRow
+                  label="Route"
+                  value={quote.routePlan.map((r) => r.swapInfo.label).join(' → ')}
+                />
+              )}
               <View style={styles.quoteRow}>
-                <Text style={styles.quoteLabel}>Route</Text>
-                <Text style={styles.quoteValue}>
-                  {quote.routePlan.map((r) => r.swapInfo.label).join(' → ')}
-                </Text>
+                <Text style={styles.quoteLabel}>Gas fee</Text>
+                <Pill label="Free · Kora" variant="success" />
               </View>
-            )}
-            <View style={styles.quoteRow}>
-              <Text style={styles.quoteLabel}>Gas Fee</Text>
-              <Text style={styles.quoteValueGreen}>Free (Kora)</Text>
             </View>
+          )}
+
+          <View style={{ marginTop: spacing.xxl }}>
+            {!activeQuote ? (
+              <PrimaryButton
+                label="Get quote"
+                onPress={fetchQuote}
+                loading={isLoadingQuote}
+                disabled={!amount}
+                fullWidth
+              />
+            ) : (
+              <PrimaryButton
+                label={`Swap via ${swapSource === 'bags' ? 'Bags' : 'Jupiter'}`}
+                onPress={executeSwap}
+                loading={isSwapping}
+                fullWidth
+              />
+            )}
           </View>
-        )}
-      </View>
 
-      {/* Action Buttons */}
-      <View style={styles.buttonContainer}>
-        {!activeQuote ? (
-          <TouchableOpacity
-            style={[styles.button, isLoadingQuote && styles.buttonDisabled]}
-            onPress={fetchQuote}
-            disabled={isLoadingQuote || !amount}
-            activeOpacity={0.8}
-          >
-            {isLoadingQuote ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={styles.buttonText}>Get Quote</Text>
-            )}
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={[styles.button, styles.buttonSwap, isSwapping && styles.buttonDisabled]}
-            onPress={executeSwap}
-            disabled={isSwapping}
-            activeOpacity={0.8}
-          >
-            {isSwapping ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={styles.buttonText}>Swap via {swapSource === 'bags' ? 'Bags' : 'Jupiter'} (Gasless)</Text>
-            )}
-          </TouchableOpacity>
-        )}
-      </View>
+          {/* Info */}
+          <View style={styles.infoCard}>
+            <Text style={styles.infoTitle}>How it works</Text>
+            <InfoLine text="Routed via Jupiter aggregation or Bags.fm" />
+            <InfoLine text="SOL, USDC, and SEED token pairs" />
+            <InfoLine text="Sign with Face ID or fingerprint" />
+            <InfoLine text="Gas sponsored by Kora paymaster" />
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
 
-      {/* Info */}
-      <View style={styles.infoSection}>
-        <Text style={styles.infoTitle}>How it works</Text>
-        <Text style={styles.infoItem}>• Swap via Bags.fm or Jupiter aggregation</Text>
-        <Text style={styles.infoItem}>• SOL, USDC, and SEED token pairs</Text>
-        <Text style={styles.infoItem}>• Sign with Face ID / fingerprint</Text>
-        <Text style={styles.infoItem}>• Gas sponsored by Kora paymaster</Text>
-      </View>
-    </ScrollView>
+function QuoteRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.quoteRow}>
+      <Text style={styles.quoteLabel}>{label}</Text>
+      <Text style={styles.quoteValue}>{value}</Text>
+    </View>
+  );
+}
+
+function InfoLine({ text }: { text: string }) {
+  return (
+    <View style={styles.infoLine}>
+      <View style={styles.infoDot} />
+      <Text style={styles.infoText}>{text}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   content: {
-    padding: 24,
-    paddingTop: 60,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xxxl * 2,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 32,
+
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    padding: spacing.xl,
+    gap: spacing.sm,
   },
-  backText: {
-    fontSize: 16,
-    color: '#666',
+  cardLabel: {
+    ...typography.caption,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#000',
-  },
-  sourceToggle: {
-    flexDirection: 'row',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 16,
-  },
-  sourceOption: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  sourceOptionActive: {
-    backgroundColor: '#000',
-  },
-  sourceOptionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-  },
-  sourceOptionTextActive: {
-    color: '#fff',
-  },
-  swapCard: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 24,
-  },
-  tokenSection: {
-    marginBottom: 8,
-  },
-  tokenLabel: {
-    fontSize: 13,
-    color: '#666',
-    marginBottom: 8,
-  },
-  inputRow: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: spacing.md,
   },
   amountInput: {
     flex: 1,
     fontSize: 32,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: '700' as const,
+    color: colors.text,
+    letterSpacing: -1,
     padding: 0,
   },
   outputAmount: {
     flex: 1,
     fontSize: 32,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: '700' as const,
+    color: colors.text,
+    letterSpacing: -1,
   },
-  maxButton: {
-    backgroundColor: '#e8e8e8',
+  tokenChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.bg,
+    paddingHorizontal: spacing.md,
     paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    marginRight: 8,
+    borderRadius: radii.pill,
   },
-  maxButtonText: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: '700',
+  tokenChipText: {
+    ...typography.heading,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    marginTop: spacing.xs,
+  },
+  maxBtn: {
+    backgroundColor: colors.bg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+  },
+  maxBtnText: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: colors.text,
     letterSpacing: 0.5,
   },
-  tokenBadge: {
-    backgroundColor: '#000',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-  },
-  tokenBadgeText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  flipButton: {
-    alignSelf: 'center',
-    backgroundColor: '#fff',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
+
+  flipWrap: {
     alignItems: 'center',
-    marginVertical: 8,
-    shadowColor: '#000',
+    marginVertical: -8,
+    zIndex: 2,
+  },
+  flipBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.bg,
+    borderWidth: 4,
+    borderColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0B2545',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
     elevation: 3,
   },
-  flipButtonText: {
-    fontSize: 18,
-    color: '#000',
+
+  sourceToggle: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: radii.pill,
+    padding: 4,
+    marginTop: spacing.xl,
   },
-  quoteInfo: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+  sourceOption: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+  },
+  sourceOptionActive: {
+    backgroundColor: colors.bg,
+  },
+  sourceText: {
+    ...typography.body,
+    color: colors.textMuted,
+  },
+  sourceTextActive: {
+    color: colors.text,
+    fontWeight: '600' as const,
+  },
+
+  quoteCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: spacing.lg,
+    marginTop: spacing.lg,
+    gap: spacing.md,
   },
   quoteRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  quoteLabel: {
-    fontSize: 14,
-    color: '#666',
-  },
-  quoteValue: {
-    fontSize: 14,
-    color: '#000',
-    fontWeight: '500',
-  },
-  quoteValueGreen: {
-    fontSize: 14,
-    color: '#22c55e',
-    fontWeight: '600',
-  },
-  buttonContainer: {
-    marginBottom: 24,
-  },
-  button: {
-    backgroundColor: '#000',
-    paddingVertical: 18,
-    borderRadius: 14,
     alignItems: 'center',
   },
-  buttonSwap: {
-    backgroundColor: '#22c55e',
+  quoteLabel: {
+    ...typography.caption,
   },
-  buttonDisabled: {
-    opacity: 0.5,
+  quoteValue: {
+    ...typography.body,
+    fontSize: 14,
   },
-  buttonText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  infoSection: {
-    paddingTop: 16,
+
+  infoCard: {
+    marginTop: spacing.xxxl,
+    paddingTop: spacing.xl,
     borderTopWidth: 1,
-    borderTopColor: '#e5e5e5',
+    borderTopColor: colors.border,
   },
   infoTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 12,
+    ...typography.heading,
+    marginBottom: spacing.md,
   },
-  infoItem: {
+  infoLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  infoDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.textSubtle,
+  },
+  infoText: {
+    ...typography.caption,
     fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
   },
 });

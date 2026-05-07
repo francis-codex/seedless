@@ -9,12 +9,18 @@ import {
   Alert,
   ScrollView,
   RefreshControl,
+  SafeAreaView,
+  StatusBar,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import { PublicKey } from '@solana/web3.js';
 import { isValidSolanaAddress } from '../constants';
+import { colors, radii, spacing, typography } from '../theme';
+import { ScreenHeader, PrimaryButton, Pill, Icon } from '../components/ui';
 
 interface AuthoritiesScreenProps {
   onBack: () => void;
@@ -67,7 +73,6 @@ export function AuthoritiesScreen({ onBack }: AuthoritiesScreenProps) {
   const [removingPda, setRemovingPda] = useState<string | null>(null);
   const [newKey, setNewKey] = useState('');
 
-  // Use refs to avoid re-firing the mount effect when hook fns get new refs.
   const listAuthoritiesRef = useRef(listAuthorities);
   listAuthoritiesRef.current = listAuthorities;
   const hasLoadedRef = useRef(false);
@@ -168,217 +173,208 @@ export function AuthoritiesScreen({ onBack }: AuthoritiesScreenProps) {
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-      refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => load()} />}
-    >
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Devices</Text>
-        <View style={{ width: 50 }} />
-      </View>
-
-      <Text style={styles.lede}>
-        Authorities that can spend from this wallet. Your passkey is the owner. Add an ed25519 key to let another device or signer co-sign.
-      </Text>
-
-      <View style={styles.addCard}>
-        <Text style={styles.addTitle}>Add device key</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ed25519 public key (base58)"
-          placeholderTextColor="#999"
-          value={newKey}
-          onChangeText={setNewKey}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        <TouchableOpacity
-          style={[styles.primaryButton, isAdding && styles.buttonDisabled]}
-          onPress={handleAdd}
-          disabled={isAdding || !smartWalletPubkey}
-          activeOpacity={0.8}
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScreenHeader title="Devices" onClose={onBack} />
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => load()} tintColor={colors.text} />}
         >
-          {isAdding ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text style={styles.primaryButtonText}>Add as spender</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+          <Text style={styles.lede}>
+            Authorities that can spend from this wallet. Your passkey is the owner. Add an
+            ed25519 key to let another device or signer co-sign.
+          </Text>
 
-      <View style={styles.listHeader}>
-        <Text style={styles.listTitle}>Current authorities</Text>
-        <TouchableOpacity onPress={() => load()} disabled={isLoading}>
-          <Text style={styles.refreshText}>{isLoading ? 'Loading…' : 'Refresh'}</Text>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Add device key</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ed25519 public key (base58)"
+              placeholderTextColor={colors.textSubtle}
+              value={newKey}
+              onChangeText={setNewKey}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <PrimaryButton
+              label={isAdding ? 'Adding...' : 'Add as spender'}
+              onPress={handleAdd}
+              loading={isAdding}
+              disabled={!smartWalletPubkey}
+              fullWidth
+              icon={<Icon name="plus" size={18} color={colors.white} />}
+            />
+          </View>
 
-      {authorities.length === 0 && !isLoading && (
-        <Text style={styles.emptyText}>No authorities yet.</Text>
-      )}
-
-      {authorities.map((entry) => (
-        <View key={entry.authorityPda} style={styles.authorityRow}>
-          <View style={{ flex: 1 }}>
-            <View style={styles.rowTopLine}>
-              <Text style={styles.roleBadge}>{roleLabel(entry.role)}</Text>
-              <Text style={styles.typeBadge}>{typeLabel(entry.authorityType)}</Text>
-            </View>
-            <TouchableOpacity
-              onPress={async () => {
-                await Clipboard.setStringAsync(entry.credential);
-                Alert.alert('Copied', 'Credential copied');
-              }}
-              activeOpacity={0.6}
-            >
-              <Text style={styles.credentialText}>{entry.shortCredential}</Text>
+          <View style={styles.listHeader}>
+            <Text style={styles.listTitle}>Current authorities</Text>
+            <TouchableOpacity onPress={() => load()} disabled={isLoading} activeOpacity={0.7}>
+              <Text style={styles.refreshLink}>{isLoading ? 'Loading…' : 'Refresh'}</Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={[
-              styles.removeButton,
-              entry.role === ROLE_OWNER && styles.removeButtonDisabled,
-            ]}
-            onPress={() => confirmRemove(entry)}
-            disabled={entry.role === ROLE_OWNER || removingPda === entry.authorityPda}
-          >
-            {removingPda === entry.authorityPda ? (
-              <ActivityIndicator color="#c00" size="small" />
-            ) : (
-              <Text style={styles.removeButtonText}>Remove</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      ))}
 
-      <View style={styles.infoSection}>
-        <Text style={styles.infoTitle}>Notes</Text>
-        <Text style={styles.infoItem}>Spenders can sign transfers and swaps.</Text>
-        <Text style={styles.infoItem}>Adding an authority requires a Face ID prompt.</Text>
-        <Text style={styles.infoItem}>The owner authority cannot be removed here.</Text>
-      </View>
-    </ScrollView>
+          {authorities.length === 0 && !isLoading && (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText}>No authorities yet.</Text>
+            </View>
+          )}
+
+          {authorities.map((entry) => (
+            <View key={entry.authorityPda} style={styles.authorityRow}>
+              <View style={{ flex: 1 }}>
+                <View style={styles.badgeRow}>
+                  <Pill
+                    label={roleLabel(entry.role)}
+                    variant={entry.role === ROLE_OWNER ? 'success' : 'neutral'}
+                  />
+                  <Pill label={typeLabel(entry.authorityType)} variant="neutral" />
+                </View>
+                <TouchableOpacity
+                  onPress={async () => {
+                    await Clipboard.setStringAsync(entry.credential);
+                    Alert.alert('Copied', 'Credential copied');
+                  }}
+                  activeOpacity={0.6}
+                >
+                  <Text style={styles.credentialText}>{entry.shortCredential}</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.removeBtn,
+                  entry.role === ROLE_OWNER && { opacity: 0.4 },
+                ]}
+                onPress={() => confirmRemove(entry)}
+                disabled={entry.role === ROLE_OWNER || removingPda === entry.authorityPda}
+                activeOpacity={0.7}
+              >
+                {removingPda === entry.authorityPda ? (
+                  <ActivityIndicator color={colors.dangerText} size="small" />
+                ) : (
+                  <Text style={styles.removeBtnText}>Remove</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          ))}
+
+          <View style={styles.notesCard}>
+            <Text style={styles.notesTitle}>Notes</Text>
+            <Text style={styles.notesItem}>Spenders can sign transfers and swaps.</Text>
+            <Text style={styles.notesItem}>Adding an authority requires a Face ID prompt.</Text>
+            <Text style={styles.notesItem}>The owner authority cannot be removed here.</Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  content: { padding: 24, paddingTop: 60, paddingBottom: 80 },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
+  safe: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1 },
+  content: {
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xxxl * 2,
   },
-  backText: { fontSize: 16, color: '#666' },
-  headerTitle: { fontSize: 24, fontWeight: '700', color: '#000' },
   lede: {
-    fontSize: 14,
-    color: '#555',
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  addCard: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 28,
-  },
-  addTitle: {
+    ...typography.body,
+    color: colors.textMuted,
     fontSize: 15,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 10,
+    lineHeight: 22,
+    marginBottom: spacing.xl,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    padding: spacing.xl,
+    marginBottom: spacing.xxl,
+  },
+  cardTitle: {
+    ...typography.heading,
+    marginBottom: spacing.md,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    backgroundColor: colors.bg,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
     fontSize: 14,
-    color: '#000',
-    marginBottom: 12,
+    color: colors.text,
+    marginBottom: spacing.md,
   },
-  primaryButton: {
-    backgroundColor: '#000',
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  buttonDisabled: { opacity: 0.5 },
-  primaryButtonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   listHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
-  listTitle: { fontSize: 15, fontWeight: '600', color: '#000' },
-  refreshText: { fontSize: 13, color: '#666' },
+  listTitle: {
+    ...typography.heading,
+  },
+  refreshLink: {
+    ...typography.caption,
+    color: colors.accent,
+    fontWeight: '600' as const,
+  },
+  emptyCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
   emptyText: {
-    fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-    paddingVertical: 24,
+    ...typography.caption,
   },
   authorityRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    gap: 12,
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: spacing.lg,
+    marginBottom: spacing.sm,
   },
-  rowTopLine: {
+  badgeRow: {
     flexDirection: 'row',
-    gap: 6,
-    marginBottom: 4,
-  },
-  roleBadge: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#000',
-    backgroundColor: '#e8f5e9',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  typeBadge: {
-    fontSize: 11,
-    color: '#666',
-    backgroundColor: '#f1f1f1',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
   },
   credentialText: {
     fontSize: 13,
-    color: '#333',
-    fontFamily: 'Menlo',
+    color: colors.text,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
   },
-  removeButton: {
-    borderWidth: 1,
-    borderColor: '#e5e5e5',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  removeBtn: {
+    backgroundColor: colors.dangerBg,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
-  removeButtonDisabled: { opacity: 0.4 },
-  removeButtonText: { fontSize: 13, color: '#c00', fontWeight: '600' },
-  infoSection: {
-    marginTop: 24,
-    paddingTop: 16,
+  removeBtnText: {
+    fontSize: 13,
+    color: colors.dangerText,
+    fontWeight: '600' as const,
+  },
+  notesCard: {
+    marginTop: spacing.xxl,
+    paddingTop: spacing.xl,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: colors.border,
   },
-  infoTitle: { fontSize: 14, fontWeight: '600', color: '#000', marginBottom: 10 },
-  infoItem: { fontSize: 13, color: '#666', marginBottom: 6 },
+  notesTitle: {
+    ...typography.heading,
+    marginBottom: spacing.sm,
+  },
+  notesItem: {
+    ...typography.caption,
+    fontSize: 14,
+    marginBottom: 6,
+  },
 });

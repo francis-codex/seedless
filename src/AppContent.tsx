@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet, BackHandler } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, BackHandler, SafeAreaView, StatusBar } from 'react-native';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import { HomeScreen } from './screens/HomeScreen';
 import { WalletScreen } from './screens/WalletScreen';
@@ -8,8 +8,11 @@ import { StealthScreen } from './screens/StealthScreen';
 import { BurnerScreen } from './screens/BurnerScreen';
 import { AuthoritiesScreen } from './screens/AuthoritiesScreen';
 import { UmbraDebugScreen } from './screens/UmbraDebugScreen';
+import { IkaScreen } from './screens/IkaScreen';
+import { colors, typography, spacing } from './theme';
+import { Icon } from './components/ui';
 
-type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'bags' | 'launch' | 'authorities' | 'umbradebug';
+type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'bags' | 'launch' | 'authorities' | 'umbradebug' | 'ika';
 
 // Navigation state for tracking screen transitions
 export type NavigationState = {
@@ -43,10 +46,15 @@ export function AppContent() {
   // Show loading while checking for persisted session
   if (isLoading) {
     return (
-      <View style={styles.loading}>
+      <SafeAreaView style={styles.loading}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
+        <View style={styles.loadingMark}>
+          <Icon name="shield" size={32} color={colors.white} strokeWidth={2.4} />
+        </View>
         <Text style={styles.loadingTitle}>Seedless</Text>
-        <ActivityIndicator size="small" color="#000" style={{ marginTop: 16 }} />
-      </View>
+        <Text style={styles.loadingSub}>passkey wallet on Solana</Text>
+        <ActivityIndicator size="small" color={colors.text} style={{ marginTop: 24 }} />
+      </SafeAreaView>
     );
   }
 
@@ -65,6 +73,7 @@ export function AppContent() {
             onBurner={() => setCurrentScreen('burner')}
             onAuthorities={() => setCurrentScreen('authorities')}
             onUmbraDebug={() => setCurrentScreen('umbradebug')}
+            onIka={() => setCurrentScreen('ika')}
           />
         </View>
         {effectiveScreen === 'swap' && <View style={styles.overlay}><SwapScreen onBack={() => setCurrentScreen('wallet')} /></View>}
@@ -72,6 +81,7 @@ export function AppContent() {
         {effectiveScreen === 'burner' && <View style={styles.overlay}><BurnerScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         {effectiveScreen === 'authorities' && <View style={styles.overlay}><AuthoritiesScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         {effectiveScreen === 'umbradebug' && <View style={styles.overlay}><UmbraDebugScreen onBack={() => setCurrentScreen('wallet')} /></View>}
+        {effectiveScreen === 'ika' && <View style={styles.overlay}><IkaScreen onBack={() => setCurrentScreen('wallet')} /></View>}
       </>
     );
   }
@@ -84,13 +94,26 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.bg,
+  },
+  loadingMark: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xl,
   },
   loadingTitle: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '700' as const,
-    color: '#000',
-    letterSpacing: -0.5,
+    color: colors.text,
+    letterSpacing: -0.8,
+  },
+  loadingSub: {
+    ...typography.caption,
+    marginTop: 4,
   },
   overlay: {
     position: 'absolute',
@@ -98,7 +121,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#fff',
+    backgroundColor: colors.bg,
   },
 });
 

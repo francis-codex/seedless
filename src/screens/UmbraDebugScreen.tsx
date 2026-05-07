@@ -6,6 +6,9 @@ import {
   Text,
   TouchableOpacity,
   View,
+  SafeAreaView,
+  StatusBar,
+  Platform,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
@@ -24,13 +27,14 @@ import type { ScannedUtxoData } from '@umbra-privacy/sdk/interfaces';
 import { getTxExplorerUrl, getAccountExplorerUrl, UMBRA_TEST_MINT_DEVNET } from '../constants';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { PublicKey } from '@solana/web3.js';
+import { colors, radii, spacing, typography } from '../theme';
+import { ScreenHeader, PrimaryButton, Pill, Icon } from '../components/ui';
 
 interface UmbraDebugScreenProps {
   onBack: () => void;
 }
 
 type RunState = 'idle' | 'running' | 'success' | 'error';
-
 type OpId = 'deposit' | 'withdraw' | 'create-utxo' | 'scan-utxo' | 'claim-utxo';
 
 interface OpState {
@@ -39,7 +43,7 @@ interface OpState {
   signatures?: { label: string; signature: string }[];
 }
 
-const PHASE2_AMOUNT_LAMPORTS = 1_000_000n; // 0.001 SOL — keeps devnet airdrops cheap
+const PHASE2_AMOUNT_LAMPORTS = 1_000_000n;
 const SOL_DISPLAY = '0.001 SOL';
 
 const STEP_LABEL: Record<RegistrationStep, string> = {
@@ -126,8 +130,6 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
     setLogs([]);
     setSignatures([]);
     setErrorMessage(null);
-    // Hard ceiling on registration so a hung SDK promise can't trap the UI.
-    // 90s covers passkey-prompt wait + 3 confirmations on a slow devnet.
     const timeoutMs = 90_000;
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`registration timed out after ${timeoutMs / 1000}s`)), timeoutMs),
@@ -137,8 +139,6 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
         runHelloWorldRegistration(handleProgress),
         timeoutPromise,
       ]);
-      // Sanity check: derived viewing key must match what's on chain. If they
-      // diverge after a fresh registration there is a real SDK regression.
       try {
         const sdk: any = await import('@umbra-privacy/sdk');
         const deriver = sdk.getMasterViewingKeyX25519KeypairDeriver({ client: result.client });
@@ -150,7 +150,6 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
         const match = derived.length === onChainPub.length && derived.every((v, i) => v === onChainPub[i]);
         if (!match) {
           appendLog('⚠ Viewing key mismatch — please reset and re-register');
-          console.warn('[umbra] viewing-key mismatch', { derived, onChain: onChainPub });
         } else {
           appendLog('✓ Viewing key verified on chain');
         }
@@ -163,7 +162,6 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
       appendLog(`Failed · ${detail}`);
       setErrorMessage(detail);
       setRunState('error');
-      console.error('[umbra] registration failed:', err);
     }
   }, [handleProgress, appendLog]);
 
@@ -182,8 +180,6 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
     'scan-utxo': { status: 'idle' },
     'claim-utxo': { status: 'idle' },
   });
-  // Holds the most recent scan results so the claim button can consume them.
-  // Reset whenever scan re-runs.
   const [scannedUtxos, setScannedUtxos] = useState<readonly ScannedUtxoData[]>([]);
 
   const setOp = useCallback((id: OpId, patch: Partial<OpState>) => {
@@ -201,7 +197,6 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
       const detail = unwrapErrorDetail(err);
       setOp(id, { status: 'error', message: detail });
       appendLog(`✗ Failed · ${detail}`);
-      console.error(`[umbra] ${id} failed:`, err);
     }
   }, [appendLog, setOp]);
 
@@ -263,7 +258,6 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
   const handleScanUtxo = useCallback(() => {
     runOp('scan-utxo', async () => {
       const { client } = await getStoredSignerAndClient();
-      // Two short retries cover indexer warmup after a fresh create-utxo.
       let r = await scanClaimableUtxosAcrossTrees({ client, maxTreeIndex: 7 });
       const isEmpty = (rr: typeof r) =>
         rr.selfBurnable.length + rr.received.length + rr.publicSelfBurnable.length + rr.publicReceived.length === 0;
@@ -271,7 +265,6 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
         await new Promise((res) => setTimeout(res, 1500 * attempt));
         r = await scanClaimableUtxosAcrossTrees({ client, maxTreeIndex: 7 });
       }
-
       const utxos: readonly ScannedUtxoData[] = [
         ...r.selfBurnable,
         ...r.received,
@@ -299,8 +292,6 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
         const arr = batchSigs as string[];
         arr.forEach((s, i) => sigs.push({ label: `batch ${batchKey}.${i}`, signature: s }));
       }
-      // Clear the cache so a stale "1 utxo" badge can't tempt a re-claim of
-      // the same nullified leaves.
       setScannedUtxos([]);
       return {
         message: `Claimed ${scannedUtxos.length} receipt(s) into encrypted balance`,
@@ -313,268 +304,297 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
   const phase1Done = runState === 'success' || signerAddress !== null;
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Umbra Privacy</Text>
-        <View style={{ width: 50 }} />
-      </View>
-
-      <Text style={styles.lede}>
-        Test the privacy stack end to end. This screen creates a private account,
-        moves a small amount in and out of an encrypted balance, and claims any
-        private receipts. Make sure the account address below has a tiny bit of
-        SOL for rent — everything else is automatic.
-      </Text>
-
-      <TouchableOpacity
-        style={[styles.primaryButton, isRunning && styles.buttonDisabled]}
-        onPress={handleRun}
-        disabled={isRunning}
-        activeOpacity={0.8}
-      >
-        {isRunning ? (
-          <ActivityIndicator color="#fff" size="small" />
-        ) : (
-          <Text style={styles.primaryButtonText}>
-            {runState === 'idle' ? 'Set up private account' : 'Re-run setup'}
-          </Text>
-        )}
-      </TouchableOpacity>
-
-      {signerAddress && (
-        <View style={styles.signerCard}>
-          <Text style={styles.signerLabel}>Your private account · fund this with a small amount of SOL for rent</Text>
-          <TouchableOpacity
-            onPress={async () => {
-              await Clipboard.setStringAsync(signerAddress);
-            }}
-            activeOpacity={0.6}
-          >
-            <Text style={styles.signerAddress}>{signerAddress}</Text>
-          </TouchableOpacity>
-          <View style={styles.signerActions}>
-            <TouchableOpacity
-              onPress={() => Linking.openURL(getAccountExplorerUrl(signerAddress))}
-              activeOpacity={0.6}
-            >
-              <Text style={styles.linkText}>View on Solscan ↗</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleResetSigner} activeOpacity={0.6} disabled={isRunning}>
-              <Text style={[styles.linkText, styles.linkDanger, isRunning && styles.backDisabled]}>Reset account</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {errorMessage && (
-        <View style={styles.errorCard}>
-          <Text style={styles.errorTitle}>Failed</Text>
-          <Text style={styles.errorBody}>{errorMessage}</Text>
-        </View>
-      )}
-
-      {signatures.length > 0 && (
-        <View style={styles.sigList}>
-          <Text style={styles.sectionTitle}>Transactions</Text>
-          {signatures.map((entry) => (
-            <TouchableOpacity
-              key={entry.signature}
-              style={styles.sigRow}
-              onPress={() => Linking.openURL(getTxExplorerUrl(entry.signature))}
-              activeOpacity={0.6}
-            >
-              <Text style={styles.sigStep}>{STEP_LABEL[entry.step]}</Text>
-              <Text style={styles.sigText}>{shortSig(entry.signature)} ↗</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
-      {phase1Done && (
-        <View style={styles.phase2Block}>
-          <Text style={styles.sectionTitle}>Encrypted operations ({SOL_DISPLAY})</Text>
-          <Text style={styles.phase2Hint}>
-            Each step uses the account above with wrapped SOL. Order:
-            deposit before withdraw; create a private receivable before scanning;
-            scan before claiming.
-          </Text>
-
-          {(['deposit', 'withdraw', 'create-utxo', 'scan-utxo', 'claim-utxo'] as OpId[]).map((id) => {
-            const op = ops[id];
-            const handler =
-              id === 'deposit' ? handleDeposit
-              : id === 'withdraw' ? handleWithdraw
-              : id === 'create-utxo' ? handleCreateUtxo
-              : id === 'scan-utxo' ? handleScanUtxo
-              : handleClaimUtxo;
-            const label =
-              id === 'deposit' ? `Deposit ${SOL_DISPLAY} into encrypted balance`
-              : id === 'withdraw' ? `Withdraw ${SOL_DISPLAY} to public balance`
-              : id === 'create-utxo' ? `Create a private receivable to self`
-              : id === 'scan-utxo' ? `Scan for incoming private receipts`
-              : `Claim ${scannedUtxos.length || '0'} private receipt(s)`;
-            const opRunning = op.status === 'running';
-            return (
-              <View key={id} style={styles.opCard}>
-                <TouchableOpacity
-                  style={[styles.opButton, opRunning && styles.buttonDisabled]}
-                  onPress={handler}
-                  disabled={opRunning || isRunning}
-                  activeOpacity={0.7}
-                >
-                  {opRunning ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <Text style={styles.opButtonText}>{label}</Text>
-                  )}
-                </TouchableOpacity>
-
-                {op.status === 'success' && op.message && (
-                  <Text style={styles.opSuccess}>{op.message}</Text>
-                )}
-                {op.status === 'error' && op.message && (
-                  <Text style={styles.opError}>{op.message}</Text>
-                )}
-                {op.signatures?.map((s) => (
-                  <TouchableOpacity
-                    key={s.signature}
-                    onPress={() => Linking.openURL(getTxExplorerUrl(s.signature))}
-                    activeOpacity={0.6}
-                    style={styles.opSigRow}
-                  >
-                    <Text style={styles.opSigLabel}>{s.label}</Text>
-                    <Text style={styles.opSigText}>{shortSig(s.signature)} ↗</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            );
-          })}
-        </View>
-      )}
-
-      <Text style={styles.sectionTitle}>Log</Text>
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
+      <ScreenHeader title="Privacy Setup" onClose={onBack} />
       <ScrollView
-        ref={scrollRef}
-        style={styles.logBox}
-        nestedScrollEnabled
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        {logs.length === 0 ? (
-          <Text style={styles.logEmpty}>No output yet — tap the button above.</Text>
-        ) : (
-          logs.map((line, idx) => (
-            <Text key={idx} style={styles.logLine}>{line}</Text>
-          ))
+        <Text style={styles.lede}>
+          Test the privacy stack end to end. This screen creates a private account, moves a small
+          amount in and out of an encrypted balance, and claims any private receipts. Make sure the
+          account address below has a tiny bit of SOL for rent — everything else is automatic.
+        </Text>
+
+        <PrimaryButton
+          label={runState === 'idle' ? 'Set up private account' : 'Re-run setup'}
+          onPress={handleRun}
+          loading={isRunning}
+          fullWidth
+          icon={<Icon name="lock" size={18} color={colors.white} />}
+          style={{ marginBottom: spacing.xl }}
+        />
+
+        {signerAddress && (
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>Your private account</Text>
+            <Text style={styles.cardHint}>Fund this with a small amount of SOL for rent</Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => Clipboard.setStringAsync(signerAddress)}
+            >
+              <Text style={styles.signerAddress}>{signerAddress}</Text>
+            </TouchableOpacity>
+            <View style={styles.linkRow}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => Linking.openURL(getAccountExplorerUrl(signerAddress))}
+              >
+                <Text style={styles.link}>View on Solscan ↗</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={handleResetSigner}
+                disabled={isRunning}
+              >
+                <Text style={[styles.link, { color: colors.dangerText }]}>Reset account</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         )}
+
+        {errorMessage && (
+          <View style={styles.errorCard}>
+            <Pill label="Failed" variant="danger" />
+            <Text style={styles.errorBody}>{errorMessage}</Text>
+          </View>
+        )}
+
+        {signatures.length > 0 && (
+          <View style={styles.sigList}>
+            <Text style={styles.sectionTitle}>Transactions</Text>
+            {signatures.map((entry) => (
+              <TouchableOpacity
+                key={entry.signature}
+                style={styles.sigRow}
+                onPress={() => Linking.openURL(getTxExplorerUrl(entry.signature))}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.sigStep}>{STEP_LABEL[entry.step]}</Text>
+                <Text style={styles.sigText}>{shortSig(entry.signature)} ↗</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {phase1Done && (
+          <View style={styles.phase2Block}>
+            <Text style={styles.sectionTitle}>Encrypted operations · {SOL_DISPLAY}</Text>
+            <Text style={styles.phase2Hint}>
+              Each step uses the account above with wrapped SOL. Order: deposit before withdraw;
+              create a private receivable before scanning; scan before claiming.
+            </Text>
+
+            {(['deposit', 'withdraw', 'create-utxo', 'scan-utxo', 'claim-utxo'] as OpId[]).map((id) => {
+              const op = ops[id];
+              const handler =
+                id === 'deposit' ? handleDeposit
+                : id === 'withdraw' ? handleWithdraw
+                : id === 'create-utxo' ? handleCreateUtxo
+                : id === 'scan-utxo' ? handleScanUtxo
+                : handleClaimUtxo;
+              const label =
+                id === 'deposit' ? `Deposit ${SOL_DISPLAY} into encrypted balance`
+                : id === 'withdraw' ? `Withdraw ${SOL_DISPLAY} to public balance`
+                : id === 'create-utxo' ? `Create a private receivable to self`
+                : id === 'scan-utxo' ? `Scan for incoming private receipts`
+                : `Claim ${scannedUtxos.length || '0'} private receipt(s)`;
+              const opRunning = op.status === 'running';
+              return (
+                <View key={id} style={styles.opCard}>
+                  <PrimaryButton
+                    label={label}
+                    onPress={handler}
+                    loading={opRunning}
+                    disabled={isRunning}
+                    fullWidth
+                    variant="secondary"
+                  />
+                  {op.status === 'success' && op.message && (
+                    <Text style={styles.opSuccess}>✓ {op.message}</Text>
+                  )}
+                  {op.status === 'error' && op.message && (
+                    <Text style={styles.opError}>{op.message}</Text>
+                  )}
+                  {op.signatures?.map((s) => (
+                    <TouchableOpacity
+                      key={s.signature}
+                      onPress={() => Linking.openURL(getTxExplorerUrl(s.signature))}
+                      activeOpacity={0.7}
+                      style={styles.opSigRow}
+                    >
+                      <Text style={styles.opSigLabel}>{s.label}</Text>
+                      <Text style={styles.opSigText}>{shortSig(s.signature)} ↗</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        <Text style={styles.sectionTitle}>Activity log</Text>
+        <View style={styles.logBox}>
+          {logs.length === 0 ? (
+            <Text style={styles.logEmpty}>No output yet — tap the button above.</Text>
+          ) : (
+            logs.map((line, idx) => (
+              <Text key={idx} style={styles.logLine}>{line}</Text>
+            ))
+          )}
+        </View>
       </ScrollView>
-    </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  content: { padding: 24, paddingTop: 60, paddingBottom: 80 },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
+  safe: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1 },
+  content: {
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xxxl * 2,
   },
-  backText: { fontSize: 16, color: '#666' },
-  backDisabled: { opacity: 0.4 },
-  headerTitle: { fontSize: 24, fontWeight: '700', color: '#000' },
   lede: {
+    ...typography.body,
+    color: colors.textMuted,
+    fontSize: 14,
+    lineHeight: 21,
+    marginBottom: spacing.xl,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  cardLabel: {
     fontSize: 13,
-    color: '#555',
-    marginBottom: 20,
+    fontWeight: '600' as const,
+    color: colors.text,
+    marginBottom: 2,
+  },
+  cardHint: {
+    ...typography.caption,
+    fontSize: 12,
+    marginBottom: spacing.sm,
+  },
+  signerAddress: {
+    fontSize: 13,
+    color: colors.text,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
     lineHeight: 19,
   },
-  primaryButton: {
-    backgroundColor: '#000',
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 20,
+  linkRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
   },
-  buttonDisabled: { opacity: 0.5 },
-  primaryButtonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  signerCard: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
+  link: {
+    fontSize: 13,
+    color: colors.accent,
+    fontWeight: '600' as const,
   },
-  signerLabel: { fontSize: 12, color: '#666', marginBottom: 6, fontWeight: '600' },
-  signerAddress: { fontSize: 13, color: '#000', fontFamily: 'Menlo' },
-  signerActions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-  linkText: { fontSize: 12, color: '#7c3aed' },
-  linkDanger: { color: '#c00' },
   errorCard: {
-    backgroundColor: '#fff5f5',
-    borderColor: '#fad4d4',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
+    backgroundColor: colors.dangerBg,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
   },
-  errorTitle: { fontSize: 13, color: '#c00', fontWeight: '700', marginBottom: 4 },
-  errorBody: { fontSize: 12, color: '#700', fontFamily: 'Menlo', lineHeight: 17 },
-  sigList: { marginBottom: 20 },
-  sectionTitle: { fontSize: 14, fontWeight: '600', color: '#000', marginBottom: 10 },
+  errorBody: {
+    fontSize: 12,
+    color: colors.dangerText,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
+    lineHeight: 17,
+  },
+  sigList: { marginBottom: spacing.xl },
+  sectionTitle: {
+    ...typography.heading,
+    marginBottom: spacing.md,
+  },
   sigRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.border,
   },
-  sigStep: { fontSize: 13, color: '#333', flex: 1 },
-  sigText: { fontSize: 12, color: '#7c3aed', fontFamily: 'Menlo' },
+  sigStep: {
+    fontSize: 13,
+    color: colors.text,
+    flex: 1,
+  },
+  sigText: {
+    fontSize: 12,
+    color: colors.accent,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
+  },
   logBox: {
-    backgroundColor: '#0e0e0e',
-    borderRadius: 10,
-    padding: 12,
-    maxHeight: 280,
+    backgroundColor: '#0E0E0E',
+    borderRadius: radii.md,
+    padding: spacing.md,
     minHeight: 140,
   },
-  logEmpty: { color: '#777', fontSize: 12, fontFamily: 'Menlo' },
-  logLine: { color: '#9af09a', fontSize: 11, fontFamily: 'Menlo', lineHeight: 16 },
+  logEmpty: {
+    color: '#666',
+    fontSize: 12,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
+  },
+  logLine: {
+    color: '#9af09a',
+    fontSize: 11,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
+    lineHeight: 16,
+  },
   phase2Block: {
-    marginTop: 8,
-    marginBottom: 24,
-    paddingTop: 16,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xl,
+    paddingTop: spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: colors.border,
   },
-  phase2Hint: { fontSize: 12, color: '#666', marginBottom: 14, lineHeight: 17 },
+  phase2Hint: {
+    ...typography.caption,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: spacing.lg,
+  },
   opCard: {
-    backgroundColor: '#fafafa',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
   },
-  opButton: {
-    backgroundColor: '#222',
-    paddingVertical: 11,
-    borderRadius: 8,
-    alignItems: 'center',
+  opSuccess: {
+    fontSize: 12,
+    color: colors.successText,
+    marginTop: spacing.sm,
+    fontWeight: '500' as const,
   },
-  opButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  opSuccess: { fontSize: 12, color: '#0a7c2f', marginTop: 8 },
-  opError: { fontSize: 12, color: '#c00', marginTop: 8, fontFamily: 'Menlo' },
+  opError: {
+    fontSize: 12,
+    color: colors.dangerText,
+    marginTop: spacing.sm,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
+  },
   opSigRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 6,
     marginTop: 4,
   },
-  opSigLabel: { fontSize: 11, color: '#555' },
-  opSigText: { fontSize: 11, color: '#7c3aed', fontFamily: 'Menlo' },
+  opSigLabel: {
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  opSigText: {
+    fontSize: 11,
+    color: colors.accent,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
+  },
 });

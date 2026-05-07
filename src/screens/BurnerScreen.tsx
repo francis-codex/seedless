@@ -13,6 +13,8 @@ import {
     RefreshControl,
     KeyboardAvoidingView,
     Platform,
+    SafeAreaView,
+    StatusBar,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
@@ -36,6 +38,8 @@ import {
 } from '../umbra/burner-bridge';
 import { isValidSolanaAddress, getTxExplorerUrl, UMBRA_FEATURE_ENABLED } from '../constants';
 import * as Linking from 'expo-linking';
+import { colors, radii, spacing, typography } from '../theme';
+import { ScreenHeader, PrimaryButton, Pill, Icon } from '../components/ui';
 
 interface BurnerScreenProps {
     onBack: () => void;
@@ -52,18 +56,15 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
 
-    // Create modal
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newBurnerLabel, setNewBurnerLabel] = useState('');
 
-    // Send modal
     const [showSendModal, setShowSendModal] = useState(false);
     const [selectedBurner, setSelectedBurner] = useState<BurnerWalletWithBalance | null>(null);
     const [sendRecipient, setSendRecipient] = useState('');
     const [sendAmount, setSendAmount] = useState('');
     const [isSending, setIsSending] = useState(false);
 
-    // Private (Umbra) send modal
     const [showPrivateSendModal, setShowPrivateSendModal] = useState(false);
     const [privateRecipient, setPrivateRecipient] = useState('');
     const [privateAmount, setPrivateAmount] = useState('');
@@ -206,11 +207,9 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
             Alert.alert('Limit exceeded', `Max is ${BURNER_LIMITS.MAX_SEND_SOL} SOL`);
             return;
         }
-        // Reserve a bigger buffer than a regular send: register (2 txs) +
-        // create-utxo can land 3 fees if the burner isn't registered yet.
         const balanceLamports = Math.floor(selectedBurner.balance * LAMPORTS_PER_SOL);
         const amountLamports = Math.round(amount * LAMPORTS_PER_SOL);
-        const feeReserve = 30000; // ~6x base fee — covers registration + create
+        const feeReserve = 30000;
         if (amountLamports > balanceLamports - feeReserve) {
             Alert.alert(
                 'Not enough SOL',
@@ -252,13 +251,9 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
             );
             const sig = result.createSignature ?? result.fallbackSignature ?? null;
             setPrivateResultSig(sig);
-            // Refresh balances + re-pin selectedBurner to the fresh row so a
-            // follow-up send sees the post-transfer balance, not the stale one.
             const updated = await loadBurners();
             const refreshed = updated.find((b) => b.id === selectedBurner.id);
             if (refreshed) setSelectedBurner(refreshed);
-            // Clear the amount so a double-tap can't accidentally re-send the
-            // same value against a now-smaller balance.
             setPrivateAmount('');
             const modeLabel = result.mode === 'umbra-encrypted'
                 ? 'Sent privately — amount and sender hidden'
@@ -274,16 +269,12 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                     : [{ text: 'OK', style: 'cancel' }],
             );
         } catch (err: any) {
-            // User declined the privacy-degradation prompt — treat as a clean
-            // cancel, not an error. Reset progress so the modal doesn't sit on
-            // a stale "Checking…" line.
             if (err instanceof PrivateSendDegradationDeclined) {
                 setPrivateProgress(null);
                 return;
             }
             console.error('Private send failed:', err);
             const raw = String(err?.message ?? 'Private send failed');
-            // Map the raw on-chain dump to something a human can act on.
             const insufficient = raw.match(/insufficient lamports\s+(\d+),\s*need\s+(\d+)/i);
             const friendly = insufficient
                 ? (() => {
@@ -334,119 +325,125 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
 
     if (isLoading) {
         return (
-            <View style={styles.loading}>
-                <ActivityIndicator size="large" color="#000" />
-                <Text style={styles.loadingText}>Loading burner wallets...</Text>
-            </View>
+            <SafeAreaView style={styles.safe}>
+                <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
+                <ScreenHeader title="Burners" onClose={onBack} />
+                <View style={styles.loadingBody}>
+                    <ActivityIndicator size="large" color={colors.text} />
+                    <Text style={styles.loadingText}>Loading burner wallets...</Text>
+                </View>
+            </SafeAreaView>
         );
     }
 
     return (
-        <ScrollView
-            style={styles.container}
-            contentContainerStyle={styles.content}
-            refreshControl={
-                <RefreshControl
-                    refreshing={isRefreshing}
-                    onRefresh={handleRefresh}
-                    tintColor="#000"
-                    colors={['#000']}
-                    title="Refreshing..."
-                    titleColor="#666"
+        <SafeAreaView style={styles.safe}>
+            <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
+            <ScreenHeader title="Burners" onClose={onBack} />
+            <ScrollView
+                style={styles.container}
+                contentContainerStyle={styles.content}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={isRefreshing}
+                        onRefresh={handleRefresh}
+                        tintColor={colors.text}
+                    />
+                }
+            >
+                <View style={styles.warningCard}>
+                    <View style={styles.warningHead}>
+                        <Icon name="lightning" size={18} color={colors.warningText} />
+                        <Text style={styles.warningTitle}>Isolated wallets</Text>
+                    </View>
+                    <Text style={styles.warningText}>
+                        Burner wallets are completely separate identities with no on-chain link to your main
+                        wallet. They require SOL for gas fees.
+                    </Text>
+                    <Text style={styles.warningNote}>
+                        For true privacy, fund from an external source — not your main wallet.
+                    </Text>
+                </View>
+
+                <PrimaryButton
+                    label="New burner wallet"
+                    onPress={() => setShowCreateModal(true)}
+                    fullWidth
+                    icon={<Icon name="plus" size={18} color={colors.white} />}
+                    style={{ marginBottom: spacing.xxl }}
                 />
-            }
-        >
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={onBack}>
-                    <Text style={styles.backText}>Back</Text>
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Burners</Text>
-                <TouchableOpacity onPress={handleRefresh} disabled={isRefreshing} style={styles.refreshIcon}>
-                    {isRefreshing ? (
-                        <ActivityIndicator size="small" color="#000" />
-                    ) : (
-                        <Text style={styles.refreshIconText}>↻</Text>
-                    )}
-                </TouchableOpacity>
-            </View>
 
-            {/* Warning Card */}
-            <View style={styles.warningCard}>
-                <Text style={styles.warningTitle}>Isolated Wallets</Text>
-                <Text style={styles.warningText}>
-                    Burner wallets are completely separate identities with no on-chain link to your main
-                    wallet. They require SOL for gas fees.
-                </Text>
-                <Text style={styles.warningNote}>
-                    For true privacy, fund from an external source (not your main wallet).
-                </Text>
-            </View>
-
-            {/* Create Button */}
-            <TouchableOpacity style={styles.createButton} onPress={() => setShowCreateModal(true)}>
-                <Text style={styles.createButtonText}>New Burner Wallet</Text>
-                <Text style={styles.createButtonSub}>Create a disposable identity</Text>
-            </TouchableOpacity>
-
-            {/* Burner List */}
-            <View style={styles.burnerList}>
-                <Text style={styles.sectionTitle}>Your Burners ({burners.length})</Text>
+                <View style={styles.listHeader}>
+                    <Text style={styles.sectionTitle}>Your burners</Text>
+                    <Pill label={`${burners.length}`} variant="neutral" />
+                </View>
 
                 {burners.length === 0 ? (
-                    <Text style={styles.emptyText}>No burner wallets yet. Create one above.</Text>
+                    <View style={styles.emptyCard}>
+                        <Text style={styles.emptyText}>No burner wallets yet. Create one above.</Text>
+                    </View>
                 ) : (
                     burners.map((burner) => (
                         <View key={burner.id} style={styles.burnerItem}>
                             <View style={styles.burnerHeader}>
                                 <Text style={styles.burnerLabel}>{burner.label}</Text>
-                                <Text style={styles.burnerBalance}>{burner.balance.toFixed(4)} SOL</Text>
+                                <Pill
+                                    label={`${burner.balance.toFixed(4)} SOL`}
+                                    variant={burner.balance > 0 ? 'success' : 'neutral'}
+                                />
                             </View>
 
-                            <TouchableOpacity onPress={() => copyAddress(burner.publicKey)}>
+                            <TouchableOpacity onPress={() => copyAddress(burner.publicKey)} activeOpacity={0.7}>
                                 <Text style={styles.burnerAddress}>{shortenAddress(burner.publicKey)}</Text>
                             </TouchableOpacity>
 
                             <View style={styles.burnerActions}>
                                 <TouchableOpacity
-                                    style={[styles.actionButton, styles.sendButton]}
+                                    style={[styles.actionBtn, styles.sendBtn]}
                                     onPress={() => handleOpenSend(burner)}
                                     disabled={burner.balance === 0}
+                                    activeOpacity={0.7}
                                 >
-                                    <Text style={styles.actionButtonText}>Send</Text>
+                                    <Icon name="send" size={16} color={burner.balance === 0 ? colors.textSubtle : colors.white} />
+                                    <Text style={[styles.actionBtnText, burner.balance === 0 && { color: colors.textSubtle }]}>Send</Text>
                                 </TouchableOpacity>
 
-                                <TouchableOpacity style={styles.actionButton} onPress={() => copyAddress(burner.publicKey)}>
-                                    <Text style={styles.actionButtonTextDark}>Receive</Text>
+                                <TouchableOpacity style={styles.actionBtn} onPress={() => copyAddress(burner.publicKey)} activeOpacity={0.7}>
+                                    <Icon name="copy" size={16} color={colors.text} />
+                                    <Text style={styles.actionBtnTextDark}>Receive</Text>
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
-                                    style={[styles.actionButton, styles.destroyButton]}
+                                    style={[styles.actionBtn, styles.destroyBtn]}
                                     onPress={() => handleDestroy(burner)}
+                                    activeOpacity={0.7}
                                 >
-                                    <Text style={styles.destroyButtonText}>Destroy</Text>
+                                    <Icon name="close" size={16} color={colors.dangerText} />
+                                    <Text style={styles.destroyBtnText}>Destroy</Text>
                                 </TouchableOpacity>
                             </View>
 
                             {UMBRA_FEATURE_ENABLED && (
                                 <TouchableOpacity
-                                    style={[styles.privateSendButton, burner.balance === 0 && styles.buttonDisabled]}
+                                    style={[styles.privateSendBtn, burner.balance === 0 && { opacity: 0.4 }]}
                                     onPress={() => handleOpenPrivateSend(burner)}
                                     disabled={burner.balance === 0}
+                                    activeOpacity={0.85}
                                 >
-                                    <Text style={styles.privateSendText}>Private Send (Umbra)</Text>
+                                    <Icon name="lock" size={16} color="#9af09a" />
+                                    <Text style={styles.privateSendText}>Private send via Umbra</Text>
                                 </TouchableOpacity>
                             )}
                         </View>
                     ))
                 )}
-            </View>
 
-            {/* Limits Info */}
-            <View style={styles.limitsCard}>
-                <Text style={styles.limitsTitle}>Limits</Text>
-                <Text style={styles.limitsText}>Max per transaction: {BURNER_LIMITS.MAX_SEND_SOL} SOL</Text>
-            </View>
+                <View style={styles.limitsCard}>
+                    <Text style={styles.limitsTitle}>Limits</Text>
+                    <Text style={styles.limitsText}>Max per transaction: {BURNER_LIMITS.MAX_SEND_SOL} SOL</Text>
+                </View>
+            </ScrollView>
 
             {/* Create Modal */}
             <Modal visible={showCreateModal} animationType="slide" transparent onRequestClose={() => setShowCreateModal(false)}>
@@ -456,31 +453,27 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     >
                         <TouchableWithoutFeedback onPress={() => {}}>
-                            <View style={styles.modalContent}>
-                                <Text style={styles.modalTitle}>Create Burner</Text>
+                            <View style={styles.sheet}>
+                                <View style={styles.sheetHandle} />
+                                <Text style={styles.sheetTitle}>Create burner</Text>
 
                                 <TextInput
                                     style={styles.modalInput}
-                                    placeholder="Label (e.g., Trading, Airdrop)"
-                                    placeholderTextColor="#999"
+                                    placeholder="Label (e.g. Trading, Airdrop)"
+                                    placeholderTextColor={colors.textSubtle}
                                     value={newBurnerLabel}
                                     onChangeText={setNewBurnerLabel}
                                 />
 
-                                <TouchableOpacity
-                                    style={[styles.modalButton, isCreating && styles.buttonDisabled]}
+                                <PrimaryButton
+                                    label={isCreating ? 'Creating...' : 'Create'}
                                     onPress={handleCreateBurner}
-                                    disabled={isCreating}
-                                >
-                                    {isCreating ? (
-                                        <ActivityIndicator size="small" color="#fff" />
-                                    ) : (
-                                        <Text style={styles.modalButtonText}>Create</Text>
-                                    )}
-                                </TouchableOpacity>
+                                    loading={isCreating}
+                                    fullWidth
+                                />
 
-                                <TouchableOpacity style={styles.closeButton} onPress={() => setShowCreateModal(false)}>
-                                    <Text style={styles.closeButtonText}>Cancel</Text>
+                                <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowCreateModal(false)} activeOpacity={0.7}>
+                                    <Text style={styles.cancelText}>Cancel</Text>
                                 </TouchableOpacity>
                             </View>
                         </TouchableWithoutFeedback>
@@ -496,15 +489,16 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     >
                         <TouchableWithoutFeedback onPress={() => {}}>
-                            <View style={styles.modalContent}>
-                                <Text style={styles.modalTitle}>Send from Burner</Text>
-                                <Text style={styles.modalSubtitle}>{selectedBurner?.label}</Text>
-                                <Text style={styles.modalBalance}>Balance: {selectedBurner?.balance.toFixed(4)} SOL</Text>
+                            <View style={styles.sheet}>
+                                <View style={styles.sheetHandle} />
+                                <Text style={styles.sheetTitle}>Send from burner</Text>
+                                <Text style={styles.sheetSub}>{selectedBurner?.label}</Text>
+                                <Text style={styles.sheetBalance}>{selectedBurner?.balance.toFixed(4)} SOL</Text>
 
                                 <TextInput
                                     style={styles.modalInput}
                                     placeholder="Recipient address"
-                                    placeholderTextColor="#999"
+                                    placeholderTextColor={colors.textSubtle}
                                     value={sendRecipient}
                                     onChangeText={setSendRecipient}
                                     autoCapitalize="none"
@@ -512,47 +506,46 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
 
                                 <View style={styles.amountRow}>
                                     <TextInput
-                                        style={[styles.modalInput, styles.amountInput]}
+                                        style={[styles.modalInput, { flex: 1, marginBottom: 0 }]}
                                         placeholder={`Amount (max ${BURNER_LIMITS.MAX_SEND_SOL} SOL)`}
-                                        placeholderTextColor="#999"
+                                        placeholderTextColor={colors.textSubtle}
                                         value={sendAmount}
                                         onChangeText={setSendAmount}
                                         keyboardType="decimal-pad"
                                     />
                                     <TouchableOpacity
-                                        style={styles.maxButton}
+                                        style={styles.maxBtn}
                                         onPress={() => {
                                             if (!selectedBurner) return;
                                             const balanceLamports = Math.floor(selectedBurner.balance * LAMPORTS_PER_SOL);
                                             const maxLamports = Math.max(0, balanceLamports - BURNER_FEE_LAMPORTS);
                                             setSendAmount((maxLamports / LAMPORTS_PER_SOL).toFixed(9));
                                         }}
+                                        activeOpacity={0.7}
                                     >
-                                        <Text style={styles.maxButtonText}>Max</Text>
+                                        <Text style={styles.maxBtnText}>Max</Text>
                                     </TouchableOpacity>
                                 </View>
 
-                                <TouchableOpacity
-                                    style={[styles.modalButton, isSending && styles.buttonDisabled]}
-                                    onPress={handleSend}
-                                    disabled={isSending}
-                                >
-                                    {isSending ? (
-                                        <ActivityIndicator size="small" color="#fff" />
-                                    ) : (
-                                        <Text style={styles.modalButtonText}>Send</Text>
-                                    )}
-                                </TouchableOpacity>
+                                <View style={{ marginTop: spacing.lg }}>
+                                    <PrimaryButton
+                                        label={isSending ? 'Sending...' : 'Send'}
+                                        onPress={handleSend}
+                                        loading={isSending}
+                                        fullWidth
+                                    />
+                                </View>
 
-                                <TouchableOpacity style={styles.closeButton} onPress={() => setShowSendModal(false)}>
-                                    <Text style={styles.closeButtonText}>Cancel</Text>
+                                <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowSendModal(false)} activeOpacity={0.7}>
+                                    <Text style={styles.cancelText}>Cancel</Text>
                                 </TouchableOpacity>
                             </View>
                         </TouchableWithoutFeedback>
                     </KeyboardAvoidingView>
                 </TouchableWithoutFeedback>
             </Modal>
-            {/* Private Send (Umbra) Modal */}
+
+            {/* Private Send Modal */}
             <Modal
                 visible={showPrivateSendModal}
                 animationType="slide"
@@ -565,10 +558,14 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     >
                         <TouchableWithoutFeedback onPress={() => {}}>
-                            <View style={styles.modalContent}>
-                                <Text style={styles.modalTitle}>Private Send</Text>
-                                <Text style={styles.modalSubtitle}>{selectedBurner?.label} → encrypted UTXO</Text>
-                                <Text style={styles.modalBalance}>Balance: {selectedBurner?.balance.toFixed(4)} SOL</Text>
+                            <View style={styles.sheet}>
+                                <View style={styles.sheetHandle} />
+                                <View style={styles.privateBadgeRow}>
+                                    <Icon name="lock" size={16} color={colors.text} />
+                                    <Text style={styles.sheetTitle}>Private send</Text>
+                                </View>
+                                <Text style={styles.sheetSub}>{selectedBurner?.label} → encrypted UTXO</Text>
+                                <Text style={styles.sheetBalance}>{selectedBurner?.balance.toFixed(4)} SOL</Text>
                                 <Text style={styles.privateHint}>
                                     On-chain link between burner and recipient is broken. Recipient claims into their
                                     encrypted balance with their passkey. Devnet uses WSOL (auto-wrapped). First send
@@ -578,7 +575,7 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                                 <TextInput
                                     style={styles.modalInput}
                                     placeholder="Recipient address (Solana)"
-                                    placeholderTextColor="#999"
+                                    placeholderTextColor={colors.textSubtle}
                                     value={privateRecipient}
                                     onChangeText={setPrivateRecipient}
                                     autoCapitalize="none"
@@ -587,16 +584,16 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
 
                                 <View style={styles.amountRow}>
                                     <TextInput
-                                        style={[styles.modalInput, styles.amountInput]}
+                                        style={[styles.modalInput, { flex: 1, marginBottom: 0 }]}
                                         placeholder={`Amount (max ${BURNER_LIMITS.MAX_SEND_SOL} SOL)`}
-                                        placeholderTextColor="#999"
+                                        placeholderTextColor={colors.textSubtle}
                                         value={privateAmount}
                                         onChangeText={setPrivateAmount}
                                         keyboardType="decimal-pad"
                                         editable={!isPrivateSending}
                                     />
                                     <TouchableOpacity
-                                        style={styles.maxButton}
+                                        style={styles.maxBtn}
                                         onPress={() => {
                                             if (!selectedBurner) return;
                                             const balanceLamports = Math.floor(selectedBurner.balance * LAMPORTS_PER_SOL);
@@ -604,14 +601,15 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                                             setPrivateAmount((maxLamports / LAMPORTS_PER_SOL).toFixed(9));
                                         }}
                                         disabled={isPrivateSending}
+                                        activeOpacity={0.7}
                                     >
-                                        <Text style={styles.maxButtonText}>Max</Text>
+                                        <Text style={styles.maxBtnText}>Max</Text>
                                     </TouchableOpacity>
                                 </View>
 
                                 {privateProgress && (
-                                    <View style={styles.privateProgressBox}>
-                                        <Text style={styles.privateProgressTitle}>
+                                    <View style={styles.progressBox}>
+                                        <Text style={styles.progressTitle}>
                                             {privateProgress.stage === 'preparing' && 'Getting ready…'}
                                             {privateProgress.stage === 'checking-recipient' && 'Checking if recipient supports private receiving…'}
                                             {privateProgress.stage === 'registering-burner' && 'Setting up your private account (one-time)…'}
@@ -626,7 +624,7 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                                         </Text>
                                         {privateProgress.signature && (
                                             <TouchableOpacity onPress={() => Linking.openURL(getTxExplorerUrl(privateProgress.signature!))}>
-                                                <Text style={styles.privateProgressSig}>{privateProgress.signature.slice(0, 12)}…{privateProgress.signature.slice(-8)} ↗</Text>
+                                                <Text style={styles.progressSig}>{privateProgress.signature.slice(0, 12)}…{privateProgress.signature.slice(-8)} ↗</Text>
                                             </TouchableOpacity>
                                         )}
                                     </View>
@@ -634,343 +632,318 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
 
                                 {privateResultSig && (
                                     <TouchableOpacity
-                                        style={styles.privateResultRow}
+                                        style={styles.resultRow}
                                         onPress={() => Linking.openURL(getTxExplorerUrl(privateResultSig))}
+                                        activeOpacity={0.7}
                                     >
-                                        <Text style={styles.privateResultLabel}>
+                                        <Text style={styles.resultLabel}>
                                             {privateProgress?.mode === 'burner-fallback' ? 'Transfer' : 'Private transfer'}
                                         </Text>
-                                        <Text style={styles.privateResultSig}>{privateResultSig.slice(0, 12)}…{privateResultSig.slice(-8)} ↗</Text>
+                                        <Text style={styles.resultSig}>{privateResultSig.slice(0, 12)}…{privateResultSig.slice(-8)} ↗</Text>
                                     </TouchableOpacity>
                                 )}
 
-                                <TouchableOpacity
-                                    style={[styles.modalButton, isPrivateSending && styles.buttonDisabled]}
-                                    onPress={handlePrivateSend}
-                                    disabled={isPrivateSending}
-                                >
-                                    {isPrivateSending ? (
-                                        <ActivityIndicator size="small" color="#fff" />
-                                    ) : (
-                                        <Text style={styles.modalButtonText}>Send Privately</Text>
-                                    )}
-                                </TouchableOpacity>
+                                <View style={{ marginTop: spacing.lg }}>
+                                    <PrimaryButton
+                                        label={isPrivateSending ? 'Sending privately...' : 'Send privately'}
+                                        onPress={handlePrivateSend}
+                                        loading={isPrivateSending}
+                                        fullWidth
+                                    />
+                                </View>
 
                                 <TouchableOpacity
-                                    style={styles.closeButton}
+                                    style={styles.cancelBtn}
                                     onPress={() => setShowPrivateSendModal(false)}
                                     disabled={isPrivateSending}
+                                    activeOpacity={0.7}
                                 >
-                                    <Text style={styles.closeButtonText}>{privateResultSig ? 'Done' : 'Cancel'}</Text>
+                                    <Text style={styles.cancelText}>{privateResultSig ? 'Done' : 'Cancel'}</Text>
                                 </TouchableOpacity>
                             </View>
                         </TouchableWithoutFeedback>
                     </KeyboardAvoidingView>
                 </TouchableWithoutFeedback>
             </Modal>
-        </ScrollView>
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#fff',
-    },
+    safe: { flex: 1, backgroundColor: colors.bg },
+    container: { flex: 1 },
     content: {
-        padding: 24,
-        paddingTop: 60,
+        paddingHorizontal: spacing.xl,
+        paddingBottom: spacing.xxxl * 2,
     },
-    loading: {
+    loadingBody: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#fff',
+        gap: spacing.md,
     },
     loadingText: {
-        marginTop: 16,
-        fontSize: 16,
-        color: '#666',
+        ...typography.caption,
     },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 24,
-    },
-    backText: {
-        fontSize: 16,
-        color: '#666',
-    },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#000',
-    },
-    refreshIcon: {
-        width: 40,
-        alignItems: 'flex-end',
-    },
-    refreshIconText: {
-        fontSize: 22,
-        color: '#000',
-    },
+
     warningCard: {
-        backgroundColor: '#fef2f2',
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 16,
+        backgroundColor: colors.warningBg,
+        borderRadius: radii.lg,
+        padding: spacing.lg,
+        marginBottom: spacing.lg,
+    },
+    warningHead: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        marginBottom: spacing.sm,
     },
     warningTitle: {
         fontSize: 16,
-        fontWeight: '600',
-        color: '#b91c1c',
-        marginBottom: 8,
+        fontWeight: '600' as const,
+        color: colors.warningText,
     },
     warningText: {
         fontSize: 14,
-        color: '#7f1d1d',
+        color: '#7C5611',
         lineHeight: 20,
-        marginBottom: 8,
+        marginBottom: 6,
     },
     warningNote: {
         fontSize: 13,
-        color: '#991b1b',
+        color: '#7C5611',
         fontStyle: 'italic',
     },
-    createButton: {
-        backgroundColor: '#000',
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 24,
-    },
-    createButtonText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#fff',
-    },
-    createButtonSub: {
-        fontSize: 13,
-        color: '#999',
-        marginTop: 4,
-    },
-    burnerList: {
-        marginBottom: 24,
+
+    listHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: spacing.md,
     },
     sectionTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#000',
-        marginBottom: 12,
+        ...typography.heading,
+    },
+    emptyCard: {
+        backgroundColor: colors.surface,
+        borderRadius: radii.md,
+        padding: spacing.xl,
+        alignItems: 'center',
     },
     emptyText: {
-        fontSize: 14,
-        color: '#999',
-        fontStyle: 'italic',
+        ...typography.caption,
     },
+
     burnerItem: {
-        backgroundColor: '#fafafa',
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 12,
+        backgroundColor: colors.surface,
+        borderRadius: radii.lg,
+        padding: spacing.lg,
+        marginBottom: spacing.md,
     },
     burnerHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 8,
+        marginBottom: spacing.sm,
     },
     burnerLabel: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#000',
-    },
-    burnerBalance: {
-        fontSize: 15,
-        fontWeight: '500',
-        color: '#22c55e',
+        ...typography.heading,
     },
     burnerAddress: {
-        fontSize: 14,
-        color: '#666',
-        marginBottom: 12,
+        fontSize: 13,
+        color: colors.textMuted,
+        marginBottom: spacing.md,
+        fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
     },
     burnerActions: {
         flexDirection: 'row',
-        gap: 8,
+        gap: spacing.sm,
     },
-    actionButton: {
+    actionBtn: {
         flex: 1,
-        paddingVertical: 10,
-        borderRadius: 8,
+        flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#f0f0f0',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: spacing.md,
+        borderRadius: radii.sm,
+        backgroundColor: colors.bg,
     },
-    sendButton: {
-        backgroundColor: '#000',
+    sendBtn: {
+        backgroundColor: colors.text,
     },
-    actionButtonText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#fff',
+    actionBtnText: {
+        fontSize: 13,
+        fontWeight: '600' as const,
+        color: colors.white,
     },
-    actionButtonTextDark: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#000',
+    actionBtnTextDark: {
+        fontSize: 13,
+        fontWeight: '600' as const,
+        color: colors.text,
     },
-    destroyButton: {
-        backgroundColor: '#fee2e2',
+    destroyBtn: {
+        backgroundColor: colors.dangerBg,
     },
-    destroyButtonText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#dc2626',
+    destroyBtnText: {
+        fontSize: 13,
+        fontWeight: '600' as const,
+        color: colors.dangerText,
     },
-    privateSendButton: {
-        marginTop: 10,
-        backgroundColor: '#0e0e0e',
-        borderRadius: 10,
-        paddingVertical: 11,
+    privateSendBtn: {
+        marginTop: spacing.sm,
+        flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        backgroundColor: '#0E0E0E',
+        borderRadius: radii.sm,
+        paddingVertical: spacing.md,
     },
     privateSendText: {
         color: '#9af09a',
         fontSize: 13,
-        fontWeight: '600',
-        letterSpacing: 0.3,
+        fontWeight: '600' as const,
     },
-    privateHint: {
-        fontSize: 11,
-        color: '#666',
-        lineHeight: 16,
-        marginBottom: 14,
-    },
-    privateProgressBox: {
-        backgroundColor: '#0e0e0e',
-        borderRadius: 8,
-        padding: 10,
-        marginTop: 4,
-        marginBottom: 10,
-    },
-    privateProgressTitle: {
-        color: '#9af09a',
-        fontSize: 12,
-        fontFamily: 'Menlo',
-    },
-    privateProgressSig: {
-        color: '#9bb6ff',
-        fontSize: 11,
-        fontFamily: 'Menlo',
-        marginTop: 4,
-    },
-    privateResultRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingVertical: 8,
-        marginBottom: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
-    },
-    privateResultLabel: { fontSize: 12, color: '#555' },
-    privateResultSig: { fontSize: 12, color: '#7c3aed', fontFamily: 'Menlo' },
+
     limitsCard: {
-        backgroundColor: '#fef3c7',
-        borderRadius: 12,
-        padding: 16,
+        backgroundColor: colors.surface,
+        borderRadius: radii.md,
+        padding: spacing.lg,
+        marginTop: spacing.lg,
     },
     limitsTitle: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#92400e',
-        marginBottom: 8,
+        fontSize: 13,
+        fontWeight: '600' as const,
+        color: colors.textMuted,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 6,
     },
     limitsText: {
-        fontSize: 13,
-        color: '#78350f',
+        fontSize: 14,
+        color: colors.text,
     },
+
+    // Modals (bottom sheets)
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(11, 37, 69, 0.5)',
         justifyContent: 'flex-end',
     },
-    modalContent: {
-        backgroundColor: '#fff',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        padding: 24,
-        paddingBottom: 40,
+    sheet: {
+        backgroundColor: colors.bg,
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        padding: spacing.xl,
+        paddingBottom: spacing.xxxl,
     },
-    modalTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#000',
-        textAlign: 'center',
-        marginBottom: 8,
+    sheetHandle: {
+        alignSelf: 'center',
+        width: 36,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: colors.border,
+        marginBottom: spacing.lg,
     },
-    modalSubtitle: {
-        fontSize: 14,
-        color: '#666',
+    sheetTitle: {
+        ...typography.title,
         textAlign: 'center',
     },
-    modalBalance: {
-        fontSize: 16,
-        fontWeight: '500',
-        color: '#22c55e',
+    sheetSub: {
+        ...typography.caption,
         textAlign: 'center',
-        marginBottom: 20,
+        marginTop: 4,
+    },
+    sheetBalance: {
+        fontSize: 24,
+        fontWeight: '700' as const,
+        color: colors.text,
+        textAlign: 'center',
+        marginVertical: spacing.lg,
+    },
+    privateBadgeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.sm,
+    },
+    privateHint: {
+        fontSize: 12,
+        color: colors.textMuted,
+        lineHeight: 18,
+        marginTop: spacing.md,
+        marginBottom: spacing.md,
     },
     modalInput: {
-        borderWidth: 1,
-        borderColor: '#e5e5e5',
-        borderRadius: 10,
-        padding: 14,
-        fontSize: 16,
-        color: '#000',
-        marginBottom: 12,
-        backgroundColor: '#fafafa',
+        backgroundColor: colors.surface,
+        borderRadius: radii.md,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.lg,
+        fontSize: 15,
+        color: colors.text,
+        marginBottom: spacing.sm,
     },
     amountRow: {
         flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: 8,
-    },
-    amountInput: {
-        flex: 1,
-    },
-    maxButton: {
-        paddingVertical: 14,
-        paddingHorizontal: 16,
-        backgroundColor: '#f0f0f0',
-        borderRadius: 10,
-    },
-    maxButtonText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#000',
-    },
-    modalButton: {
-        backgroundColor: '#000',
-        paddingVertical: 14,
-        borderRadius: 10,
         alignItems: 'center',
-        marginTop: 8,
+        gap: spacing.sm,
     },
-    buttonDisabled: {
-        opacity: 0.5,
+    maxBtn: {
+        paddingHorizontal: spacing.lg,
+        paddingVertical: 18,
+        backgroundColor: colors.text,
+        borderRadius: radii.md,
     },
-    modalButtonText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#fff',
+    maxBtnText: {
+        fontSize: 13,
+        fontWeight: '600' as const,
+        color: colors.white,
     },
-    closeButton: {
-        paddingVertical: 12,
+    progressBox: {
+        backgroundColor: '#0E0E0E',
+        borderRadius: radii.sm,
+        padding: spacing.md,
+        marginTop: spacing.sm,
+        marginBottom: spacing.md,
+    },
+    progressTitle: {
+        color: '#9af09a',
+        fontSize: 12,
+        fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
+        lineHeight: 17,
+    },
+    progressSig: {
+        color: '#9bb6ff',
+        fontSize: 11,
+        fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
+        marginTop: 4,
+    },
+    resultRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: spacing.sm,
+        marginBottom: spacing.sm,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+    },
+    resultLabel: {
+        fontSize: 13,
+        color: colors.textMuted,
+    },
+    resultSig: {
+        fontSize: 13,
+        color: colors.accent,
+        fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
+    },
+
+    cancelBtn: {
+        paddingVertical: spacing.md,
         alignItems: 'center',
-        marginTop: 8,
+        marginTop: spacing.sm,
     },
-    closeButtonText: {
-        fontSize: 16,
-        color: '#666',
+    cancelText: {
+        ...typography.body,
+        color: colors.textMuted,
     },
 });
