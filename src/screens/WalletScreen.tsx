@@ -50,8 +50,6 @@ interface WalletScreenProps {
   onSwap?: () => void;
   onStealth?: () => void;
   onBurner?: () => void;
-  onBags?: () => void;
-  onLaunch?: () => void;
   onUmbraDebug?: () => void;
   onIka?: () => void;
 }
@@ -67,7 +65,7 @@ const fallbackConnection = new Connection(
   { commitment: 'confirmed' },
 );
 
-export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags, onLaunch, onUmbraDebug, onIka }: WalletScreenProps) {
+export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbraDebug, onIka }: WalletScreenProps) {
   const {
     smartWalletPubkey,
     disconnect,
@@ -522,34 +520,19 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onBags
       )}
       {onUmbraDebug && (
         <ToolRow
-          title="Privacy Setup"
-          subtitle="Register for Umbra private receiving"
+          title="Private mode"
+          subtitle="Send and receive privately on Solana"
           iconName="lock"
           onPress={onUmbraDebug}
         />
       )}
-      {onIka && (
+      {/* Multi-chain (Ika) — hidden until Ika ships mainnet; re-enable for demos */}
+      {false && onIka && (
         <ToolRow
           title="Multi-chain"
           subtitle="Sign Ethereum from your passkey via Ika"
           iconName="lightning"
-          onPress={onIka}
-        />
-      )}
-      {onBags && (
-        <ToolRow
-          title="SEED Rewards"
-          subtitle="Fee sharing & claim earnings"
-          iconName="check"
-          onPress={onBags}
-        />
-      )}
-      {onLaunch && (
-        <ToolRow
-          title="Launch Token"
-          subtitle="Create + list on Bags.fm"
-          iconName="plus"
-          onPress={onLaunch}
+          onPress={onIka!}
         />
       )}
     </View>

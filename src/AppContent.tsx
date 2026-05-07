@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
-  Text,
   ActivityIndicator,
   StyleSheet,
   BackHandler,
@@ -15,11 +14,11 @@ import { SwapScreen } from './screens/SwapScreen';
 import { StealthScreen } from './screens/StealthScreen';
 import { BurnerScreen } from './screens/BurnerScreen';
 import { UmbraDebugScreen } from './screens/UmbraDebugScreen';
-import { IkaScreen } from './screens/IkaScreen';
-import { colors, typography, spacing } from './theme';
-import { Icon } from './components/ui';
+// IkaScreen kept for post-mainnet demos; hidden from this build
+// import { IkaScreen } from './screens/IkaScreen';
+import { colors } from './theme';
 
-type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'bags' | 'launch' | 'umbradebug' | 'ika';
+type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'umbradebug' | 'ika';
 
 // Navigation state for tracking screen transitions
 export type NavigationState = {
@@ -55,12 +54,7 @@ export function AppContent() {
     return (
       <SafeAreaView style={styles.loading}>
         <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
-        <View style={styles.loadingMark}>
-          <Icon name="shield" size={32} color={colors.white} strokeWidth={2.4} />
-        </View>
-        <Text style={styles.loadingTitle}>Seedless</Text>
-        <Text style={styles.loadingSub}>passkey wallet on Solana</Text>
-        <ActivityIndicator size="small" color={colors.text} style={{ marginTop: 24 }} />
+        <ActivityIndicator size="small" color={colors.text} />
       </SafeAreaView>
     );
   }
@@ -79,14 +73,12 @@ export function AppContent() {
             onStealth={() => setCurrentScreen('stealth')}
             onBurner={() => setCurrentScreen('burner')}
             onUmbraDebug={() => setCurrentScreen('umbradebug')}
-            onIka={() => setCurrentScreen('ika')}
           />
         </View>
         {effectiveScreen === 'swap' && <View style={styles.overlay}><SwapScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         {effectiveScreen === 'stealth' && <View style={styles.overlay}><StealthScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         {effectiveScreen === 'burner' && <View style={styles.overlay}><BurnerScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         {effectiveScreen === 'umbradebug' && <View style={styles.overlay}><UmbraDebugScreen onBack={() => setCurrentScreen('wallet')} /></View>}
-        {effectiveScreen === 'ika' && <View style={styles.overlay}><IkaScreen onBack={() => setCurrentScreen('wallet')} /></View>}
       </>
     );
   }
@@ -100,25 +92,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.bg,
-  },
-  loadingMark: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xl,
-  },
-  loadingTitle: {
-    fontSize: 32,
-    fontWeight: '700' as const,
-    color: colors.text,
-    letterSpacing: -0.8,
-  },
-  loadingSub: {
-    ...typography.caption,
-    marginTop: 4,
   },
   overlay: {
     position: 'absolute',

@@ -47,9 +47,9 @@ const PHASE2_AMOUNT_LAMPORTS = 1_000_000n;
 const SOL_DISPLAY = '0.001 SOL';
 
 const STEP_LABEL: Record<RegistrationStep, string> = {
-  userAccountInitialisation: 'Setting up your private account (1/3)',
-  registerX25519PublicKey: 'Publishing your viewing key (2/3)',
-  registerUserForAnonymousUsage: 'Joining the privacy pool (3/3)',
+  userAccountInitialisation: 'Creating your private address (1/3)',
+  registerX25519PublicKey: 'Linking your wallet (2/3)',
+  registerUserForAnonymousUsage: 'Turning on private mode (3/3)',
 };
 
 function fmtTime() {
@@ -101,26 +101,26 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
     switch (event.stage) {
       case 'signer-created':
         setSignerAddress(event.address);
-        appendLog(`Account ${event.reused ? 'loaded' : 'created'} · ${event.address}`);
+        appendLog(`Private address ${event.reused ? 'loaded' : 'ready'}`);
         break;
       case 'client-built':
-        appendLog('Connected to Umbra');
+        appendLog('Connected');
         break;
       case 'prover-ready':
-        appendLog('Privacy proof system ready');
+        appendLog('Encryption ready');
         break;
       case 'registering':
-        appendLog('Registering (3 steps)…');
+        appendLog('Turning on private mode…');
         break;
       case 'step-pre':
         appendLog(`→ ${STEP_LABEL[event.step]}`);
         break;
       case 'step-post':
-        appendLog(`✓ ${STEP_LABEL[event.step]} · ${shortSig(event.signature)}`);
+        appendLog(`✓ ${STEP_LABEL[event.step]}`);
         setSignatures((prev) => [...prev, { step: event.step, signature: event.signature }]);
         break;
       case 'success':
-        appendLog(`Registration complete · ${event.signatures.length} txs landed`);
+        appendLog(`Private mode is on`);
         break;
     }
   }, [appendLog]);
@@ -149,9 +149,9 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
         const onChainPub = Array.from((onChain as any)?.data?.x25519PublicKey ?? []);
         const match = derived.length === onChainPub.length && derived.every((v, i) => v === onChainPub[i]);
         if (!match) {
-          appendLog('⚠ Viewing key mismatch — please reset and re-register');
+          appendLog('⚠ Something did not sync — tap "Start over" and try again');
         } else {
-          appendLog('✓ Viewing key verified on chain');
+          appendLog('✓ Private mode verified');
         }
       } catch (e) {
         console.warn('[umbra] viewing-key check skipped:', (e as any)?.message ?? e);
@@ -170,7 +170,7 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
     setSignerAddress(null);
     setSignatures([]);
     setErrorMessage(null);
-    appendLog('Account cleared — registration will create a fresh one');
+    appendLog('Private mode reset. Tap "Turn on private mode" to start again.');
   }, [appendLog]);
 
   const [ops, setOps] = useState<Record<OpId, OpState>>({
@@ -213,7 +213,7 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
         { label: 'queue', signature: result.queueSignature },
       ];
       if (result.callbackSignature) sigs.push({ label: 'callback', signature: result.callbackSignature });
-      return { message: `Moved ${SOL_DISPLAY} into encrypted balance`, signatures: sigs };
+      return { message: `Moved ${SOL_DISPLAY} into private balance`, signatures: sigs };
     });
   }, [runOp]);
 
@@ -235,7 +235,7 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
         { label: 'queue', signature: result.queueSignature },
       ];
       if (result.callbackSignature) sigs.push({ label: 'callback', signature: result.callbackSignature });
-      return { message: `Withdrew ${SOL_DISPLAY} to ${ata.slice(0, 6)}…${ata.slice(-4)}`, signatures: sigs };
+      return { message: `Sent ${SOL_DISPLAY} back to your wallet`, signatures: sigs };
     });
   }, [runOp]);
 
@@ -251,7 +251,7 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
       const anyResult = result as any;
       const sig = anyResult.signature ?? anyResult.queueSignature;
       const sigs = sig ? [{ label: 'create', signature: sig as string }] : undefined;
-      return { message: `Created a private receivable for ${SOL_DISPLAY}`, signatures: sigs };
+      return { message: `Created a private test payment for ${SOL_DISPLAY}`, signatures: sigs };
     });
   }, [runOp]);
 
@@ -272,14 +272,14 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
         ...r.publicReceived,
       ];
       setScannedUtxos(utxos);
-      return { message: `Found ${utxos.length} private receipt(s)` };
+      return { message: `Found ${utxos.length} private payment(s)` };
     });
   }, [runOp]);
 
   const handleClaimUtxo = useCallback(() => {
     runOp('claim-utxo', async () => {
       if (scannedUtxos.length === 0) {
-        throw new Error('Run "scan for private receipts" first — nothing to claim.');
+        throw new Error('Tap "Check for incoming" first — nothing to pull in yet.');
       }
       const { client } = await getStoredSignerAndClient();
       const result = await claimReceiverClaimableUtxosToEncryptedBalance({
@@ -294,7 +294,7 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
       }
       setScannedUtxos([]);
       return {
-        message: `Claimed ${scannedUtxos.length} receipt(s) into encrypted balance`,
+        message: `Pulled ${scannedUtxos.length} private payment(s) in`,
         signatures: sigs.length ? sigs : undefined,
       };
     });
@@ -306,7 +306,7 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
-      <ScreenHeader title="Privacy Setup" onClose={onBack} />
+      <ScreenHeader title="Private mode" onClose={onBack} />
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
@@ -314,7 +314,7 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
         showsVerticalScrollIndicator={false}
       >
         <PrimaryButton
-          label={runState === 'idle' ? 'Set up private account' : 'Re-run setup'}
+          label={runState === 'idle' ? 'Turn on private mode' : 'Refresh private mode'}
           onPress={handleRun}
           loading={isRunning}
           fullWidth
@@ -324,8 +324,8 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
 
         {signerAddress && (
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Your private account</Text>
-            <Text style={styles.cardHint}>Fund this with a small amount of SOL for rent</Text>
+            <Text style={styles.cardLabel}>Your private address</Text>
+            <Text style={styles.cardHint}>Add a little SOL here so private mode can cover network fees</Text>
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => Clipboard.setStringAsync(signerAddress)}
@@ -344,7 +344,7 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
                 onPress={handleResetSigner}
                 disabled={isRunning}
               >
-                <Text style={[styles.link, { color: colors.dangerText }]}>Reset account</Text>
+                <Text style={[styles.link, { color: colors.dangerText }]}>Start over</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -376,7 +376,7 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
 
         {phase1Done && (
           <View style={styles.phase2Block}>
-            <Text style={styles.sectionTitle}>Encrypted operations · {SOL_DISPLAY}</Text>
+            <Text style={styles.sectionTitle}>Try it out · {SOL_DISPLAY}</Text>
 
             {(['deposit', 'withdraw', 'create-utxo', 'scan-utxo', 'claim-utxo'] as OpId[]).map((id) => {
               const op = ops[id];
@@ -387,11 +387,11 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
                 : id === 'scan-utxo' ? handleScanUtxo
                 : handleClaimUtxo;
               const label =
-                id === 'deposit' ? `Deposit ${SOL_DISPLAY} into encrypted balance`
-                : id === 'withdraw' ? `Withdraw ${SOL_DISPLAY} to public balance`
-                : id === 'create-utxo' ? `Create a private receivable to self`
-                : id === 'scan-utxo' ? `Scan for incoming private receipts`
-                : `Claim ${scannedUtxos.length || '0'} private receipt(s)`;
+                id === 'deposit' ? `Move ${SOL_DISPLAY} into private balance`
+                : id === 'withdraw' ? `Move ${SOL_DISPLAY} back to public`
+                : id === 'create-utxo' ? `Send a private test to yourself`
+                : id === 'scan-utxo' ? `Check for incoming private payments`
+                : `Pull ${scannedUtxos.length || '0'} private payment(s) in`;
               const opRunning = op.status === 'running';
               return (
                 <View key={id} style={styles.opCard}>
@@ -426,10 +426,10 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
           </View>
         )}
 
-        <Text style={styles.sectionTitle}>Activity log</Text>
+        <Text style={styles.sectionTitle}>Activity</Text>
         <View style={styles.logBox}>
           {logs.length === 0 ? (
-            <Text style={styles.logEmpty}>No output yet — tap the button above.</Text>
+            <Text style={styles.logEmpty}>Tap a button above to begin.</Text>
           ) : (
             logs.map((line, idx) => (
               <Text key={idx} style={styles.logLine}>{line}</Text>

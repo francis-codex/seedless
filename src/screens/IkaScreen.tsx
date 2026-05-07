@@ -177,7 +177,9 @@ export function IkaScreen({ onBack }: IkaScreenProps) {
     Alert.alert('Copied', `${label} copied to clipboard.`);
   }, []);
 
-  const balanceEth = balanceWei == null ? '0.0' : ethers.formatEther(balanceWei);
+  const balanceEth = balanceWei == null
+    ? '0.0000'
+    : Number(ethers.formatEther(balanceWei)).toFixed(4);
 
   return (
     <SafeAreaView style={styles.safe}>
