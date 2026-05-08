@@ -1,0 +1,12 @@
+# Vendored reference code — not part of the app build
+Code/
+
+# Local archive of removed screens
+src/_archive/
+
+# Memory + Claude session artifacts
+.claude/
+
+# Local-only files
+*.log
+.DS_Store
