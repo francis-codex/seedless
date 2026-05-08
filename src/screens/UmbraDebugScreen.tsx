@@ -450,9 +450,9 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
         {signatures.length > 0 && (
           <View style={styles.sigList}>
             <Text style={styles.sectionTitle}>Transactions</Text>
-            {signatures.map((entry) => (
+            {signatures.map((entry, i) => (
               <TouchableOpacity
-                key={entry.signature}
+                key={`${entry.step}-${i}`}
                 style={styles.sigRow}
                 onPress={() => Linking.openURL(getTxExplorerUrl(entry.signature))}
                 activeOpacity={0.7}
@@ -499,9 +499,9 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
                   {op.status === 'error' && op.message && (
                     <Text style={styles.opError}>{op.message}</Text>
                   )}
-                  {op.signatures?.map((s) => (
+                  {op.signatures?.map((s, i) => (
                     <TouchableOpacity
-                      key={s.signature}
+                      key={`${s.label}-${i}`}
                       onPress={() => Linking.openURL(getTxExplorerUrl(s.signature))}
                       activeOpacity={0.7}
                       style={styles.opSigRow}
