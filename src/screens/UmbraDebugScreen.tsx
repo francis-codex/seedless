@@ -238,8 +238,12 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
   const runOp = useCallback(async (id: OpId, fn: () => Promise<{ message: string; signatures?: { label: string; signature: string }[] }>) => {
     setOp(id, { status: 'running', message: undefined, signatures: undefined });
     appendLog(`▶ Running…`);
+    const OP_TIMEOUT_MS = 90_000;
+    const opTimeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Operation timed out after ${OP_TIMEOUT_MS / 1000}s. The transaction may still land — check Solscan and refresh.`)), OP_TIMEOUT_MS),
+    );
     try {
-      const out = await fn();
+      const out = await Promise.race([fn(), opTimeout]);
       setOp(id, { status: 'success', message: out.message, signatures: out.signatures });
       appendLog(`✓ ${out.message}`);
     } catch (err: any) {
