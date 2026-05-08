@@ -1,7 +1,9 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { colors, spacing } from '../../theme';
 import { Icon, IconName } from './Icon';
+
+const BRAND_LOGO = require('../../../assets/icon.png');
 
 export type NavTab = 'wallet' | 'swap' | 'settings';
 
@@ -28,13 +30,17 @@ export function BottomNav({ active, onChange }: BottomNavProps) {
             onPress={() => onChange(t.key)}
             style={styles.btn}
           >
-            <View style={[styles.circle, isActive && styles.activeCircle]}>
-              <Icon
-                name={t.icon}
-                size={22}
-                color={isActive ? colors.white : colors.textMuted}
-                strokeWidth={2}
-              />
+            <View style={[styles.circle, isActive && styles.activeCircle, t.key === 'wallet' && styles.brandCircle]}>
+              {t.key === 'wallet' ? (
+                <Image source={BRAND_LOGO} style={styles.brandLogo} />
+              ) : (
+                <Icon
+                  name={t.icon}
+                  size={22}
+                  color={isActive ? colors.white : colors.textMuted}
+                  strokeWidth={2}
+                />
+              )}
             </View>
           </TouchableOpacity>
         );
@@ -76,5 +82,14 @@ const styles = StyleSheet.create({
   },
   activeCircle: {
     backgroundColor: colors.accent,
+  },
+  brandCircle: {
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+  },
+  brandLogo: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
 });

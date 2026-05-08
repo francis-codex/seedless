@@ -1,7 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ViewStyle, Image } from 'react-native';
 import { colors, radii, spacing, typography } from '../../theme';
 import { Icon, IconName } from './Icon';
+
+const BRAND_LOGO = require('../../../assets/icon.png');
 
 interface WalletHeaderProps {
   onMenuPress?: () => void;
@@ -13,7 +15,7 @@ export function WalletHeader({ onMenuPress, onScanPress, style }: WalletHeaderPr
   return (
     <View style={[styles.row, style]}>
       <TouchableOpacity activeOpacity={0.7} onPress={onMenuPress} style={styles.menuBtn}>
-        <Icon name="wallet" size={22} color={colors.white} strokeWidth={2.2} />
+        <Image source={BRAND_LOGO} style={styles.brandLogo} />
       </TouchableOpacity>
       {onScanPress ? (
         <TouchableOpacity activeOpacity={0.7} onPress={onScanPress} style={styles.iconBtn}>
@@ -66,9 +68,14 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  brandLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   iconBtn: {
     width: 40,

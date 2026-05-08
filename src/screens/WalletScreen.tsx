@@ -13,7 +13,10 @@ import {
   RefreshControl,
   Modal,
   StatusBar,
+  Image,
 } from 'react-native';
+
+const BRAND_LOGO = require('../../assets/icon.png');
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -679,9 +682,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
             <SafeAreaView style={styles.drawerSheet}>
               <View style={styles.drawerHandle} />
               <View style={styles.drawerHead}>
-                <View style={styles.drawerAvatar}>
-                  <Icon name="wallet" size={24} color={colors.white} strokeWidth={2.2} />
-                </View>
+                <Image source={BRAND_LOGO} style={styles.drawerAvatar} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.drawerName}>Wallet 01</Text>
                   <Text style={styles.drawerAddr}>{shortAddress || '...'}</Text>
@@ -993,9 +994,6 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   drawerName: {
     ...typography.title,
