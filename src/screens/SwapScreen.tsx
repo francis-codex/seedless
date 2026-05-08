@@ -115,16 +115,6 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
       Alert.alert('Amount too small', `Enter at least 0.0001 ${inputToken} to get a quote.`);
       return;
     }
-    // SOL → SPL is temporarily blocked while the gasless relayer whitelists
-    // the syncNative instruction Jupiter uses to wrap SOL. Reverse direction
-    // (SPL → SOL) and SPL ↔ SPL pairs work fine.
-    if (inputMint === SOL_MINT) {
-      Alert.alert(
-        'Temporarily paused',
-        `SOL → ${outputToken} is on hold while we update the gasless relayer. Try ${outputToken} → SOL or any pair that doesn't start with SOL.`,
-      );
-      return;
-    }
 
     if (!smartWalletPubkey) {
       Alert.alert('Not connected', 'Connect your wallet first');
