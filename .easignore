@@ -37,5 +37,8 @@ Code/
 # Local archive of removed screens
 src/_archive/
 
+# Vendored package source (266MB iOS bindings) — only the .tgz is needed
+vendor/rn-zk-prover/
+
 # Memory + Claude session artifacts
 .claude/
