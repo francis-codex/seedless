@@ -1,4 +1,9 @@
-import { getRpcAccountInfoProvider, getUmbraClient } from '@umbra-privacy/sdk';
+import {
+  getRpcAccountInfoProvider,
+  getUmbraClient,
+  getPollingComputationMonitor,
+  getPollingTransactionForwarder,
+} from '@umbra-privacy/sdk';
 import type { IUmbraSigner } from '@umbra-privacy/sdk/interfaces';
 import type { GetUmbraClientArgs, GetUmbraClientDeps } from '@umbra-privacy/sdk';
 import {
@@ -20,6 +25,14 @@ export async function buildUmbraClient({ signer, masterSeedStorage }: UmbraClien
   // public devnet (constants/index.ts), which supports the read methods that
   // Helius free devnet blocks. Mainnet uses Helius (paid plan, no gating).
   const accountInfoProvider = getRpcAccountInfoProvider({ rpcUrl: SOLANA_RPC_URL });
+
+  // Override the SDK's WebSocket-based forwarder + monitor with HTTP polling.
+  // RN's WebSocket implementation drops the SDK's long subscriptions on mobile,
+  // surfacing as "WebSocket subscription failed" mid-deposit/withdraw. Polling
+  // is slower per call but reliable on cellular + flaky wifi.
+  const transactionForwarder = getPollingTransactionForwarder({ rpcUrl: SOLANA_RPC_URL });
+  const computationMonitor = getPollingComputationMonitor({ rpcUrl: SOLANA_RPC_URL });
+
   return getUmbraClient(
     {
       signer,
@@ -30,6 +43,8 @@ export async function buildUmbraClient({ signer, masterSeedStorage }: UmbraClien
     },
     {
       accountInfoProvider,
+      transactionForwarder,
+      computationMonitor,
       ...(masterSeedStorage ? { masterSeedStorage } : {}),
     },
   );
