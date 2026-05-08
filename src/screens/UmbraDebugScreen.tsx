@@ -144,7 +144,7 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
     setLogs([]);
     setSignatures([]);
     setErrorMessage(null);
-    const timeoutMs = 90_000;
+    const timeoutMs = 180_000;
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`registration timed out after ${timeoutMs / 1000}s`)), timeoutMs),
     );
