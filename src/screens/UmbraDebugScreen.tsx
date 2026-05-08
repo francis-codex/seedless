@@ -95,6 +95,9 @@ function friendlyError(detail: string): string {
   if (/insufficient funds for rent/i.test(detail)) {
     return 'Your private address ran out of SOL after fees. Send at least 0.02 SOL to the private address shown above (so it stays rent-exempt after setup), then tap "Refresh private mode".';
   }
+  if (/websocket|connection closed|subscription failed/i.test(detail)) {
+    return 'Network connection dropped mid-transaction. The transaction may have still landed — check Solscan. Otherwise just tap the button again.';
+  }
   if (/timed out/i.test(detail)) {
     return 'Setup timed out. Check your connection and tap "Refresh private mode".';
   }
