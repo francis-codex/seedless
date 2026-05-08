@@ -89,8 +89,11 @@ function friendlyError(detail: string): string {
   if (lamportMatch) {
     const have = Number(lamportMatch[1]) / 1e9;
     const need = Number(lamportMatch[2]) / 1e9;
-    const recommend = Math.max(0.01, Math.ceil(need * 1e3) / 1e3 + 0.005);
+    const recommend = Math.max(0.02, Math.ceil(need * 1e3) / 1e3 + 0.015);
     return `Your private address needs more SOL.\n\nFunded: ${have.toFixed(4)} SOL\nNeeded: ${need.toFixed(4)} SOL\n\nSend at least ${recommend.toFixed(3)} SOL to the private address shown above, then tap "Refresh private mode".`;
+  }
+  if (/insufficient funds for rent/i.test(detail)) {
+    return 'Your private address ran out of SOL after fees. Send at least 0.02 SOL to the private address shown above (so it stays rent-exempt after setup), then tap "Refresh private mode".';
   }
   if (/timed out/i.test(detail)) {
     return 'Setup timed out. Check your connection and tap "Refresh private mode".';
@@ -372,7 +375,7 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
         {signerAddress && (
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Your private address</Text>
-            <Text style={styles.cardHint}>Send at least 0.01 SOL here before tapping setup. Private mode uses it for network fees.</Text>
+            <Text style={styles.cardHint}>Send at least 0.02 SOL here before tapping setup. Private mode uses it for network fees and rent.</Text>
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => Clipboard.setStringAsync(signerAddress)}
