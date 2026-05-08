@@ -238,18 +238,36 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
     setOps((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   }, []);
 
-  const runOp = useCallback(async (id: OpId, fn: () => Promise<{ message: string; signatures?: { label: string; signature: string }[] }>) => {
+  type OpCtx = { queueSignature?: string; partialMessage?: string };
+
+  const runOp = useCallback(async (
+    id: OpId,
+    fn: (ctx: OpCtx) => Promise<{ message: string; signatures?: { label: string; signature: string }[] }>,
+  ) => {
     setOp(id, { status: 'running', message: undefined, signatures: undefined });
     appendLog(`▶ Running…`);
+    const ctx: OpCtx = {};
     const OP_TIMEOUT_MS = 90_000;
     const opTimeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Operation timed out after ${OP_TIMEOUT_MS / 1000}s. The transaction may still land — check Solscan and refresh.`)), OP_TIMEOUT_MS),
+      setTimeout(() => reject(new Error(`Operation timed out after ${OP_TIMEOUT_MS / 1000}s.`)), OP_TIMEOUT_MS),
     );
     try {
-      const out = await Promise.race([fn(), opTimeout]);
+      const out = await Promise.race([fn(ctx), opTimeout]);
       setOp(id, { status: 'success', message: out.message, signatures: out.signatures });
       appendLog(`✓ ${out.message}`);
     } catch (err: any) {
+      // If the on-chain queue tx already landed, surface that as success-with-warning
+      // instead of a hard fail. The callback subscription is what flakes on mobile WS.
+      if (ctx.queueSignature) {
+        const msg = `${ctx.partialMessage ?? 'Queued on chain'} (callback uncertain — check Solscan)`;
+        setOp(id, {
+          status: 'success',
+          message: msg,
+          signatures: [{ label: 'queue', signature: ctx.queueSignature }],
+        });
+        appendLog(`✓ ${msg}`);
+        return;
+      }
       const detail = unwrapErrorDetail(err);
       const friendly = friendlyError(detail);
       setOp(id, { status: 'error', message: friendly });
@@ -258,14 +276,22 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
   }, [appendLog, setOp]);
 
   const handleDeposit = useCallback(() => {
-    runOp('deposit', async () => {
+    runOp('deposit', async (ctx) => {
       const { signer, client } = await getStoredSignerAndClient();
-      const result = await depositToEncryptedBalance({
-        client,
-        destinationAddress: signer.address,
-        mint: UMBRA_TEST_MINT_DEVNET,
-        amount: PHASE2_AMOUNT_LAMPORTS,
-      });
+      const result = await depositToEncryptedBalance(
+        {
+          client,
+          destinationAddress: signer.address,
+          mint: UMBRA_TEST_MINT_DEVNET,
+          amount: PHASE2_AMOUNT_LAMPORTS,
+        },
+        (e) => {
+          if (e.stage === 'queue-post') {
+            ctx.queueSignature = e.signature;
+            ctx.partialMessage = `Deposit of ${SOL_DISPLAY} queued on chain`;
+          }
+        },
+      );
       const sigs: { label: string; signature: string }[] = [
         { label: 'queue', signature: result.queueSignature },
       ];
@@ -275,19 +301,27 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
   }, [runOp]);
 
   const handleWithdraw = useCallback(() => {
-    runOp('withdraw', async () => {
+    runOp('withdraw', async (ctx) => {
       const { signer, client } = await getStoredSignerAndClient();
       const ata = getAssociatedTokenAddressSync(
         new PublicKey(UMBRA_TEST_MINT_DEVNET),
         new PublicKey(signer.address),
         true,
       ).toBase58();
-      const result = await withdrawToPublicBalance({
-        client,
-        destinationAta: ata,
-        mint: UMBRA_TEST_MINT_DEVNET,
-        amount: PHASE2_AMOUNT_LAMPORTS,
-      });
+      const result = await withdrawToPublicBalance(
+        {
+          client,
+          destinationAta: ata,
+          mint: UMBRA_TEST_MINT_DEVNET,
+          amount: PHASE2_AMOUNT_LAMPORTS,
+        },
+        (e) => {
+          if (e.stage === 'queue-post') {
+            ctx.queueSignature = e.signature;
+            ctx.partialMessage = `Withdraw of ${SOL_DISPLAY} queued on chain`;
+          }
+        },
+      );
       const sigs: { label: string; signature: string }[] = [
         { label: 'queue', signature: result.queueSignature },
       ];
