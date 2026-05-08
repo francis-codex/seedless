@@ -98,9 +98,8 @@ function friendlyError(detail: string): string {
   if (/websocket|connection closed|subscription failed/i.test(detail)) {
     return 'Network connection dropped mid-transaction. The transaction may have still landed — check Solscan. Otherwise just tap the button again.';
   }
-  if (/timed out/i.test(detail)) {
-    return 'Setup timed out. Check your connection and tap "Refresh private mode".';
-  }
+  // Intentionally don't translate generic "timed out" — the raw SDK message
+  // tells us which layer timed out (RPC fetch, polling monitor, our outer op).
   return detail;
 }
 
@@ -249,7 +248,7 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
     const ctx: OpCtx = {};
     const OP_TIMEOUT_MS = 90_000;
     const opTimeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Operation timed out after ${OP_TIMEOUT_MS / 1000}s.`)), OP_TIMEOUT_MS),
+      setTimeout(() => reject(new Error(`Outer-op timed out after ${OP_TIMEOUT_MS / 1000}s. The transaction may still land — check Solscan and refresh.`)), OP_TIMEOUT_MS),
     );
     try {
       const out = await Promise.race([fn(ctx), opTimeout]);
