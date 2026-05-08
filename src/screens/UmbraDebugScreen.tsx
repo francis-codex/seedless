@@ -105,6 +105,7 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
   const [signatures, setSignatures] = useState<{ step: RegistrationStep; signature: string }[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+  const finalStepDoneRef = useRef(false);
 
   const appendLog = useCallback((line: string) => {
     setLogs((prev) => [...prev, `[${fmtTime()}] ${line}`]);
@@ -132,6 +133,9 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
       case 'step-post':
         appendLog(`✓ ${STEP_LABEL[event.step]}`);
         setSignatures((prev) => [...prev, { step: event.step, signature: event.signature }]);
+        if (event.step === 'registerUserForAnonymousUsage') {
+          finalStepDoneRef.current = true;
+        }
         break;
       case 'success':
         appendLog(`Private mode is on`);
@@ -144,7 +148,8 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
     setLogs([]);
     setSignatures([]);
     setErrorMessage(null);
-    const timeoutMs = 180_000;
+    finalStepDoneRef.current = false;
+    const timeoutMs = 300_000;
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`registration timed out after ${timeoutMs / 1000}s`)), timeoutMs),
     );
@@ -172,6 +177,13 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
       }
       setRunState('success');
     } catch (err: any) {
+      // If the on-chain step 3/3 already landed, treat the timeout/late-resolve as success.
+      // The SDK occasionally hangs finalizing after the last tx confirms.
+      if (finalStepDoneRef.current) {
+        appendLog('✓ Private mode is on (chain confirmed; verification skipped)');
+        setRunState('success');
+        return;
+      }
       const detail = unwrapErrorDetail(err);
       const friendly = friendlyError(detail);
       appendLog(`Failed · ${friendly}`);
