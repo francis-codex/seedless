@@ -149,15 +149,36 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
     setSignatures([]);
     setErrorMessage(null);
     finalStepDoneRef.current = false;
-    const timeoutMs = 300_000;
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`registration timed out after ${timeoutMs / 1000}s`)), timeoutMs),
+    const HARD_TIMEOUT_MS = 300_000;
+    const POST_FINAL_GRACE_MS = 8_000;
+
+    const sentinel = Symbol('early-success');
+    const earlySuccess = new Promise<typeof sentinel>((resolve) => {
+      const interval = setInterval(() => {
+        if (finalStepDoneRef.current) {
+          clearInterval(interval);
+          setTimeout(() => resolve(sentinel), POST_FINAL_GRACE_MS);
+        }
+      }, 500);
+      setTimeout(() => clearInterval(interval), HARD_TIMEOUT_MS + 1000);
+    });
+    const hardTimeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`registration timed out after ${HARD_TIMEOUT_MS / 1000}s`)), HARD_TIMEOUT_MS),
     );
+
     try {
       const result: any = await Promise.race([
         runHelloWorldRegistration(handleProgress),
-        timeoutPromise,
+        earlySuccess,
+        hardTimeout,
       ]);
+
+      if (result === sentinel) {
+        appendLog('✓ Private mode is on (chain confirmed)');
+        setRunState('success');
+        return;
+      }
+
       try {
         const sdk: any = await import('@umbra-privacy/sdk');
         const deriver = sdk.getMasterViewingKeyX25519KeypairDeriver({ client: result.client });
@@ -177,8 +198,6 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
       }
       setRunState('success');
     } catch (err: any) {
-      // If the on-chain step 3/3 already landed, treat the timeout/late-resolve as success.
-      // The SDK occasionally hangs finalizing after the last tx confirms.
       if (finalStepDoneRef.current) {
         appendLog('✓ Private mode is on (chain confirmed; verification skipped)');
         setRunState('success');
