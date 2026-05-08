@@ -19,9 +19,14 @@ export const SOLANA_RPC_URL = USE_DEVNET
   ? 'https://api.devnet.solana.com'
   : `https://solana-mainnet.g.alchemy.com/v2/${ALCHEMY_MAINNET_KEY}`;
 
+// Mainnet WSS routes through Helius — more stable than Alchemy for long-lived
+// subscriptions (Umbra SDK waits on WS for queue/callback tx confirmations,
+// which can take 30s+ on mainnet). Alchemy WS dropped these subs on mobile.
 export const SOLANA_WSS_URL = USE_DEVNET
   ? 'wss://api.devnet.solana.com'
-  : `wss://solana-mainnet.g.alchemy.com/v2/${ALCHEMY_MAINNET_KEY}`;
+  : HELIUS_API_KEY
+    ? `wss://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`
+    : `wss://solana-mainnet.g.alchemy.com/v2/${ALCHEMY_MAINNET_KEY}`;
 
 // Alchemy devnet endpoint kept exported for ad-hoc fallback wiring (e.g.
 // pointing a single noisy provider at it without flipping the whole app).
