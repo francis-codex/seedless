@@ -35,9 +35,7 @@
       "expo-asset"
     ],
     "owner": "seedless-labs",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "0.4.0-beta",
     "extra": {
       "eas": {
         "projectId": "8959a78f-ccad-40da-978b-b6d69160e15f"

@@ -1,3 +1,36 @@
+# When .easignore exists it fully overrides .gitignore, so we must
+# re-list everything we want excluded from the EAS upload.
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native build artifacts
+.kotlin/
+android/.gradle/
+android/build/
+android/app/build/
+ios/build/
+ios/Pods/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# OS / editor
+.DS_Store
+*.log
+
 # Vendored reference code — not part of the app build
 Code/
 
@@ -6,7 +39,3 @@ src/_archive/
 
 # Memory + Claude session artifacts
 .claude/
-
-# Local-only files
-*.log
-.DS_Store
