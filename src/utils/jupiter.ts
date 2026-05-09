@@ -1,4 +1,4 @@
-import { PublicKey, TransactionInstruction, AddressLookupTableAccount, Connection } from '@solana/web3.js';
+import { PublicKey, TransactionInstruction, AddressLookupTableAccount, Connection, ComputeBudgetProgram } from '@solana/web3.js';
 import {
   JUPITER_API_URL,
   JUPITER_API_KEY,
@@ -116,11 +116,10 @@ export async function getQuote(
     outputMint,
     amount,
     slippageBps: slippageBps.toString(),
-    // Cap route complexity so the assembled tx fits within 1232 bytes
-    // alongside LazorKit's auth instruction. Without this, multi-hop routes
-    // (e.g. USDC→SOL→SEED) overflow with "encoding overruns Uint8Array".
-    maxAccounts: '32',
-    restrictIntermediateTokens: 'true',
+    // Direct routes only — multi-hop assembled tx + LazorKit auth ix overflows
+    // Solana's 1232-byte limit ("encoding overruns Uint8Array"). Pairs without
+    // direct liquidity return NO_ROUTES_FOUND, handled cleanly upstream.
+    onlyDirectRoutes: 'true',
   });
 
   const response = await fetchWithTimeout(
@@ -291,6 +290,16 @@ export async function prepareSwap(
 
   // Step 4: Filter out compute budget instructions (CRITICAL for Kora)
   const filteredInstructions = filterComputeBudgetInstructions(allInstructions);
+
+  // Step 4b: Set explicit compute unit limit at the head of the tx.
+  // Kora's default (~200K) is too low for single-hop Whirlpool/TesseraV/Invariant
+  // swaps — runtime hits "Program failed to complete" mid-execution. 800K covers
+  // any direct route. Solana's CU limit instruction is idempotent; if Kora later
+  // adds another, the last one wins, but having ours present prevents the
+  // simulation panic at minimum.
+  filteredInstructions.unshift(
+    ComputeBudgetProgram.setComputeUnitLimit({ units: 800_000 })
+  );
 
   // Step 5: Fetch Address Lookup Tables
   const addressLookupTableAccounts = await fetchAddressLookupTables(
