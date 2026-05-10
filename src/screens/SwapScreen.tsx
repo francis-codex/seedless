@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -93,6 +93,42 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
       Alert.alert('Max failed', 'Could not fetch balance — try again');
     }
   }, [smartWalletPubkey, inputMint, inputDecimals]);
+
+  // Silent quote fetch — no Alerts. Used by auto-quote on amount change.
+  const lastQuoteKeyRef = useRef<string>('');
+  const fetchQuoteSilent = useCallback(async () => {
+    const parsedAmount = parseFloat(amount);
+    if (!amount || isNaN(parsedAmount) || parsedAmount < 0.0001 || !smartWalletPubkey) {
+      return;
+    }
+    // Dedupe identical fetches across re-renders
+    const key = `${pair}-${swapSource}-${amount}`;
+    if (lastQuoteKeyRef.current === key) return;
+    lastQuoteKeyRef.current = key;
+
+    setIsLoadingQuote(true);
+    try {
+      const amountInSmallestUnit = toSmallestUnit(amount, inputDecimals);
+      if (swapSource === 'bags') {
+        const result = await getBagsQuote(inputMint, outputMint, amountInSmallestUnit);
+        setBagsQuote(result);
+      } else {
+        const result = await prepareSwap(inputMint, outputMint, amountInSmallestUnit, smartWalletPubkey);
+        setQuote(result.quote);
+      }
+    } catch {
+      // Silent — output stays at "0.00", user can retry by tapping Get quote
+    } finally {
+      setIsLoadingQuote(false);
+    }
+  }, [amount, inputMint, outputMint, inputDecimals, smartWalletPubkey, swapSource, pair]);
+
+  // Auto-fetch quote 500ms after user stops typing or changes pair
+  useEffect(() => {
+    if (!amount || !smartWalletPubkey) return;
+    const timer = setTimeout(() => { fetchQuoteSilent(); }, 500);
+    return () => clearTimeout(timer);
+  }, [amount, pair, swapSource, smartWalletPubkey, fetchQuoteSilent]);
 
   // Cycle through swap pairs
   const cyclePair = () => {
@@ -337,10 +373,10 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
           <View style={{ marginTop: spacing.xxl }}>
             {!activeQuote ? (
               <PrimaryButton
-                label="Get quote"
+                label={!amount ? 'Enter amount' : isLoadingQuote ? 'Getting quote…' : 'Get quote'}
                 onPress={fetchQuote}
                 loading={isLoadingQuote}
-                disabled={!amount}
+                disabled={!amount || isLoadingQuote}
                 fullWidth
               />
             ) : (
