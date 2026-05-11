@@ -440,12 +440,25 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
           </View>
         )}
 
-        {errorMessage && (
-          <View style={styles.errorCard}>
-            <Pill label="Failed" variant="danger" />
-            <Text style={styles.errorBody}>{errorMessage}</Text>
-          </View>
-        )}
+        {errorMessage && (() => {
+          // Soften "no funds" errors — first-time users hit this when they tap
+          // Refresh before sending the 0.02 SOL. The raw Solana error reads as
+          // a hard failure, but the actual fix is just "send SOL and retry."
+          const lower = errorMessage.toLowerCase();
+          const isNoFunds = lower.includes('32002') || lower.includes('7050003')
+            || lower.includes('insufficient') || lower.includes('lamport')
+            || lower.includes('rent') || lower.includes('account_not_found');
+          return (
+            <View style={styles.errorCard}>
+              <Pill label={isNoFunds ? 'Action needed' : 'Failed'} variant={isNoFunds ? 'warning' : 'danger'} />
+              <Text style={styles.errorBody}>
+                {isNoFunds
+                  ? 'Send at least 0.02 SOL to your private address above, then tap "Refresh private mode" again.'
+                  : errorMessage}
+              </Text>
+            </View>
+          );
+        })()}
 
         {signatures.length > 0 && (
           <View style={styles.sigList}>
