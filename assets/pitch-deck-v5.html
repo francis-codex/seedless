@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Seedless — Pitch Deck v5</title>
+<meta name="viewport" content="width=1280" />
+<style>
+  :root {
+    --bg: #000000; --fg: #ffffff; --muted: #94a3b8; --dim: #cbd5e1;
+    --line: #1f2937; --card: #0a0a0a;
+    --accent: #2bb6ff; --accent-soft: rgba(43, 182, 255, 0.10);
+    --green: #22c55e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg); color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  }
+  .slide {
+    width: 1280px; height: 720px; position: relative;
+    padding: 80px 96px; display: flex; flex-direction: column;
+    justify-content: center; overflow: hidden;
+  }
+  .slide.top { justify-content: flex-start; padding-top: 96px; }
+  .footer {
+    position: absolute; bottom: 32px; left: 96px; right: 96px;
+    font-size: 13px; color: var(--muted); line-height: 1.4;
+    padding-left: 14px; border-left: 2px solid var(--accent); font-weight: 500;
+  }
+  .footer .src { color: var(--accent); font-weight: 700; }
+
+  h2.big { font-size: 96px; font-weight: 900; letter-spacing: -0.04em; line-height: 1; }
+  h2.mid { font-size: 72px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; }
+  h2.section { font-size: 56px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; }
+  .accent { color: var(--accent); }
+  .sub { font-size: 24px; color: var(--dim); font-weight: 500; line-height: 1.4; margin-top: 24px; max-width: 1000px; }
+
+  /* Inline reference (under a claim, in flow — robust to headless rendering) */
+  .ref { font-size: 18px; color: var(--muted); margin-top: 40px; padding-left: 14px; border-left: 2px solid var(--accent); font-weight: 500; line-height: 1.5; max-width: 1000px; }
+  .ref .src { color: var(--fg); font-weight: 700; }
+  .ref .src-link { color: var(--accent); font-weight: 700; text-decoration: none; }
+
+  /* Cover */
+  .cover { align-items: center; justify-content: center; text-align: center; }
+  .brand-row { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 64px; }
+  .brand-row .logo { width: 48px; height: 48px; border-radius: 10px; }
+  .brand-row .name { font-size: 24px; font-weight: 700; color: var(--dim); letter-spacing: -0.01em; }
+  .tag-hero { font-size: 104px; font-weight: 900; letter-spacing: -0.04em; line-height: 1; max-width: 1100px; }
+
+  /* Audience — 2x2 punchy */
+  .aud-grid { margin-top: 64px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .aud-card {
+    padding: 36px 36px; background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+  }
+  .aud-card .num { font-size: 64px; font-weight: 900; color: var(--accent); line-height: 1; letter-spacing: -0.03em; }
+  .aud-card .what { font-size: 18px; font-weight: 600; color: var(--dim); margin-top: 16px; line-height: 1.4; }
+
+  /* Solution — 3 phones */
+  .howitworks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; margin-top: 64px; }
+  .pillar { display: flex; flex-direction: column; align-items: center; }
+  .pillar .phone {
+    width: 240px; height: 480px; border-radius: 36px; overflow: hidden;
+    border: 6px solid #1f2937; box-shadow: 0 30px 80px rgba(43, 182, 255, 0.20);
+    background: #fff; margin-bottom: 24px;
+  }
+  .pillar .phone img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .pillar .lab { font-size: 26px; font-weight: 800; letter-spacing: -0.01em; }
+
+  /* Why now — minimal */
+  .whynow-rows { margin-top: 64px; display: flex; flex-direction: column; gap: 18px; }
+  .whynow-row {
+    display: grid; grid-template-columns: 280px 1fr; gap: 24px;
+    padding: 26px 28px; background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    align-items: center;
+  }
+  .whynow-row .when { font-size: 14px; color: var(--accent); letter-spacing: 0.16em; text-transform: uppercase; font-weight: 800; }
+  .whynow-row .what { font-size: 24px; font-weight: 700; }
+
+  /* Differentiation — minimal, no why */
+  .identity-grid { margin-top: 56px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .identity-card {
+    padding: 28px 30px; background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    display: flex; align-items: center; gap: 24px;
+  }
+  .identity-card .num { font-size: 14px; color: var(--accent); letter-spacing: 0.18em; text-transform: uppercase; font-weight: 800; flex-shrink: 0; width: 36px; }
+  .identity-card .what { font-size: 22px; font-weight: 700; line-height: 1.3; }
+  .identity-stamp {
+    margin-top: 32px; padding: 22px 28px;
+    background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 12px;
+    font-size: 20px; font-weight: 700; color: var(--fg); text-align: center;
+  }
+  .identity-stamp .accent { font-weight: 900; }
+
+  /* Revenue — short */
+  .rev-twocol { margin-top: 56px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .rev-card {
+    padding: 36px 32px; background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+    display: flex; flex-direction: column;
+  }
+  .rev-card.primary { border-color: var(--accent); background: var(--accent-soft); }
+  .rev-card .stage { font-size: 12px; color: var(--accent); letter-spacing: 0.18em; text-transform: uppercase; font-weight: 800; }
+  .rev-card .num { font-size: 96px; font-weight: 900; color: var(--accent); line-height: 1; letter-spacing: -0.03em; margin-top: 14px; }
+  .rev-card .lab { font-size: 18px; color: var(--fg); margin-top: 14px; font-weight: 700; }
+  .rev-card .why { font-size: 16px; color: var(--muted); margin-top: 10px; line-height: 1.5; font-weight: 500; }
+
+  /* GTM — minimal */
+  .gtm-rows { margin-top: 56px; display: flex; flex-direction: column; gap: 16px; }
+  .gtm-row {
+    display: grid; grid-template-columns: 64px 1fr; gap: 24px; align-items: center;
+    padding: 24px 28px; background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  }
+  .gtm-row .n { font-size: 36px; font-weight: 900; color: var(--accent); line-height: 1; }
+  .gtm-row .what { font-size: 22px; font-weight: 700; }
+  .gtm-row .why { font-size: 15px; color: var(--muted); margin-top: 4px; line-height: 1.4; font-weight: 500; }
+
+  /* Traction — real metrics */
+  .trac-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 56px; }
+  .trac-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 30px 30px; }
+  .trac-card .stage { font-size: 12px; color: var(--accent); letter-spacing: 0.18em; text-transform: uppercase; font-weight: 800; }
+  .trac-card .num { font-size: 56px; font-weight: 900; color: var(--accent); line-height: 1; letter-spacing: -0.02em; margin-top: 12px; }
+  .trac-card .lab { font-size: 17px; color: var(--fg); margin-top: 10px; font-weight: 700; line-height: 1.3; }
+
+  /* Bank — wallet IS bank account */
+  .bank-hero {
+    margin-top: 48px; padding: 56px 48px;
+    background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 18px;
+    text-align: center;
+  }
+  .bank-hero .stage { font-size: 11px; color: var(--accent); letter-spacing: 0.2em; text-transform: uppercase; font-weight: 800; margin-bottom: 18px; }
+  .bank-hero .line { font-size: 56px; font-weight: 900; letter-spacing: -0.02em; line-height: 1.05; }
+  .bank-hero .line .accent { color: var(--accent); font-weight: 900; }
+  .bank-hero .sub { font-size: 18px; color: var(--dim); margin-top: 20px; font-weight: 600; }
+  .bank-pills { display: flex; justify-content: center; gap: 16px; margin-top: 32px; flex-wrap: wrap; }
+  .bank-pill { padding: 14px 24px; border: 1px solid var(--line); border-radius: 999px; font-size: 15px; font-weight: 700; color: var(--dim); }
+  .bank-pill .accent { color: var(--accent); font-weight: 900; }
+
+  /* Roadmap */
+  .road-rows { margin-top: 64px; display: flex; flex-direction: column; gap: 16px; }
+  .road-row {
+    display: grid; grid-template-columns: 180px 1fr;
+    gap: 24px; align-items: center;
+    padding: 24px 28px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  }
+  .road-row.done { border-color: var(--green); }
+  .road-row .when { font-size: 13px; color: var(--accent); letter-spacing: 0.14em; text-transform: uppercase; font-weight: 800; }
+  .road-row.done .when { color: var(--green); }
+  .road-row .what { font-size: 22px; font-weight: 700; }
+  .road-row .what .tag { display: inline-block; margin-left: 10px; font-size: 11px; padding: 3px 8px; border-radius: 999px; background: var(--green); color: #000; font-weight: 800; letter-spacing: 0.05em; }
+
+  /* Team */
+  .team-hero {
+    margin-top: 28px; padding: 24px 32px;
+    background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 14px;
+    display: flex; align-items: center; gap: 28px;
+  }
+  .team-hero .stage { font-size: 11px; color: var(--accent); letter-spacing: 0.18em; text-transform: uppercase; font-weight: 800; flex-shrink: 0; }
+  .team-hero .stat { font-size: 28px; font-weight: 800; color: var(--fg); letter-spacing: -0.01em; }
+  .team-hero .stat .accent { color: var(--accent); font-weight: 900; }
+
+  .team-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+  .person-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; }
+  .person-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .pfp { width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0; object-fit: cover; border: 2px solid var(--line); }
+  .person-card .who { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; }
+  .person-card .role { color: var(--accent); font-size: 11px; margin-top: 2px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+  .person-card ul { list-style: none; padding: 0; margin: 0; }
+  .person-card li { font-size: 14px; color: var(--muted); line-height: 1.45; margin-bottom: 6px; font-weight: 500; }
+  .person-card li:last-child { margin-bottom: 0; }
+  .person-card li .accent { color: var(--accent); font-weight: 800; }
+
+  .team-closing { margin-top: 18px; font-size: 22px; font-weight: 800; color: var(--fg); text-align: center; line-height: 1.2; letter-spacing: -0.01em; }
+  .team-closing .accent { color: var(--accent); font-weight: 900; }
+
+  .team-cosigns { margin-top: 14px; padding: 14px 24px; background: transparent; border: 1px solid var(--line); border-radius: 12px; text-align: center; }
+  .team-cosigns .label { color: var(--accent); font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; font-size: 10px; margin-right: 10px; }
+  .team-cosigns .list { font-size: 14px; font-weight: 600; color: var(--dim); }
+
+  /* Ask */
+  .ask { align-items: center; justify-content: center; text-align: center; }
+  .ask h2 { font-size: 96px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+  .ask .url { margin-top: 36px; font-size: 56px; color: var(--accent); font-weight: 800; letter-spacing: -0.02em; }
+
+  @page { size: 1280px 720px; margin: 0; }
+  @media print { .slide { page-break-after: always; } .slide:last-child { page-break-after: auto; } }
+  body.single .slide { display: none; }
+  body.single .slide.show { display: flex; }
+</style>
+</head>
+<body>
+
+<!-- 1 — COVER -->
+<section class="slide cover" data-slide="1">
+  <div class="brand-row">
+    <img src="brand/logo.png" alt="Seedless logo" class="logo" />
+    <div class="name">Seedless</div>
+  </div>
+  <div class="tag-hero">The Wallet With<br/>No Seed Phrase</div>
+</section>
+
+<!-- 2 — PROBLEM (one slide, ~15s) -->
+<section class="slide" data-slide="2">
+  <h2 class="big">Every wallet today<br/>gates entry on a phrase<br/><span class="accent">nobody wants to write down</span></h2>
+  <p class="ref"><span class="src">61%</span> default to custodial wallets at seed phrase setup. <a class="src-link" href="https://dl.acm.org/doi/10.1145/3706598.3713209">CHI 2025 (ACM) ↗</a></p>
+</section>
+
+<!-- 3 — SOLUTION -->
+<section class="slide top" data-slide="3">
+  <h2 class="section">Sign with your face.<br/>No seed phrase, ever.</h2>
+  <div class="howitworks">
+    <div class="pillar">
+      <div class="phone"><img src="deck/app/passkey.png" alt="Passkey login" /></div>
+      <div class="lab"><span class="accent">Passkey login</span></div>
+    </div>
+    <div class="pillar">
+      <div class="phone"><img src="deck/app/home.png" alt="Your wallet" /></div>
+      <div class="lab"><span class="accent">Your wallet</span></div>
+    </div>
+    <div class="pillar">
+      <div class="phone"><img src="deck/app/private-send.png" alt="Private send" /></div>
+      <div class="lab"><span class="accent">Private send</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 — WALLET = BANK ACCOUNT -->
+<section class="slide top" data-slide="4">
+  <h2 class="section">Crypto in. Cash out.</h2>
+  <div class="bank-hero">
+    <span class="stage">The retention moat</span>
+    <div class="line">Send to any <span class="accent">bank account</span>,<br/>right from your wallet.</div>
+    <div class="sub">NGN first · in private beta</div>
+  </div>
+  <div class="bank-pills">
+    <div class="bank-pill"><span class="accent">No</span> off-ramp queue</div>
+    <div class="bank-pill"><span class="accent">No</span> app switching</div>
+    <div class="bank-pill"><span class="accent">No</span> waiting</div>
+  </div>
+</section>
+
+<!-- 5 — WHY NOW -->
+<section class="slide top" data-slide="5">
+  <h2 class="section">Three things lined up in 2026</h2>
+  <div class="whynow-rows">
+    <div class="whynow-row">
+      <div class="when">Passkeys</div>
+      <div class="what">Native on iOS &amp; Android</div>
+    </div>
+    <div class="whynow-row">
+      <div class="when">Smart-Wallet Rails</div>
+      <div class="what">LazorKit · WebAuthn on Solana</div>
+    </div>
+    <div class="whynow-row">
+      <div class="when">Privacy</div>
+      <div class="what">Umbra · live on mainnet</div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 — WHAT WE PROVIDE (identity) -->
+<section class="slide top" data-slide="6">
+  <h2 class="section">What we provide<br/>that no one else does</h2>
+  <div class="identity-grid">
+    <div class="identity-card">
+      <div class="num">01</div>
+      <div class="what">Sign with your face, not a phrase</div>
+    </div>
+    <div class="identity-card">
+      <div class="num">02</div>
+      <div class="what">Spend without thinking about gas</div>
+    </div>
+    <div class="identity-card">
+      <div class="num">03</div>
+      <div class="what">Send privately, by default</div>
+    </div>
+    <div class="identity-card">
+      <div class="num">04</div>
+      <div class="what">Recover without a backup file</div>
+    </div>
+  </div>
+  <div class="identity-stamp">Not a better Phantom · <span class="accent">Your bank — on crypto rails</span></div>
+</section>
+
+<!-- 7 — WHO WE'RE BUILDING FOR -->
+<section class="slide top" data-slide="7">
+  <h2 class="section">Who we're building for</h2>
+  <div class="aud-grid">
+    <div class="aud-card">
+      <div class="num">100M+</div>
+      <div class="what">installed a wallet · never used it</div>
+    </div>
+    <div class="aud-card">
+      <div class="num">Have crypto</div>
+      <div class="what">can't pay rent with it</div>
+    </div>
+    <div class="aud-card">
+      <div class="num">Next billion</div>
+      <div class="what">need money · not investments</div>
+    </div>
+    <div class="aud-card">
+      <div class="num">Starting</div>
+      <div class="what">staying because it works like their bank</div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 — REVENUE -->
+<section class="slide top" data-slide="8">
+  <h2 class="section">Revenue</h2>
+  <div class="rev-twocol">
+    <div class="rev-card primary">
+      <div class="stage">Primary · Swap</div>
+      <div class="num">0.75%</div>
+      <div class="lab">on every swap</div>
+      <div class="why">Below the leader. Bundle pricing — gas, privacy, on-ramp included</div>
+    </div>
+    <div class="rev-card">
+      <div class="stage">Secondary · On-ramp</div>
+      <div class="num">+1%</div>
+      <div class="lab">on fiat → crypto</div>
+      <div class="why">On top of MoonPay's 2–3%. Fiat to spendable in one tap</div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 — GO TO MARKET -->
+<section class="slide top" data-slide="9">
+  <h2 class="section">Three wedges, one direction</h2>
+  <div class="gtm-rows">
+    <div class="gtm-row">
+      <div class="n">01</div>
+      <div>
+        <div class="what">Emerging markets, fiat-first</div>
+        <div class="why">Local on-ramp · Nigeria → Africa first</div>
+      </div>
+    </div>
+    <div class="gtm-row">
+      <div class="n">02</div>
+      <div>
+        <div class="what">First-wallet for the Web3-curious</div>
+        <div class="why">We meet drop-offs at the moment of pain</div>
+      </div>
+    </div>
+    <div class="gtm-row">
+      <div class="n">03</div>
+      <div>
+        <div class="what">Privacy-curious via ecosystem</div>
+        <div class="why">Solana Foundation · Umbra · LazorKit channels</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 — TRACTION (real metrics) -->
+<section class="slide top" data-slide="10">
+  <h2 class="section">Real numbers</h2>
+  <div class="trac-grid">
+    <div class="trac-card">
+      <div class="stage">Live · Beta cohort</div>
+      <div class="num">50–100</div>
+      <div class="lab">beta users on private mainnet</div>
+    </div>
+    <div class="trac-card">
+      <div class="stage">On-chain · projected</div>
+      <div class="num">1,000+</div>
+      <div class="lab">transactions · 1,000+ passkey signatures across the cohort</div>
+    </div>
+    <div class="trac-card">
+      <div class="stage">Funded</div>
+      <div class="num">200 USDG</div>
+      <div class="lab">Agentic Engineering Grant · Superteam</div>
+    </div>
+    <div class="trac-card">
+      <div class="stage">Infra</div>
+      <div class="num">$25k</div>
+      <div class="lab">credits · Alchemy Solana Fund</div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 — TEAM -->
+<section class="slide top" data-slide="11">
+  <h2 class="section">Why us</h2>
+  <div class="team-hero">
+    <span class="stage">Velocity</span>
+    <div class="stat"><span class="accent">4 months</span> · solo · idea → Solana mainnet</div>
+  </div>
+  <div class="team-row">
+    <div class="person-card">
+      <div class="person-head">
+        <img src="deck/codex.png" alt="Codex" class="pfp" />
+        <div>
+          <div class="who">Codex</div>
+          <div class="role">Co-Founder · CEO</div>
+        </div>
+      </div>
+      <ul>
+        <li><span class="accent">Paystack</span> · payments at Africa scale</li>
+        <li><span class="accent">Swiv Trade</span> (CTO) · perp DEX · sub-100ms</li>
+        <li><span class="accent">Scalex</span> · ETH ↔ Solana Wormhole bridge · $200K+/mo</li>
+      </ul>
+    </div>
+    <div class="person-card">
+      <div class="person-head">
+        <img src="deck/udoka.png" alt="Udoka" class="pfp" />
+        <div>
+          <div class="who">Udoka AM</div>
+          <div class="role">Co-Founder · COO</div>
+        </div>
+      </div>
+      <ul>
+        <li><span class="accent">MagicBlock</span> · devrel · Solana ecosystem (Nigeria)</li>
+        <li><span class="accent">SprintIQ</span> (lead dev) · Solana Foundation grant recipient</li>
+        <li><span class="accent">SuperteamNG</span> · led community $0 → $30K+ GDP</li>
+      </ul>
+    </div>
+  </div>
+  <div class="team-closing">We've shipped <span class="accent">every layer</span> Seedless sits on</div>
+  <div class="team-cosigns">
+    <span class="label">Backed by</span><span class="list">LazorKit · Umbra · Solana Foundation · Superteam · Alchemy</span>
+  </div>
+</section>
+
+<!-- 12 — ROADMAP -->
+<section class="slide top" data-slide="12">
+  <h2 class="section">Roadmap</h2>
+  <div class="road-rows">
+    <div class="road-row done"><div class="when">Q2 2026</div><div class="what">Private mainnet beta <span class="tag">SHIPPED</span></div></div>
+    <div class="road-row"><div class="when">Q3 2026</div><div class="what">Seeker · iOS TestFlight · Public mainnet</div></div>
+    <div class="road-row"><div class="when">Q4 2026</div><div class="what">Monetization flip · Fiat on/off-ramp live</div></div>
+  </div>
+</section>
+
+<!-- 13 — JOIN THE BETA -->
+<section class="slide ask" data-slide="13">
+  <h2>Join the Beta</h2>
+  <div class="url">seedlesslabs.xyz</div>
+</section>
+
+<script>
+  (function () {
+    var params = new URLSearchParams(window.location.search);
+    var n = params.get('slide');
+    if (!n) return;
+    document.body.classList.add('single');
+    var target = document.querySelector('.slide[data-slide="' + n + '"]');
+    if (target) target.classList.add('show');
+  })();
+</script>
+
+</body>
+</html>

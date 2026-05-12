@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Seedless — 2:06 Demo Voiceover Script</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+    color: #111;
+    line-height: 1.45;
+    margin: 0;
+  }
+  header {
+    border-bottom: 2px solid #111;
+    padding-bottom: 10px;
+    margin-bottom: 22px;
+  }
+  h1 { font-size: 22pt; margin: 0 0 4px 0; letter-spacing: -0.01em; }
+  .sub { font-size: 10.5pt; color: #555; margin: 0; }
+  .beat {
+    page-break-inside: avoid;
+    margin-bottom: 20px;
+    padding: 14px 16px;
+    border: 1px solid #d4d4d4;
+    border-radius: 6px;
+    background: #fafafa;
+  }
+  .beat h2 {
+    font-size: 11pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #666;
+    margin: 0 0 10px 0;
+    font-weight: 600;
+  }
+  .voiceover {
+    font-size: 15pt;
+    line-height: 1.55;
+    color: #111;
+    margin: 0 0 10px 0;
+    font-weight: 500;
+  }
+  .voiceover em {
+    font-style: normal;
+    background: #ffe98a;
+    padding: 1px 3px;
+    border-radius: 3px;
+  }
+  .cue {
+    font-size: 10pt;
+    color: #444;
+    border-left: 3px solid #888;
+    padding: 4px 0 4px 12px;
+    margin: 0;
+    font-family: "SF Mono", "Menlo", monospace;
+  }
+  footer {
+    margin-top: 26px;
+    padding-top: 12px;
+    border-top: 1px solid #ccc;
+    font-size: 9.5pt;
+    color: #666;
+  }
+  .runtime {
+    display: inline-block;
+    background: #111;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 9.5pt;
+    margin-left: 6px;
+    vertical-align: middle;
+    font-family: "SF Mono", "Menlo", monospace;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Seedless — Demo Voiceover (2:06 cut)</h1>
+  <p class="sub">Each beat's timecode matches your edited video. Read the highlighted phrases with weight. Pace ≈ 120 wpm — leave a half-second pause between beats.</p>
+</header>
+
+<div class="beat">
+  <h2>1. Onboarding <span class="runtime">0:00 – 0:12</span></h2>
+  <p class="voiceover">Hey, I'm Francis, founder of Seedless. <em>A passkey wallet on Solana — no seed phrase, no extension.</em> One face scan, account created, on mainnet.</p>
+  <p class="cue">On screen: portal.lazor.sh → name entry → passkey save prompt → "signing in"</p>
+</div>
+
+<div class="beat">
+  <h2>2. Home + Receive <span class="runtime">0:12 – 0:24</span></h2>
+  <p class="voiceover">Wallet's live, already funded. You can receive any Solana token right from this QR — standard Solana address, share with anyone.</p>
+  <p class="cue">On screen: home $14.76 → Receive QR → back to home</p>
+</div>
+
+<div class="beat">
+  <h2>3. Swap (Jupiter) <span class="runtime">0:24 – 0:44</span></h2>
+  <p class="voiceover">Now swapping. Zero point one SOL into USDC. Jupiter routes the trade in the background — best price across every DEX on Solana. I review, FaceID, done. <em>Notice the gas — sponsored by our relayer through Kora. The user pays nothing extra.</em></p>
+  <p class="cue">On screen: Swap → 0.1 SOL → 9.34 USDC quote → simulate → Review → FaceID → "Swap complete"</p>
+</div>
+
+<div class="beat">
+  <h2>4. Balance + Burner create <span class="runtime">0:44 – 0:56</span></h2>
+  <p class="voiceover">Swap settles. Now here's the part nobody else ships on mobile. I tap burner, create a fresh wallet. <em>Privacy is built in, zero setup.</em></p>
+  <p class="cue">On screen: home updates after swap → Burners → Create burner "Test" → Tools menu (Stealth / Burners / Private mode)</p>
+</div>
+
+<div class="beat">
+  <h2>5. Gasless send <span class="runtime">0:56 – 1:24</span></h2>
+  <p class="voiceover">This is gasless send. Drop a recipient, zero point zero five SOL, hit send. FaceID approves, <em>the relayer sponsors the network fee — no SOL needed for gas, ever.</em></p>
+  <p class="cue">On screen: Send → paste address → enter SOL → Lazor portal sign-in → Review → FaceID → home updates</p>
+</div>
+
+<div class="beat">
+  <h2>6. Private send via burner (Umbra) <span class="runtime">1:24 – 1:48</span></h2>
+  <p class="voiceover">From the burner, I tap private send. <em>Powered by Umbra under the hood</em> — recipient gets the funds, but the link to my main wallet stays hidden on chain. Sender and amount, both private.</p>
+  <p class="cue">On screen: burner with funds → "Private send via Umbra" → 0.05 SOL → "Getting ready" → "Sent privately — amount and sender hidden"</p>
+</div>
+
+<div class="beat">
+  <h2>7. Stealth payment request (Solana Pay) <span class="runtime">1:48 – 2:04</span></h2>
+  <p class="voiceover">And receiving privately works the same way. I generate a payment request, pick USDC, enter the amount. <em>What pops out is a Solana Pay QR — any wallet can scan and pay.</em> Funds land privately, my main address never exposed.</p>
+  <p class="cue">On screen: Stealth → Payment request modal → USDC tab → amount → Generate QR code</p>
+</div>
+
+<div class="beat">
+  <h2>8. Close <span class="runtime">2:04 – 2:06</span></h2>
+  <p class="voiceover">That's Seedless. <em>Private mainnet beta, live now.</em></p>
+  <p class="cue">On screen: home final balance</p>
+</div>
+
+<footer>
+  Total runtime 2:06 · ~250 words at ≈120 wpm · Pause ½ second between beats so visuals catch up.
+</footer>
+
+</body>
+</html>

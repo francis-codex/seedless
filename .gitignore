@@ -53,5 +53,17 @@ claude-session.jsonl
 /Code/
 /UDOKA_ONBOARDING.html
 /UDOKA_ONBOARDING.pdf
+/Udoka_Resume.pdf
+/francis-ohilebo-backend-cv.pdf
 /expo-recovery-codes.txt
 /assets/wells-ui/
+
+# Personal drafts and reference material — not part of the codebase
+/lifi-interview-prep.md
+/solana_wallet_full_strategy.md
+/ika-whitepaper.pdf
+
+# Large local-only media
+/seedless demo.mp4
+*.mp4
+/frontier-ika-bounty/
