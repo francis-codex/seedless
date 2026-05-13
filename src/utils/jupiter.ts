@@ -291,14 +291,14 @@ export async function prepareSwap(
   // Step 4: Filter out compute budget instructions (CRITICAL for Kora)
   const filteredInstructions = filterComputeBudgetInstructions(allInstructions);
 
-  // Step 4b: Set explicit compute unit limit at the head of the tx.
+  // Step 4b: Set explicit compute unit limit + priority fee at head of tx.
   // Kora's default (~200K) is too low for single-hop Whirlpool/TesseraV/Invariant
-  // swaps — runtime hits "Program failed to complete" mid-execution. 800K covers
-  // any direct route. Solana's CU limit instruction is idempotent; if Kora later
-  // adds another, the last one wins, but having ours present prevents the
-  // simulation panic at minimum.
+  // swaps. 800K was insufficient on mainnet APK testing (May 13). Bumped to
+  // Solana's per-tx max (1.4M). Priority fee (1000 microLamports) helps the
+  // simulator reserve proper budget and improves landing speed.
   filteredInstructions.unshift(
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 800_000 })
+    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1000 }),
+    ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 })
   );
 
   // Step 5: Fetch Address Lookup Tables

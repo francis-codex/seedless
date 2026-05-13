@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   TextInput,
   ActivityIndicator,
@@ -10,6 +11,7 @@ import {
   ScrollView,
   StatusBar,
   KeyboardAvoidingView,
+  Modal,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -44,6 +46,7 @@ const toHumanAmount = (smallestUnit: string, decimals: number): string => {
 
 type SwapPair = 'SOL_TO_USDC' | 'USDC_TO_SOL' | 'SOL_TO_SEED' | 'SEED_TO_SOL' | 'USDC_TO_SEED' | 'SEED_TO_USDC';
 type SwapSource = 'jupiter' | 'bags';
+type TokenSymbol = 'SOL' | 'USDC' | 'SEED';
 
 const SWAP_PAIRS: Record<SwapPair, { input: string; output: string; inputMint: string; outputMint: string; inputDecimals: number; outputDecimals: number }> = {
   SOL_TO_USDC: { input: 'SOL', output: 'USDC', inputMint: SOL_MINT, outputMint: USDC_MINT, inputDecimals: TOKEN_DECIMALS.SOL, outputDecimals: TOKEN_DECIMALS.USDC },
@@ -54,6 +57,12 @@ const SWAP_PAIRS: Record<SwapPair, { input: string; output: string; inputMint: s
   SEED_TO_USDC: { input: 'SEED', output: 'USDC', inputMint: SEED_MINT, outputMint: USDC_MINT, inputDecimals: SEED_DECIMALS, outputDecimals: TOKEN_DECIMALS.USDC },
 };
 
+const TOKEN_LIST: TokenSymbol[] = ['SOL', 'USDC', 'SEED'];
+
+function pairFromTokens(input: TokenSymbol, output: TokenSymbol): SwapPair {
+  return `${input}_TO_${output}` as SwapPair;
+}
+
 export function SwapScreen({ onBack }: SwapScreenProps) {
   const { smartWalletPubkey, signAndSendTransaction, authorizeAndExecute } = useWallet();
 
@@ -61,6 +70,7 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
   const [amount, setAmount] = useState('');
   const [pair, setPair] = useState<SwapPair>('SOL_TO_SEED');
   const [swapSource, setSwapSource] = useState<SwapSource>('jupiter');
+  const [pickerSide, setPickerSide] = useState<'input' | 'output' | null>(null);
 
   // Quote state
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
@@ -130,14 +140,33 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
     return () => clearTimeout(timer);
   }, [amount, pair, swapSource, smartWalletPubkey, fetchQuoteSilent]);
 
-  // Cycle through swap pairs
-  const cyclePair = () => {
-    const pairs: SwapPair[] = ['SOL_TO_SEED', 'SEED_TO_SOL', 'SOL_TO_USDC', 'USDC_TO_SOL', 'USDC_TO_SEED', 'SEED_TO_USDC'];
-    const currentIndex = pairs.indexOf(pair);
-    setPair(pairs[(currentIndex + 1) % pairs.length]);
+  // Flip input/output sides
+  const flipPair = () => {
+    const { input, output } = SWAP_PAIRS[pair];
+    setPair(pairFromTokens(output as TokenSymbol, input as TokenSymbol));
     setQuote(null);
     setBagsQuote(null);
     setAmount('');
+  };
+
+  // Pick a token for either side. If user picks same token on both sides, auto-flip.
+  const handlePickToken = (token: TokenSymbol) => {
+    if (!pickerSide) return;
+    const { input, output } = SWAP_PAIRS[pair];
+    let nextInput = input as TokenSymbol;
+    let nextOutput = output as TokenSymbol;
+    if (pickerSide === 'input') {
+      nextInput = token;
+      if (token === output) nextOutput = input as TokenSymbol;
+    } else {
+      nextOutput = token;
+      if (token === input) nextInput = output as TokenSymbol;
+    }
+    setPair(pairFromTokens(nextInput, nextOutput));
+    setQuote(null);
+    setBagsQuote(null);
+    setAmount('');
+    setPickerSide(null);
   };
 
   // Fetch quote from selected source
@@ -266,7 +295,18 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
       setBagsQuote(null);
     } catch (error: any) {
       console.error('Swap failed:', error);
-      Alert.alert('Swap failed', error.message || 'Transaction failed');
+      const raw = String(error?.message ?? error ?? '');
+      let friendly = error?.message || 'Transaction failed';
+      if (raw.includes('Program failed to complete') || raw.includes('exceeded CUs') || raw.includes('exceeded maximum number')) {
+        friendly = 'Swap simulation ran out of compute. Try a smaller amount or a more liquid pair.';
+      } else if (raw.includes('insufficient') || raw.includes('0x1') || raw.includes('lamport')) {
+        friendly = `Not enough ${inputToken} to cover swap + rent. Top up and retry.`;
+      } else if (raw.includes('NO_ROUTES') || raw.toLowerCase().includes('no routes')) {
+        friendly = `No route available for ${inputToken} → ${outputToken} right now.`;
+      } else if (raw.toLowerCase().includes('blockhash') || raw.toLowerCase().includes('expired')) {
+        friendly = 'Quote expired. Tap Get quote and try again.';
+      }
+      Alert.alert('Swap failed', friendly);
     } finally {
       setIsSwapping(false);
     }
@@ -316,10 +356,15 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
                 }}
                 keyboardType="decimal-pad"
               />
-              <View style={styles.tokenChip}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setPickerSide('input')}
+                style={styles.tokenChip}
+              >
                 <TokenLogo symbol={inputToken} size={28} />
                 <Text style={styles.tokenChipText}>{inputToken}</Text>
-              </View>
+                <Text style={styles.chevron}>▾</Text>
+              </TouchableOpacity>
             </View>
             <View style={styles.actionsRow}>
               <TouchableOpacity activeOpacity={0.7} onPress={handleMax} style={styles.maxBtn}>
@@ -330,7 +375,7 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
 
           {/* Flip button */}
           <View style={styles.flipWrap}>
-            <TouchableOpacity activeOpacity={0.7} style={styles.flipBtn} onPress={cyclePair}>
+            <TouchableOpacity activeOpacity={0.7} style={styles.flipBtn} onPress={flipPair}>
               <Icon name="swap" size={20} color={colors.text} />
             </TouchableOpacity>
           </View>
@@ -342,10 +387,15 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
               <Text style={styles.outputAmount}>
                 {activeQuote ? toHumanAmount(outAmount, outputDecimals) : '0.00'}
               </Text>
-              <View style={styles.tokenChip}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setPickerSide('output')}
+                style={styles.tokenChip}
+              >
                 <TokenLogo symbol={outputToken} size={28} />
                 <Text style={styles.tokenChipText}>{outputToken}</Text>
-              </View>
+                <Text style={styles.chevron}>▾</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -391,6 +441,42 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
 
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Token picker bottom sheet */}
+      <Modal
+        visible={pickerSide !== null}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setPickerSide(null)}
+      >
+        <TouchableWithoutFeedback onPress={() => setPickerSide(null)}>
+          <View style={styles.pickerOverlay}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={styles.pickerSheet}>
+                <View style={styles.pickerHandle} />
+                <Text style={styles.pickerTitle}>
+                  {pickerSide === 'input' ? 'You pay' : 'You receive'}
+                </Text>
+                {TOKEN_LIST.map((sym) => {
+                  const isSelected = pickerSide === 'input' ? sym === inputToken : sym === outputToken;
+                  return (
+                    <TouchableOpacity
+                      key={sym}
+                      activeOpacity={0.7}
+                      style={[styles.pickerRow, isSelected && styles.pickerRowActive]}
+                      onPress={() => handlePickToken(sym)}
+                    >
+                      <TokenLogo symbol={sym} size={32} />
+                      <Text style={styles.pickerSymbol}>{sym}</Text>
+                      {isSelected && <Text style={styles.pickerCheck}>✓</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -468,6 +554,58 @@ const styles = StyleSheet.create({
   },
   tokenChipText: {
     ...typography.heading,
+  },
+  chevron: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginLeft: -2,
+  },
+
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(11, 37, 69, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  pickerSheet: {
+    backgroundColor: colors.bg,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: spacing.xl,
+    paddingBottom: spacing.xxxl,
+  },
+  pickerHandle: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    marginBottom: spacing.lg,
+  },
+  pickerTitle: {
+    ...typography.caption,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.md,
+  },
+  pickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.md,
+  },
+  pickerRowActive: {
+    backgroundColor: colors.surface,
+  },
+  pickerSymbol: {
+    ...typography.heading,
+    flex: 1,
+  },
+  pickerCheck: {
+    fontSize: 18,
+    color: colors.text,
+    fontWeight: '700' as const,
   },
   actionsRow: {
     flexDirection: 'row',
