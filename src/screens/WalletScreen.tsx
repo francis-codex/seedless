@@ -95,11 +95,6 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [isSessionBusy, setIsSessionBusy] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
-  // Drain mode: when true, MAX fills with the full balance (no rent buffer
-  // for SOL). Toggled by tapping MAX a second time within 2s. Resets when the
-  // modal closes or the token switches.
-  const [drainMode, setDrainMode] = useState(false);
-  const maxTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [receiveModalOpen, setReceiveModalOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'tokens' | 'tools'>('tokens');
@@ -391,26 +386,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
       Alert.alert('Insufficient balance', `You only have ${tokenBalance.toFixed(selectedToken.decimals === 6 ? 2 : 4)} ${selectedToken.symbol}`);
       return;
     }
-    if (selectedToken.isNative) {
-      if (!drainMode && parsedAmount > tokenBalance - MIN_SOL_FOR_TX) {
-        Alert.alert('Insufficient balance', `You need to keep at least ${MIN_SOL_FOR_TX} SOL for rent. Max you can send: ${(tokenBalance - MIN_SOL_FOR_TX).toFixed(4)} SOL.\n\nTap MAX twice to drain the wallet completely.`);
-        return;
-      }
-      if (drainMode) {
-        const confirmed = await new Promise<boolean>((resolve) => {
-          Alert.alert(
-            'Drain wallet?',
-            `This will send your entire SOL balance (${tokenBalance.toFixed(4)} SOL) and leave the account at zero. It may go dormant and need to be re-funded to use again.`,
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Drain', style: 'destructive', onPress: () => resolve(true) },
-            ],
-            { cancelable: true, onDismiss: () => resolve(false) },
-          );
-        });
-        if (!confirmed) return;
-      }
-    } else if (solBalance < MIN_SOL_FOR_TX) {
+    if (!selectedToken.isNative && solBalance < MIN_SOL_FOR_TX) {
       // SPL transfer still touches the sender's wallet for the smart-wallet
       // program; if the wallet itself is below rent-exempt we can't safely
       // route the tx.
@@ -530,7 +506,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
       setIsSending(false);
     }
   }, [
-    smartWalletPubkey, walletId, recipient, amount, selectedToken, drainMode, solBalance,
+    smartWalletPubkey, walletId, recipient, amount, selectedToken, solBalance,
     activeSession, signAndSendWithSession, signAndSendTransaction, transferSol,
     balanceForToken,
   ]);
@@ -829,23 +805,14 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
           animationType="slide"
           transparent={false}
           presentationStyle="pageSheet"
-          onRequestClose={() => {
-            setSendModalOpen(false);
-            setDrainMode(false);
-          }}
+          onRequestClose={() => setSendModalOpen(false)}
         >
           <SafeAreaView style={styles.safe}>
             <KeyboardAvoidingView
               style={{ flex: 1 }}
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
-              <ScreenHeader
-                title="Send"
-                onClose={() => {
-                  setSendModalOpen(false);
-                  setDrainMode(false);
-                }}
-              />
+              <ScreenHeader title="Send" onClose={() => setSendModalOpen(false)} />
               <ScrollView
                 style={{ flex: 1 }}
                 contentContainerStyle={styles.modalContent}
@@ -895,8 +862,6 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
                           setSelectedTokenSymbol(t.symbol);
                           // Clear any in-flight amount so the new token's decimals don't trip validation.
                           setAmount('');
-                          // Drain mode is SOL-specific — leave it when switching off SOL.
-                          if (t.symbol !== 'SOL') setDrainMode(false);
                         }}
                       >
                         <Text style={[styles.tokenChipSymbol, selected && styles.tokenChipSymbolSelected]} numberOfLines={1}>{t.symbol}</Text>
@@ -935,44 +900,24 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
                   />
                   <TouchableOpacity
                     activeOpacity={0.7}
-                    style={[styles.maxBtn, drainMode && styles.maxBtnDrain]}
+                    style={styles.maxBtn}
                     onPress={() => {
+                      // Max means max — full balance, no rent buffer, no
+                      // confirmation. Kora sponsors the gas, so a SOL drain
+                      // doesn't need a fee reserve either. If the user wants
+                      // to leave a buffer they can type the amount manually.
                       const bal = balanceForToken(selectedToken);
-                      // Second tap within the window toggles drain mode for SOL.
-                      // SPL tokens have no rent buffer concept, so the second
-                      // tap is a no-op and we keep them in normal-max state.
-                      const isSecondTap = maxTapTimerRef.current !== null;
-                      if (maxTapTimerRef.current) {
-                        clearTimeout(maxTapTimerRef.current);
-                        maxTapTimerRef.current = null;
-                      }
+                      if (bal <= 0) return;
                       if (selectedToken.isNative) {
-                        if (isSecondTap && !drainMode) {
-                          // Engage drain: full balance, no rent buffer.
-                          setDrainMode(true);
-                          if (bal > 0) {
-                            setAmount(bal.toFixed(9));
-                          }
-                        } else {
-                          setDrainMode(false);
-                          if (bal > MIN_SOL_FOR_TX) {
-                            const usable = Math.floor((bal - MIN_SOL_FOR_TX) * 10000) / 10000;
-                            setAmount(usable.toFixed(4));
-                          }
-                          maxTapTimerRef.current = setTimeout(() => {
-                            maxTapTimerRef.current = null;
-                          }, 2000);
-                        }
-                      } else if (bal > 0) {
-                        // SPL: no rent floor on the SPL balance itself.
-                        setDrainMode(false);
+                        setAmount(bal.toFixed(9));
+                      } else {
                         const digits = selectedToken.decimals === 6 ? 2 : 4;
                         const truncated = Math.floor(bal * Math.pow(10, digits)) / Math.pow(10, digits);
                         setAmount(truncated.toFixed(digits));
                       }
                     }}
                   >
-                    <Text style={styles.maxBtnText}>{drainMode ? 'Drain' : 'Max'}</Text>
+                    <Text style={styles.maxBtnText}>Max</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -984,12 +929,6 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
                     fullWidth
                   />
                 </View>
-
-                {drainMode && selectedToken.isNative ? (
-                  <Text style={styles.drainCaption}>
-                    Draining wallet — sending entire SOL balance. The account may go dormant after this and need to be re-funded.
-                  </Text>
-                ) : null}
 
                 <Text style={styles.helperText}>
                   No SOL needed for fees · Paymaster sponsors gas · Instant confirmation
@@ -1377,17 +1316,6 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     backgroundColor: colors.text,
     borderRadius: radii.md,
-  },
-  maxBtnDrain: {
-    backgroundColor: colors.dangerText,
-  },
-  drainCaption: {
-    marginTop: spacing.md,
-    fontSize: 12,
-    color: colors.dangerText,
-    textAlign: 'center',
-    paddingHorizontal: spacing.md,
-    lineHeight: 16,
   },
   maxBtnText: {
     fontSize: 14,
