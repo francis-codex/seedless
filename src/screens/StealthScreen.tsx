@@ -403,6 +403,16 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                     />
                 }
             >
+                <View style={styles.explainerCard}>
+                    <View style={styles.explainerRow}>
+                        <Icon name="shield" size={18} color={colors.text} />
+                        <Text style={styles.explainerTitle}>What is a stealth address?</Text>
+                    </View>
+                    <Text style={styles.explainerBody}>
+                        A stealth address is a fresh, one-time receiving address that's mathematically linked to your wallet but unlinkable on chain. Share one with a payer and they send to it. You sweep the funds back to your main wallet whenever you want — nobody watching the chain can tell which payments are yours.
+                    </Text>
+                </View>
+
                 <View style={styles.balanceHero}>
                     <Text style={styles.balanceLabel}>Stealth balance</Text>
                     <Text style={styles.balanceAmount}>
@@ -579,6 +589,29 @@ const styles = StyleSheet.create({
         ...typography.caption,
     },
 
+    explainerCard: {
+        backgroundColor: colors.surface,
+        borderRadius: radii.lg,
+        padding: spacing.lg,
+        marginTop: spacing.md,
+        marginBottom: spacing.lg,
+    },
+    explainerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        marginBottom: spacing.sm,
+    },
+    explainerTitle: {
+        fontSize: 15,
+        fontWeight: '600' as const,
+        color: colors.text,
+    },
+    explainerBody: {
+        fontSize: 13,
+        lineHeight: 19,
+        color: colors.textMuted,
+    },
     infoCard: {
         backgroundColor: '#EAF6FF',
         borderRadius: radii.lg,

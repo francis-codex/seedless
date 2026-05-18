@@ -63,6 +63,9 @@ claude-session.jsonl
 /solana_wallet_full_strategy.md
 /ika-whitepaper.pdf
 
+# Personal financial receipts (Claude API + grant submissions) — never commit
+/grant-receipts/
+
 # Large local-only media
 /seedless demo.mp4
 *.mp4

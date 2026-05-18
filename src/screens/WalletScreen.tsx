@@ -630,9 +630,17 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
               onPress={togglePrivacyMode}
               style={styles.heroSection}
             >
-              <Text style={styles.heroBalance}>
-                {isPrivateMode ? '••••' : `$${totalUsd.toFixed(2)}`}
-              </Text>
+              <View style={styles.heroBalanceRow}>
+                <Text style={styles.heroBalance}>
+                  {isPrivateMode ? '••••' : `$${totalUsd.toFixed(2)}`}
+                </Text>
+                <Icon
+                  name={isPrivateMode ? 'eyeOff' : 'eye'}
+                  size={20}
+                  color={colors.textMuted}
+                  strokeWidth={2}
+                />
+              </View>
               {balanceError && !isPrivateMode ? (
                 <Text style={styles.heroError}>{balanceError}</Text>
               ) : isLoadingBalance && !hasFetchedRef.current ? (
@@ -1007,6 +1015,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
 
+  heroBalanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
   heroSection: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.xxl,

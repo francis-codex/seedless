@@ -145,6 +145,9 @@ export function HomeScreen({ onConnected }: HomeScreenProps) {
           loading={isConnecting}
           fullWidth
         />
+        <Text style={styles.forwardNote}>
+          You'll be sent to portal.lazor.sh to sign in with your passkey
+        </Text>
         <Text style={styles.poweredBy}>
           Seedless Labs, Inc. · v{APP_VERSION}
         </Text>
@@ -207,6 +210,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xxl,
     paddingBottom: spacing.xxl,
     gap: spacing.md,
+  },
+  forwardNote: {
+    textAlign: 'center',
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    paddingHorizontal: spacing.md,
   },
   poweredBy: {
     textAlign: 'center',

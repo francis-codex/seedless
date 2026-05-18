@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -256,6 +257,23 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
   }, [handleProgress, appendLog]);
 
   const handleResetSigner = useCallback(async () => {
+    // Confirm before wiping. "Start over" looks innocuous but it discards the
+    // throwaway signer that controls the private address shown above — any
+    // SOL the user funded that address with becomes unreachable. Testers
+    // reported being scared to fund the first address because they didn't
+    // know what "Start over" actually did.
+    const confirmed = await new Promise<boolean>((resolve) => {
+      Alert.alert(
+        'Start over?',
+        'This will generate a brand-new private address. Any SOL you already sent to the address shown above will be stuck — we delete the key that controls it. Only continue if you haven’t funded it yet.',
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Start over', style: 'destructive', onPress: () => resolve(true) },
+        ],
+        { cancelable: true, onDismiss: () => resolve(false) },
+      );
+    });
+    if (!confirmed) return;
     await resetThrowawaySigner();
     setSignerAddress(null);
     setSignatures([]);
@@ -449,6 +467,19 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.explainerCard}>
+          <View style={styles.explainerRow}>
+            <Icon name="lock" size={18} color={colors.text} />
+            <Text style={styles.explainerTitle}>What is private mode?</Text>
+          </View>
+          <Text style={styles.explainerBody}>
+            Private mode hides what's inside your wallet. After setup, you can move SOL or tokens into a private (encrypted) balance — the chain sees the move but nobody can see your private balance amount or trace it back to you. Use it when you want to hold or send funds without anyone on chain knowing how much you have.
+          </Text>
+          <Text style={styles.explainerSteps}>
+            Setup runs once: tap "Turn on private mode" → send a small amount of SOL to the address shown → tap again to finish. Then you can move funds in and out.
+          </Text>
+        </View>
+
         <PrimaryButton
           label={runState === 'idle' ? 'Turn on private mode' : 'Refresh private mode'}
           onPress={handleRun}
@@ -591,6 +622,35 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
 }
 
 const styles = StyleSheet.create({
+  explainerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  explainerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  explainerTitle: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: colors.text,
+  },
+  explainerBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.textMuted,
+  },
+  explainerSteps: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textMuted,
+    marginTop: spacing.sm,
+    fontStyle: 'italic',
+  },
   safe: { flex: 1, backgroundColor: colors.bg },
   container: { flex: 1 },
   content: {
