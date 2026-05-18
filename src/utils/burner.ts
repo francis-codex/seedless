@@ -5,7 +5,14 @@
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import { Keypair, Connection, PublicKey, LAMPORTS_PER_SOL, SystemProgram, Transaction } from '@solana/web3.js';
+import {
+  createAssociatedTokenAccountInstruction,
+  createTransferCheckedInstruction,
+  getAccount,
+  getAssociatedTokenAddress,
+} from '@solana/spl-token';
 import { SOLANA_RPC_URL, IS_DEVNET, MAX_BURNER_WALLETS, BURNER_LIMITS as LIMITS } from '../constants';
+import { type Token, type TokenSymbol } from '../tokens/registry';
 
 export const BURNER_LIMITS = LIMITS;
 
@@ -116,6 +123,35 @@ export async function getBurnerBalance(publicKey: string): Promise<number> {
     }
 }
 
+/**
+ * Fetch SPL token balance for a burner address. Returns 0 when the burner has
+ * no ATA for the mint yet (so the UI shows the empty state instead of an
+ * error).
+ */
+export async function getBurnerSplBalance(publicKey: string, token: Token): Promise<number> {
+    if (token.isNative) return getBurnerBalance(publicKey);
+    const owner = new PublicKey(publicKey);
+    const mint = new PublicKey(token.mint);
+    try {
+        const ata = await getAssociatedTokenAddress(mint, owner, true);
+        const account = await getAccount(connection, ata);
+        return Number(account.amount) / Math.pow(10, token.decimals);
+    } catch {
+        return 0;
+    }
+}
+
+/** Per-token balances for a single burner — used by the burner send modal. */
+export async function getBurnerTokenBalances(
+    publicKey: string,
+    tokens: readonly Token[],
+): Promise<Record<TokenSymbol, number>> {
+    const entries = await Promise.all(
+        tokens.map(async (t) => [t.symbol, await getBurnerSplBalance(publicKey, t)] as const),
+    );
+    return Object.fromEntries(entries) as Record<TokenSymbol, number>;
+}
+
 export async function listBurnersWithBalances(walletId?: string): Promise<BurnerWalletWithBalance[]> {
     const burners = await listBurners(walletId);
 
@@ -165,6 +201,80 @@ export async function sendFromBurner(
             toPubkey: recipientPubkey,
             lamports,
         })
+    );
+
+    transaction.sign(keypair);
+    const signature = await connection.sendRawTransaction(transaction.serialize());
+    await connection.confirmTransaction(signature, 'confirmed');
+
+    return signature;
+}
+
+/**
+ * Send any SPL token from a burner. The burner self-pays the network fee in
+ * SOL (burners aren't passkey-gated and don't route through Kora), so the
+ * burner must hold a small SOL buffer in addition to the SPL balance. If the
+ * recipient doesn't have an ATA for the mint, we create it as part of the
+ * same transaction — the burner pays the ATA rent too.
+ */
+export async function sendSplFromBurner(
+    burnerId: string,
+    token: Token,
+    recipient: string,
+    amount: number,
+): Promise<string> {
+    if (token.isNative) {
+        // Caller chose SOL — defer to the native path.
+        return sendFromBurner(burnerId, recipient, amount);
+    }
+    if (isNaN(amount) || amount <= 0) {
+        throw new Error('Invalid amount');
+    }
+
+    let recipientPubkey: PublicKey;
+    try {
+        recipientPubkey = new PublicKey(recipient);
+    } catch {
+        throw new Error('Invalid recipient address');
+    }
+
+    const keypair = await getBurnerKeypair(burnerId);
+    if (!keypair) {
+        throw new Error('Burner wallet not found');
+    }
+
+    const mint = new PublicKey(token.mint);
+    const fromAta = await getAssociatedTokenAddress(mint, keypair.publicKey, true);
+    const toAta = await getAssociatedTokenAddress(mint, recipientPubkey, true);
+
+    const rawAmount = BigInt(Math.round(amount * Math.pow(10, token.decimals)));
+    if (rawAmount <= 0n) {
+        throw new Error('Invalid amount');
+    }
+
+    const { blockhash } = await connection.getLatestBlockhash();
+    const transaction = new Transaction({
+        recentBlockhash: blockhash,
+        feePayer: keypair.publicKey,
+    });
+
+    // Create recipient ATA in the same tx if missing — keeps the UX one-shot.
+    const recipientAtaInfo = await connection.getAccountInfo(toAta);
+    if (!recipientAtaInfo) {
+        transaction.add(
+            createAssociatedTokenAccountInstruction(keypair.publicKey, toAta, recipientPubkey, mint),
+        );
+    }
+
+    transaction.add(
+        createTransferCheckedInstruction(
+            fromAta,
+            mint,
+            toAta,
+            keypair.publicKey,
+            rawAmount,
+            token.decimals,
+        ),
     );
 
     transaction.sign(keypair);

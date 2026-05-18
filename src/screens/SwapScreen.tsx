@@ -25,6 +25,7 @@ import { getBagsQuote, createBagsSwapTransaction, BagsQuoteResponse } from '../u
 import { DEFAULT_AUTH_EXPIRY_SLOTS, shouldUseDeferredExec } from '../utils/deferredExec';
 import { colors, radii, spacing, typography } from '../theme';
 import { ScreenHeader, TokenLogo, PrimaryButton, Pill, Icon } from '../components/ui';
+import { SUPPORTED_TOKENS, TOKEN_REGISTRY, type Token } from '../tokens/registry';
 
 interface SwapScreenProps {
   onBack: () => void;
@@ -57,7 +58,9 @@ const SWAP_PAIRS: Record<SwapPair, { input: string; output: string; inputMint: s
   SEED_TO_USDC: { input: 'SEED', output: 'USDC', inputMint: SEED_MINT, outputMint: USDC_MINT, inputDecimals: SEED_DECIMALS, outputDecimals: TOKEN_DECIMALS.USDC },
 };
 
-const TOKEN_LIST: TokenSymbol[] = ['SOL', 'USDC', 'SEED'];
+// Derive picker rows from the central token registry. Keeps every screen's
+// token list aligned with one source of truth.
+const TOKEN_LIST: TokenSymbol[] = SUPPORTED_TOKENS.map((t) => t.symbol) as TokenSymbol[];
 
 function pairFromTokens(input: TokenSymbol, output: TokenSymbol): SwapPair {
   return `${input}_TO_${output}` as SwapPair;
@@ -71,6 +74,14 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
   const [pair, setPair] = useState<SwapPair>('SOL_TO_SEED');
   const [swapSource, setSwapSource] = useState<SwapSource>('jupiter');
   const [pickerSide, setPickerSide] = useState<'input' | 'output' | null>(null);
+  // Per-token balances for the picker rows. Fetched lazily when the picker
+  // opens — we don't want the swap screen to block its first render on this.
+  const [pickerBalances, setPickerBalances] = useState<Record<TokenSymbol, number>>({
+    SOL: 0,
+    USDC: 0,
+    SEED: 0,
+  });
+  const [arePickerBalancesLoading, setArePickerBalancesLoading] = useState(false);
 
   // Quote state
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
@@ -82,6 +93,41 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
 
   // Get input/output token info based on pair
   const { input: inputToken, output: outputToken, inputMint, outputMint, inputDecimals, outputDecimals } = SWAP_PAIRS[pair];
+
+  // Refresh balances for every token in the picker. Triggered when the user
+  // opens the picker so the rows show real numbers instead of "—".
+  const refreshPickerBalances = useCallback(async () => {
+    if (!smartWalletPubkey) return;
+    setArePickerBalancesLoading(true);
+    try {
+      const owner = new PublicKey(smartWalletPubkey);
+      const next: Record<TokenSymbol, number> = { SOL: 0, USDC: 0, SEED: 0 };
+      for (const t of SUPPORTED_TOKENS) {
+        try {
+          if (t.isNative) {
+            const lamports = await connection.getBalance(owner);
+            next[t.symbol as TokenSymbol] = lamports / LAMPORTS_PER_SOL;
+          } else {
+            const ata = await getAssociatedTokenAddress(new PublicKey(t.mint), owner, true);
+            const acc = await getAccount(connection, ata);
+            next[t.symbol as TokenSymbol] = Number(acc.amount) / Math.pow(10, t.decimals);
+          }
+        } catch {
+          next[t.symbol as TokenSymbol] = 0;
+        }
+      }
+      setPickerBalances(next);
+    } finally {
+      setArePickerBalancesLoading(false);
+    }
+  }, [smartWalletPubkey]);
+
+  // Refresh balances every time the picker is opened.
+  useEffect(() => {
+    if (pickerSide !== null) {
+      refreshPickerBalances();
+    }
+  }, [pickerSide, refreshPickerBalances]);
 
   // Max button — fill input with full balance of input token (SOL keeps rent buffer)
   const handleMax = useCallback(async () => {
@@ -459,6 +505,9 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
                 </Text>
                 {TOKEN_LIST.map((sym) => {
                   const isSelected = pickerSide === 'input' ? sym === inputToken : sym === outputToken;
+                  const token: Token = TOKEN_REGISTRY[sym];
+                  const balance = pickerBalances[sym] ?? 0;
+                  const balanceFmt = balance.toLocaleString(undefined, { maximumFractionDigits: token.decimals === 6 ? 2 : 4 });
                   return (
                     <TouchableOpacity
                       key={sym}
@@ -467,8 +516,16 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
                       onPress={() => handlePickToken(sym)}
                     >
                       <TokenLogo symbol={sym} size={32} />
-                      <Text style={styles.pickerSymbol}>{sym}</Text>
-                      {isSelected && <Text style={styles.pickerCheck}>✓</Text>}
+                      <View style={styles.pickerRowText}>
+                        <Text style={styles.pickerSymbol}>{sym}</Text>
+                        <Text style={styles.pickerName}>{token.name}</Text>
+                      </View>
+                      <View style={styles.pickerRowRight}>
+                        <Text style={styles.pickerBalance}>
+                          {arePickerBalancesLoading ? '…' : balanceFmt}
+                        </Text>
+                        {isSelected && <Text style={styles.pickerCheck}>✓</Text>}
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
@@ -598,9 +655,26 @@ const styles = StyleSheet.create({
   pickerRowActive: {
     backgroundColor: colors.surface,
   },
+  pickerRowText: {
+    flex: 1,
+  },
   pickerSymbol: {
     ...typography.heading,
-    flex: 1,
+  },
+  pickerName: {
+    fontSize: 12,
+    color: colors.textSubtle,
+    marginTop: 2,
+  },
+  pickerRowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  pickerBalance: {
+    fontSize: 14,
+    color: colors.text,
+    fontVariant: ['tabular-nums'],
   },
   pickerCheck: {
     fontSize: 18,

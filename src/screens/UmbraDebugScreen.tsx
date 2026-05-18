@@ -24,9 +24,9 @@ import { withdrawToPublicBalance } from '../umbra/withdraw';
 import { createReceiverClaimableFromPublicBalance, scanClaimableUtxosAcrossTrees } from '../umbra/utxo';
 import { claimReceiverClaimableUtxosToEncryptedBalance } from '../umbra/claim';
 import type { ScannedUtxoData } from '@umbra-privacy/sdk/interfaces';
-import { getTxExplorerUrl, getAccountExplorerUrl, UMBRA_TEST_MINT_DEVNET } from '../constants';
+import { getTxExplorerUrl, getAccountExplorerUrl, UMBRA_TEST_MINT_DEVNET, SOLANA_RPC_URL } from '../constants';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
-import { PublicKey } from '@solana/web3.js';
+import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { colors, radii, spacing, typography } from '../theme';
 import { ScreenHeader, PrimaryButton, Pill, Icon } from '../components/ui';
 
@@ -45,6 +45,20 @@ interface OpState {
 
 const PHASE2_AMOUNT_LAMPORTS = 1_000_000n;
 const SOL_DISPLAY = '0.001 SOL';
+
+// Minimum SOL balance on the private (umbra signer) address before a deposit
+// can succeed. The 0.001 SOL deposit needs SOL to wrap, ATA rent for wSOL
+// (~0.00204), and a buffer for the smart-wallet program rent. We require 0.005
+// SOL so the chain never sees a rent-exemption shortfall mid-tx.
+const MIN_DEPOSIT_SOL = 0.005;
+
+// LazorKit smart-wallet program-internal custom errors observed in tester
+// reports. These are NOT standard Solana JSON-RPC error codes — they come back
+// from the LazorKit on-chain program when a session-bounded execution fails.
+// 7050003 in particular has surfaced on first-time deposit when the private
+// address is funded right at the edge of rent-exemption. Treat both as
+// signals to nudge the user to top up SOL on their private address.
+const LAZORKIT_SMARTWALLET_ERROR_CODES = ['7050003', '-32002'] as const;
 
 const STEP_LABEL: Record<RegistrationStep, string> = {
   userAccountInitialisation: 'Creating your private address (1/3)',
@@ -95,12 +109,37 @@ function friendlyError(detail: string): string {
   if (/insufficient funds for rent/i.test(detail)) {
     return 'Your private address ran out of SOL after fees. Send at least 0.02 SOL to the private address shown above (so it stays rent-exempt after setup), then tap "Refresh private mode".';
   }
+  if (LAZORKIT_SMARTWALLET_ERROR_CODES.some((code) => detail.includes(code))) {
+    return 'The private smart wallet rejected this transaction. The most common cause is the private address running low on SOL after fees + rent. Send at least 0.005 SOL to the private address shown above, then try again.';
+  }
   if (/websocket|connection closed|subscription failed/i.test(detail)) {
     return 'Network connection dropped mid-transaction. The transaction may have still landed — check Solscan. Otherwise just tap the button again.';
   }
   // Intentionally don't translate generic "timed out" — the raw SDK message
   // tells us which layer timed out (RPC fetch, polling monitor, our outer op).
   return detail;
+}
+
+// Preflight: query SOL balance on the umbra private address before a deposit.
+// This catches insufficient-funding failures BEFORE we fire a chain transaction,
+// turning a confusing on-chain error into an actionable in-app message.
+async function preflightPrivateBalance(address: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+  try {
+    const conn = new Connection(SOLANA_RPC_URL, 'confirmed');
+    const lamports = await conn.getBalance(new PublicKey(address));
+    const sol = lamports / LAMPORTS_PER_SOL;
+    if (sol < MIN_DEPOSIT_SOL) {
+      return {
+        ok: false,
+        reason: `Your private address only has ${sol.toFixed(4)} SOL. Send at least ${MIN_DEPOSIT_SOL.toFixed(3)} SOL to the private address shown above, then tap deposit again.`,
+      };
+    }
+    return { ok: true };
+  } catch (err: any) {
+    // If the preflight call itself fails (RPC hiccup), let the deposit proceed
+    // — we don't want a network blip to block a tx that might succeed.
+    return { ok: true };
+  }
 }
 
 export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
@@ -277,6 +316,13 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
   const handleDeposit = useCallback(() => {
     runOp('deposit', async (ctx) => {
       const { signer, client } = await getStoredSignerAndClient();
+      // Preflight: refuse to fire the tx if we can already see the private
+      // address is underfunded. Catches the most common cause of -32002 /
+      // 7050003 errors before the user spends a passkey prompt on a doomed tx.
+      const pre = await preflightPrivateBalance(signer.address);
+      if (!pre.ok) {
+        throw new Error(pre.reason);
+      }
       const result = await depositToEncryptedBalance(
         {
           client,

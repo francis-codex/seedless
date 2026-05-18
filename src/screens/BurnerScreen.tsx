@@ -24,12 +24,20 @@ import {
     createBurner,
     listBurnersWithBalances,
     getBurnerBalance,
+    getBurnerTokenBalances,
     sendFromBurner,
+    sendSplFromBurner,
     destroyBurner,
     BurnerWalletWithBalance,
     BURNER_LIMITS,
     shortenAddress,
 } from '../utils/burner';
+import {
+    SUPPORTED_TOKENS,
+    TOKEN_REGISTRY,
+    type Token,
+    type TokenSymbol,
+} from '../tokens/registry';
 import {
     privateSendFromBurner,
     PrivateSendDegradationDeclined,
@@ -63,6 +71,13 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
     const [selectedBurner, setSelectedBurner] = useState<BurnerWalletWithBalance | null>(null);
     const [sendRecipient, setSendRecipient] = useState('');
     const [sendAmount, setSendAmount] = useState('');
+    const [sendTokenSymbol, setSendTokenSymbol] = useState<TokenSymbol>('SOL');
+    const sendToken: Token = TOKEN_REGISTRY[sendTokenSymbol];
+    const [burnerTokenBalances, setBurnerTokenBalances] = useState<Record<TokenSymbol, number>>({
+        SOL: 0,
+        USDC: 0,
+        SEED: 0,
+    });
     const [isSending, setIsSending] = useState(false);
 
     const [showPrivateSendModal, setShowPrivateSendModal] = useState(false);
@@ -123,11 +138,21 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
         }
     };
 
-    const handleOpenSend = (burner: BurnerWalletWithBalance) => {
+    const handleOpenSend = async (burner: BurnerWalletWithBalance) => {
         setSelectedBurner(burner);
         setSendRecipient('');
         setSendAmount('');
+        setSendTokenSymbol('SOL');
+        // Seed the per-token balance map with the known SOL value so the UI
+        // doesn't flicker through 0 while the SPL balances load.
+        setBurnerTokenBalances({ SOL: burner.balance, USDC: 0, SEED: 0 });
         setShowSendModal(true);
+        try {
+            const balances = await getBurnerTokenBalances(burner.publicKey, SUPPORTED_TOKENS);
+            setBurnerTokenBalances(balances);
+        } catch (err) {
+            console.warn('Failed to fetch burner token balances:', err);
+        }
     };
 
     const handleSend = async () => {
@@ -147,26 +172,53 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
             return;
         }
 
-        if (amount > BURNER_LIMITS.MAX_SEND_SOL) {
-            Alert.alert('Limit Exceeded', `Max is ${BURNER_LIMITS.MAX_SEND_SOL} SOL`);
-            return;
-        }
+        const tokenBalance = burnerTokenBalances[sendTokenSymbol] ?? 0;
 
-        const balanceLamports = Math.floor(selectedBurner.balance * LAMPORTS_PER_SOL);
-        const amountLamports = Math.round(amount * LAMPORTS_PER_SOL);
-        const maxLamports = Math.max(0, balanceLamports - BURNER_FEE_LAMPORTS);
-        if (amountLamports > maxLamports) {
-            Alert.alert(
-                'Not Enough SOL',
-                `Burner has ${selectedBurner.balance.toFixed(6)} SOL. Max sendable is ${(maxLamports / LAMPORTS_PER_SOL).toFixed(9)} SOL (network fee reserved).\n\nTap Max to auto-fill.`,
-            );
-            return;
+        if (sendToken.isNative) {
+            if (amount > BURNER_LIMITS.MAX_SEND_SOL) {
+                Alert.alert('Limit Exceeded', `Max is ${BURNER_LIMITS.MAX_SEND_SOL} SOL`);
+                return;
+            }
+            const balanceLamports = Math.floor(tokenBalance * LAMPORTS_PER_SOL);
+            const amountLamports = Math.round(amount * LAMPORTS_PER_SOL);
+            const maxLamports = Math.max(0, balanceLamports - BURNER_FEE_LAMPORTS);
+            if (amountLamports > maxLamports) {
+                Alert.alert(
+                    'Not Enough SOL',
+                    `Burner has ${tokenBalance.toFixed(6)} SOL. Max sendable is ${(maxLamports / LAMPORTS_PER_SOL).toFixed(9)} SOL (network fee reserved).\n\nTap Max to auto-fill.`,
+                );
+                return;
+            }
+        } else {
+            // SPL: validate SPL balance + require small SOL buffer on the burner
+            // for the network fee and potential ATA creation rent.
+            if (amount > tokenBalance) {
+                Alert.alert(
+                    'Not Enough ' + sendToken.symbol,
+                    `Burner has ${tokenBalance.toLocaleString(undefined, { maximumFractionDigits: sendToken.decimals === 6 ? 2 : 4 })} ${sendToken.symbol}.`,
+                );
+                return;
+            }
+            const solBalance = burnerTokenBalances.SOL ?? 0;
+            const minSolForSpl = 0.003; // ~2.04m for ATA rent + ~5k fee, with buffer.
+            if (solBalance < minSolForSpl) {
+                Alert.alert(
+                    'Burner needs SOL',
+                    `Top up the burner with at least ${minSolForSpl} SOL to cover the network fee and any ATA creation for the recipient.`,
+                );
+                return;
+            }
         }
 
         setIsSending(true);
         try {
-            const signature = await sendFromBurner(selectedBurner.id, recipient, amount);
-            Alert.alert('Transaction Successful', `Sent ${amount} SOL.\n\nTx: ${signature.slice(0, 20)}...`);
+            const signature = sendToken.isNative
+                ? await sendFromBurner(selectedBurner.id, recipient, amount)
+                : await sendSplFromBurner(selectedBurner.id, sendToken, recipient, amount);
+            Alert.alert(
+                'Transaction Successful',
+                `Sent ${amount} ${sendToken.symbol}.\n\nTx: ${signature.slice(0, 20)}...`,
+            );
             setShowSendModal(false);
             await loadBurners();
         } catch (error: any) {
@@ -174,13 +226,17 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
             const msg = error.message || 'Transaction failed';
             let friendly = msg;
             if (msg.includes('insufficient lamports') || msg.includes('0x1')) {
-                friendly = 'Insufficient balance. Make sure you have enough SOL to cover the amount plus fees.';
+                friendly = sendToken.isNative
+                    ? 'Insufficient balance. Make sure you have enough SOL to cover the amount plus fees.'
+                    : `Insufficient balance. Burner needs more ${sendToken.symbol} or a SOL buffer for fees.`;
             } else if (msg.includes('Transaction too large') || msg.includes('1232')) {
                 friendly = 'Transaction too large. Try sending a smaller amount.';
             } else if (msg.includes('Simulation failed') || msg.includes('simulation failed')) {
-                friendly = 'Transaction failed. Check your balance and try again.';
+                friendly = `Transaction failed. Check your ${sendToken.symbol} balance and try again.`;
             } else if (msg.includes('0x2')) {
                 friendly = 'Insufficient funds for this transaction.';
+            } else if (msg.toLowerCase().includes('account_not_found') || msg.toLowerCase().includes('could not find account')) {
+                friendly = `Burner doesn't have a ${sendToken.symbol} token account yet. Receive some ${sendToken.symbol} to the burner first.`;
             }
             Alert.alert('Failed', friendly);
         } finally {
@@ -481,7 +537,32 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                                 <View style={styles.sheetHandle} />
                                 <Text style={styles.sheetTitle}>Send from burner</Text>
                                 <Text style={styles.sheetSub}>{selectedBurner?.label}</Text>
-                                <Text style={styles.sheetBalance}>{selectedBurner?.balance.toFixed(4)} SOL</Text>
+                                <Text style={styles.sheetBalance}>
+                                    {(burnerTokenBalances[sendTokenSymbol] ?? 0).toLocaleString(undefined, { maximumFractionDigits: sendToken.decimals === 6 ? 2 : 4 })} {sendToken.symbol}
+                                </Text>
+
+                                <View style={styles.burnerTokenChipRow}>
+                                    {SUPPORTED_TOKENS.map((t) => {
+                                        const selected = t.symbol === sendTokenSymbol;
+                                        const bal = burnerTokenBalances[t.symbol] ?? 0;
+                                        return (
+                                            <TouchableOpacity
+                                                key={t.symbol}
+                                                activeOpacity={0.7}
+                                                style={[styles.burnerTokenChip, selected && styles.burnerTokenChipSelected]}
+                                                onPress={() => {
+                                                    setSendTokenSymbol(t.symbol);
+                                                    setSendAmount('');
+                                                }}
+                                            >
+                                                <Text style={[styles.burnerTokenChipLabel, selected && styles.burnerTokenChipLabelSelected]}>{t.symbol}</Text>
+                                                <Text style={[styles.burnerTokenChipBal, selected && styles.burnerTokenChipBalSelected]}>
+                                                    {bal.toLocaleString(undefined, { maximumFractionDigits: t.decimals === 6 ? 2 : 4 })}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
 
                                 <TextInput
                                     style={styles.modalInput}
@@ -495,7 +576,11 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                                 <View style={styles.amountRow}>
                                     <TextInput
                                         style={[styles.modalInput, { flex: 1, marginBottom: 0 }]}
-                                        placeholder={`Amount (max ${BURNER_LIMITS.MAX_SEND_SOL} SOL)`}
+                                        placeholder={
+                                            sendToken.isNative
+                                                ? `Amount (max ${BURNER_LIMITS.MAX_SEND_SOL} SOL)`
+                                                : `Amount in ${sendToken.symbol}`
+                                        }
                                         placeholderTextColor={colors.textSubtle}
                                         value={sendAmount}
                                         onChangeText={setSendAmount}
@@ -505,9 +590,16 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                                         style={styles.maxBtn}
                                         onPress={() => {
                                             if (!selectedBurner) return;
-                                            const balanceLamports = Math.floor(selectedBurner.balance * LAMPORTS_PER_SOL);
-                                            const maxLamports = Math.max(0, balanceLamports - BURNER_FEE_LAMPORTS);
-                                            setSendAmount((maxLamports / LAMPORTS_PER_SOL).toFixed(9));
+                                            const tokenBalance = burnerTokenBalances[sendTokenSymbol] ?? 0;
+                                            if (sendToken.isNative) {
+                                                const balanceLamports = Math.floor(tokenBalance * LAMPORTS_PER_SOL);
+                                                const maxLamports = Math.max(0, balanceLamports - BURNER_FEE_LAMPORTS);
+                                                setSendAmount((maxLamports / LAMPORTS_PER_SOL).toFixed(9));
+                                            } else {
+                                                const digits = sendToken.decimals === 6 ? 2 : 4;
+                                                const truncated = Math.floor(tokenBalance * Math.pow(10, digits)) / Math.pow(10, digits);
+                                                setSendAmount(truncated.toFixed(digits));
+                                            }
                                         }}
                                         activeOpacity={0.7}
                                     >
@@ -871,6 +963,42 @@ const styles = StyleSheet.create({
         fontSize: 15,
         color: colors.text,
         marginBottom: spacing.sm,
+    },
+    burnerTokenChipRow: {
+        flexDirection: 'row',
+        gap: spacing.sm,
+        marginBottom: spacing.md,
+    },
+    burnerTokenChip: {
+        flex: 1,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.sm,
+        backgroundColor: colors.surface,
+        borderRadius: radii.md,
+        borderWidth: 1,
+        borderColor: 'transparent',
+        alignItems: 'center',
+    },
+    burnerTokenChipSelected: {
+        backgroundColor: colors.text,
+        borderColor: colors.text,
+    },
+    burnerTokenChipLabel: {
+        fontSize: 13,
+        fontWeight: '600' as const,
+        color: colors.text,
+    },
+    burnerTokenChipLabelSelected: {
+        color: colors.white,
+    },
+    burnerTokenChipBal: {
+        fontSize: 10,
+        color: colors.textSubtle,
+        marginTop: 2,
+    },
+    burnerTokenChipBalSelected: {
+        color: colors.white,
+        opacity: 0.75,
     },
     amountRow: {
         flexDirection: 'row',

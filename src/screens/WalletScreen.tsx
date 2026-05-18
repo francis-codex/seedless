@@ -27,6 +27,14 @@ import { getAccount, getAssociatedTokenAddress } from '@solana/spl-token';
 import * as Linking from 'expo-linking';
 import { SOLANA_RPC_URL, USDC_MINT, SEED_MINT, SOL_MINT, SEED_DECIMALS, CLUSTER_SIMULATION, IS_DEVNET, MIN_SOL_FOR_TX, QUICK_AMOUNTS, getTxExplorerUrl, isValidSolanaAddress } from '../constants';
 import {
+  SUPPORTED_TOKENS,
+  TOKEN_REGISTRY,
+  type Token,
+  type TokenSymbol,
+  uiAmountToRaw,
+} from '../tokens/registry';
+import { buildTransferInstructions } from '../tokens/transfer';
+import {
   ActiveSession,
   clearSession as clearStoredSession,
   computeExpiresAtSlot,
@@ -75,11 +83,14 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
     isSigning,
     createSession,
     signAndSendWithSession,
+    signAndSendTransaction,
     revokeSession,
     transferSol,
   } = useWallet();
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
+  const [selectedTokenSymbol, setSelectedTokenSymbol] = useState<TokenSymbol>('SOL');
+  const selectedToken: Token = TOKEN_REGISTRY[selectedTokenSymbol];
   const [isSending, setIsSending] = useState(false);
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [isSessionBusy, setIsSessionBusy] = useState(false);
@@ -322,6 +333,17 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
     Alert.alert('Copied', 'Address copied to clipboard');
   }, [fullAddress]);
 
+  // Map a token symbol back to its current UI balance. We keep this inline so
+  // the send-flow validation reads against the same numbers the UI shows.
+  const balanceForToken = useCallback((token: Token): number => {
+    switch (token.symbol) {
+      case 'SOL': return solBalance;
+      case 'USDC': return usdcBalance;
+      case 'SEED': return seedBalance;
+      default: return 0;
+    }
+  }, [solBalance, usdcBalance, seedBalance]);
+
   const handleSend = useCallback(async () => {
     if (!smartWalletPubkey || !recipient || !amount) {
       Alert.alert('Missing fields', 'Enter recipient and amount');
@@ -341,12 +363,13 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
       return;
     }
 
-    // Validate amount
-    const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    // Validate amount (against the SELECTED token's decimals + UI shape)
+    const rawAmount = uiAmountToRaw(amount, selectedToken);
+    if (rawAmount === null) {
       Alert.alert('Invalid amount', 'Enter a valid amount greater than 0');
       return;
     }
+    const parsedAmount = Number(rawAmount) / Math.pow(10, selectedToken.decimals);
 
     // Block send if balance hasn't loaded yet
     if (!hasFetchedRef.current) {
@@ -354,19 +377,30 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
       return;
     }
 
-    // Check balance before sending — account for rent-exempt minimum
-    if (parsedAmount > solBalance) {
-      Alert.alert('Insufficient balance', `You only have ${solBalance.toFixed(4)} SOL`);
+    // Per-token balance validation. SOL has a rent-exempt floor on top so we
+    // don't drain the wallet to zero — SPL transfers don't have that floor on
+    // the SPL balance itself, but the SENDER still needs a small SOL buffer
+    // for the LazorKit smart-wallet rent (Kora sponsors gas).
+    const tokenBalance = balanceForToken(selectedToken);
+    if (parsedAmount > tokenBalance) {
+      Alert.alert('Insufficient balance', `You only have ${tokenBalance.toFixed(selectedToken.decimals === 6 ? 2 : 4)} ${selectedToken.symbol}`);
       return;
     }
-    if (parsedAmount > solBalance - MIN_SOL_FOR_TX) {
-      Alert.alert('Insufficient balance', `You need to keep at least ${MIN_SOL_FOR_TX} SOL for rent. Max you can send: ${(solBalance - MIN_SOL_FOR_TX).toFixed(4)} SOL`);
+    if (selectedToken.isNative) {
+      if (parsedAmount > tokenBalance - MIN_SOL_FOR_TX) {
+        Alert.alert('Insufficient balance', `You need to keep at least ${MIN_SOL_FOR_TX} SOL for rent. Max you can send: ${(tokenBalance - MIN_SOL_FOR_TX).toFixed(4)} SOL`);
+        return;
+      }
+    } else if (solBalance < MIN_SOL_FOR_TX) {
+      // SPL transfer still touches the sender's wallet for the smart-wallet
+      // program; if the wallet itself is below rent-exempt we can't safely
+      // route the tx.
+      Alert.alert('Need a little SOL', `Send a small amount of SOL (~${MIN_SOL_FOR_TX} SOL) to keep your wallet active before sending tokens.`);
       return;
     }
 
     setIsSending(true);
     try {
-      const lamports = Math.round(parsedAmount * LAMPORTS_PER_SOL);
       const redirectUrl = Linking.createURL('sign-callback');
       const txOpts = {
         clusterSimulation: CLUSTER_SIMULATION as 'mainnet' | 'devnet',
@@ -377,37 +411,58 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
       const session = walletId ? await getActiveSession(walletId) : null;
       if (walletId && !session && activeSession) setActiveSession(null);
 
-      let signature: string;
+      // Build instructions once. The transfer helper handles SOL vs SPL
+      // (including ATA creation for the recipient if missing). The ATA payer
+      // is set to the sender so the build succeeds even when Kora isn't
+      // available — Kora rewrites the fee payer at sign time when it
+      // sponsors the tx.
+      const { instructions } = await buildTransferInstructions({
+        token: selectedToken,
+        fromOwner: smartWalletPubkey,
+        toOwner: recipientPubkey,
+        amount: rawAmount,
+        connection,
+        ataPayer: smartWalletPubkey,
+      });
 
+      let signature: string;
       if (session) {
-        // Fast path: ed25519-signed locally, no passkey prompt.
+        // Fast path: ed25519-signed locally, no passkey prompt. Same path
+        // for every token — LazorKit's session signer is token-agnostic.
         signature = await signAndSendWithSession({
           sessionKeypair: session.sessionKeypair,
           sessionPda: session.sessionPda,
-          instructions: [
-            SystemProgram.transfer({
-              fromPubkey: smartWalletPubkey,
-              toPubkey: recipientPubkey,
-              lamports,
-            }),
-          ],
+          instructions,
           transactionOptions: txOpts,
         });
-      } else {
-        // Slow path: passkey-prompted transfer via the v2 convenience method.
+      } else if (selectedToken.isNative) {
+        // Slow path for SOL: keep the v2 convenience method so the existing
+        // production flow doesn't regress for the most common case.
         signature = await transferSol(
           {
             recipient: recipientPubkey,
-            lamports,
+            lamports: Number(rawAmount),
+            transactionOptions: txOpts,
+          },
+          { redirectUrl },
+        );
+      } else {
+        // Slow path for SPL: passkey-prompted, generic instructions.
+        signature = await signAndSendTransaction(
+          {
+            instructions,
             transactionOptions: txOpts,
           },
           { redirectUrl },
         );
       }
 
+      const displayAmount = parsedAmount.toLocaleString(undefined, {
+        maximumFractionDigits: selectedToken.decimals === 6 ? 2 : 4,
+      });
       Alert.alert(
         'Transaction Successful',
-        `Sent ${parsedAmount} SOL successfully.\n\nTx: ${signature.slice(0, 20)}...`,
+        `Sent ${displayAmount} ${selectedToken.symbol} successfully.\n\nTx: ${signature.slice(0, 20)}...`,
         [
           { text: 'OK' },
           { text: 'View on Explorer', onPress: () => Linking.openURL(getTxExplorerUrl(signature)) },
@@ -433,7 +488,9 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
       if (msg.includes('Transaction too large') || msg.includes('1232')) {
         friendly = 'Transaction too large. Try sending a smaller amount or contact support.';
       } else if (msg.includes('0x1') || msg.includes('insufficient lamports')) {
-        friendly = 'Insufficient balance for this transaction. Make sure you have enough SOL.';
+        friendly = selectedToken.isNative
+          ? 'Insufficient balance for this transaction. Make sure you have enough SOL.'
+          : `Insufficient balance for this transaction. You need enough ${selectedToken.symbol} to send plus a small SOL buffer for fees.`;
       } else if (msg.includes('0x2')) {
         friendly = 'This wallet was created on an older program version that the new session/transfer flow cannot drive. Connect a new wallet to test, then we can migrate this one.';
       } else if (msg.includes('0x1783') || msg.includes('TransactionTooOld')) {
@@ -445,13 +502,19 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
       } else if (msg.includes('timed out') || msg.includes('not allowed') || msg.includes('webauthn')) {
         friendly = 'Authentication timed out or was cancelled. Please try again.';
       } else if (msg.includes('Simulation failed') || msg.includes('simulation failed')) {
-        friendly = 'Transaction simulation failed. Check your balance and try again.';
+        friendly = `Transaction simulation failed. Check your ${selectedToken.symbol} balance and try again.`;
+      } else if (msg.toLowerCase().includes('account_not_found') || msg.toLowerCase().includes('could not find account')) {
+        friendly = `Your ${selectedToken.symbol} token account is missing. Receive any amount of ${selectedToken.symbol} first to create it, then try sending.`;
       }
       Alert.alert('Failed', friendly);
     } finally {
       setIsSending(false);
     }
-  }, [smartWalletPubkey, walletId, recipient, amount, solBalance, activeSession, signAndSendWithSession, transferSol]);
+  }, [
+    smartWalletPubkey, walletId, recipient, amount, selectedToken, solBalance,
+    activeSession, signAndSendWithSession, signAndSendTransaction, transferSol,
+    balanceForToken,
+  ]);
 
   // ============================================================
   // Render — visual layer only (Wells UI). All logic is above.
@@ -790,6 +853,31 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
                   </TouchableOpacity>
                 </View>
 
+                <Text style={styles.fieldLabel}>Token</Text>
+                <View style={styles.tokenPickerRow}>
+                  {SUPPORTED_TOKENS.map((t) => {
+                    const selected = t.symbol === selectedTokenSymbol;
+                    const bal = balanceForToken(t);
+                    return (
+                      <TouchableOpacity
+                        key={t.symbol}
+                        activeOpacity={0.7}
+                        style={[styles.tokenChip, selected && styles.tokenChipSelected]}
+                        onPress={() => {
+                          setSelectedTokenSymbol(t.symbol);
+                          // Clear any in-flight amount so the new token's decimals don't trip validation.
+                          setAmount('');
+                        }}
+                      >
+                        <Text style={[styles.tokenChipSymbol, selected && styles.tokenChipSymbolSelected]}>{t.symbol}</Text>
+                        <Text style={[styles.tokenChipBalance, selected && styles.tokenChipBalanceSelected]}>
+                          {bal.toLocaleString(undefined, { maximumFractionDigits: t.decimals === 6 ? 2 : 4 })}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
                 <Text style={styles.fieldLabel}>To</Text>
                 <TextInput
                   style={styles.input}
@@ -805,7 +893,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
                 <View style={styles.amountRow}>
                   <TextInput
                     style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                    placeholder="0.00 SOL"
+                    placeholder={`0.00 ${selectedToken.symbol}`}
                     placeholderTextColor={colors.textSubtle}
                     value={amount}
                     onChangeText={(text) => setAmount(text.replace(',', '.'))}
@@ -815,9 +903,17 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
                     activeOpacity={0.7}
                     style={styles.maxBtn}
                     onPress={() => {
-                      if (solBalance !== null && solBalance > MIN_SOL_FOR_TX) {
-                        const usable = Math.floor((solBalance - MIN_SOL_FOR_TX) * 10000) / 10000;
-                        setAmount(usable.toFixed(4));
+                      const bal = balanceForToken(selectedToken);
+                      if (selectedToken.isNative) {
+                        if (bal > MIN_SOL_FOR_TX) {
+                          const usable = Math.floor((bal - MIN_SOL_FOR_TX) * 10000) / 10000;
+                          setAmount(usable.toFixed(4));
+                        }
+                      } else if (bal > 0) {
+                        // SPL: no rent floor on the SPL balance itself.
+                        const digits = selectedToken.decimals === 6 ? 2 : 4;
+                        const truncated = Math.floor(bal * Math.pow(10, digits)) / Math.pow(10, digits);
+                        setAmount(truncated.toFixed(digits));
                       }
                     }}
                   >
@@ -827,7 +923,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
 
                 <View style={{ marginTop: spacing.xxl }}>
                   <PrimaryButton
-                    label={isSending ? 'Sending...' : 'Send SOL'}
+                    label={isSending ? 'Sending...' : `Send ${selectedToken.symbol}`}
                     onPress={handleSend}
                     loading={isSending}
                     fullWidth
@@ -1173,6 +1269,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
     marginBottom: spacing.md,
+  },
+  tokenPickerRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  tokenChip: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    alignItems: 'center',
+  },
+  tokenChipSelected: {
+    backgroundColor: colors.text,
+    borderColor: colors.text,
+  },
+  tokenChipSymbol: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: colors.text,
+  },
+  tokenChipSymbolSelected: {
+    color: colors.white,
+  },
+  tokenChipBalance: {
+    fontSize: 11,
+    color: colors.textSubtle,
+    marginTop: 2,
+  },
+  tokenChipBalanceSelected: {
+    color: colors.white,
+    opacity: 0.7,
   },
   amountRow: {
     flexDirection: 'row',
