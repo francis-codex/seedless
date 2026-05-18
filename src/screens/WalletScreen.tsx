@@ -34,6 +34,7 @@ import {
   uiAmountToRaw,
 } from '../tokens/registry';
 import { buildTransferInstructions } from '../tokens/transfer';
+import { DEFAULT_WALLET_LABEL, getWalletLabel, setWalletLabel } from '../utils/walletLabel';
 import {
   ActiveSession,
   clearSession as clearStoredSession,
@@ -114,6 +115,24 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
   const isFetchingRef = useRef(false);
   const hasFetchedRef = useRef(false);
   const lastWalletRef = useRef<string | null>(null);
+
+  // User-renameable wallet label. Loaded from SecureStore per-pubkey on mount.
+  const [walletLabel, setWalletLabelState] = useState<string>(DEFAULT_WALLET_LABEL);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameDraft, setRenameDraft] = useState('');
+  useEffect(() => {
+    if (!walletId) {
+      setWalletLabelState(DEFAULT_WALLET_LABEL);
+      return;
+    }
+    let cancelled = false;
+    getWalletLabel(walletId).then((label) => {
+      if (!cancelled) setWalletLabelState(label);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [walletId]);
 
   // Privacy state - hides balances from shoulder surfers
   const [isPrivateMode, setIsPrivateMode] = useState(true); // Default to hidden
@@ -732,7 +751,17 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
               <View style={styles.drawerHead}>
                 <Image source={BRAND_LOGO} style={styles.drawerAvatar} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.drawerName}>Wallet 01</Text>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    style={styles.drawerNameRow}
+                    onPress={() => {
+                      setRenameDraft(walletLabel);
+                      setRenameOpen(true);
+                    }}
+                  >
+                    <Text style={styles.drawerName} numberOfLines={1}>{walletLabel}</Text>
+                    <Text style={styles.drawerNameHint}>Tap to rename</Text>
+                  </TouchableOpacity>
                   <Text style={styles.drawerAddr}>{shortAddress || '...'}</Text>
                 </View>
               </View>
@@ -787,6 +816,56 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
               </TouchableOpacity>
             </SafeAreaView>
           </View>
+        </Modal>
+
+        {/* Rename wallet modal */}
+        <Modal
+          visible={renameOpen}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setRenameOpen(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.renameOverlay}
+          >
+            <View style={styles.renameCard}>
+              <Text style={styles.renameTitle}>Rename wallet</Text>
+              <TextInput
+                style={styles.renameInput}
+                value={renameDraft}
+                onChangeText={setRenameDraft}
+                placeholder="Wallet 01"
+                placeholderTextColor={colors.textSubtle}
+                autoFocus
+                autoCapitalize="words"
+                maxLength={40}
+              />
+              <View style={styles.renameActions}>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={styles.renameCancel}
+                  onPress={() => setRenameOpen(false)}
+                >
+                  <Text style={styles.renameCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={styles.renameSave}
+                  onPress={async () => {
+                    const next = renameDraft.trim() || DEFAULT_WALLET_LABEL;
+                    if (walletId) {
+                      await setWalletLabel(walletId, next);
+                    }
+                    setWalletLabelState(next);
+                    setRenameOpen(false);
+                  }}
+                >
+                  <Text style={styles.renameSaveText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* Send Modal */}
@@ -1086,9 +1165,69 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 26,
   },
+  drawerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: spacing.sm,
+  },
   drawerName: {
     ...typography.title,
     fontSize: 20,
+  },
+  drawerNameHint: {
+    fontSize: 11,
+    color: colors.textSubtle,
+  },
+  renameOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  renameCard: {
+    backgroundColor: colors.bg,
+    borderRadius: radii.lg,
+    padding: spacing.xl,
+    gap: spacing.md,
+  },
+  renameTitle: {
+    ...typography.heading,
+    marginBottom: spacing.xs,
+  },
+  renameInput: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    fontSize: 16,
+    color: colors.text,
+  },
+  renameActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  renameCancel: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+  },
+  renameSave: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: colors.text,
+    alignItems: 'center',
+  },
+  renameCancelText: {
+    color: colors.text,
+    fontWeight: '600' as const,
+  },
+  renameSaveText: {
+    color: colors.white,
+    fontWeight: '600' as const,
   },
   drawerAddr: {
     ...typography.caption,
