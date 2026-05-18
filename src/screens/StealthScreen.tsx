@@ -636,7 +636,7 @@ const styles = StyleSheet.create({
     },
 
     balanceHero: {
-        backgroundColor: colors.text,
+        backgroundColor: colors.solid,
         borderRadius: radii.lg,
         padding: spacing.xl,
         marginBottom: spacing.xl,
@@ -649,7 +649,7 @@ const styles = StyleSheet.create({
     balanceAmount: {
         fontSize: 40,
         fontWeight: '700' as const,
-        color: colors.white,
+        color: colors.onSolid,
         letterSpacing: -1.5,
     },
     balanceSub: {

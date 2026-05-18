@@ -1218,7 +1218,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: spacing.md,
     borderRadius: radii.md,
-    backgroundColor: colors.text,
+    backgroundColor: colors.solid,
     alignItems: 'center',
   },
   renameCancelText: {
@@ -1226,7 +1226,7 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
   },
   renameSaveText: {
-    color: colors.white,
+    color: colors.onSolid,
     fontWeight: '600' as const,
   },
   drawerAddr: {
@@ -1337,7 +1337,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1420,8 +1420,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tokenChipSelected: {
-    backgroundColor: colors.text,
-    borderColor: colors.text,
+    backgroundColor: colors.solid,
+    borderColor: colors.solid,
   },
   tokenChipSymbol: {
     fontSize: 14,
@@ -1429,7 +1429,7 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   tokenChipSymbolSelected: {
-    color: colors.white,
+    color: colors.onSolid,
   },
   tokenChipBalance: {
     fontSize: 11,
@@ -1437,7 +1437,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   tokenChipBalanceSelected: {
-    color: colors.white,
+    color: colors.onSolid,
     opacity: 0.7,
   },
   amountRow: {
@@ -1448,13 +1448,13 @@ const styles = StyleSheet.create({
   maxBtn: {
     paddingHorizontal: spacing.lg,
     paddingVertical: 18,
-    backgroundColor: colors.text,
+    backgroundColor: colors.solid,
     borderRadius: radii.md,
   },
   maxBtnText: {
     fontSize: 14,
     fontWeight: '600' as const,
-    color: colors.white,
+    color: colors.onSolid,
   },
   quickRow: {
     flexDirection: 'row',

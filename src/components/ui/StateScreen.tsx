@@ -137,13 +137,13 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
   },
   primaryBtn: {
-    backgroundColor: colors.text,
+    backgroundColor: colors.solid,
     paddingVertical: spacing.lg,
     borderRadius: radii.md,
     alignItems: 'center',
   },
   primaryBtnLabel: {
-    color: colors.white,
+    color: colors.onSolid,
     fontSize: 16,
     fontWeight: '600' as const,
   },

@@ -854,12 +854,12 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bg,
     },
     sendBtn: {
-        backgroundColor: colors.text,
+        backgroundColor: colors.solid,
     },
     actionBtnText: {
         fontSize: 13,
         fontWeight: '600' as const,
-        color: colors.white,
+        color: colors.onSolid,
     },
     actionBtnTextDark: {
         fontSize: 13,
@@ -984,8 +984,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     burnerTokenChipSelected: {
-        backgroundColor: colors.text,
-        borderColor: colors.text,
+        backgroundColor: colors.solid,
+        borderColor: colors.solid,
     },
     burnerTokenChipLabel: {
         fontSize: 13,
@@ -993,7 +993,7 @@ const styles = StyleSheet.create({
         color: colors.text,
     },
     burnerTokenChipLabelSelected: {
-        color: colors.white,
+        color: colors.onSolid,
     },
     burnerTokenChipBal: {
         fontSize: 10,
@@ -1001,7 +1001,7 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     burnerTokenChipBalSelected: {
-        color: colors.white,
+        color: colors.onSolid,
         opacity: 0.75,
     },
     amountRow: {
@@ -1012,13 +1012,13 @@ const styles = StyleSheet.create({
     maxBtn: {
         paddingHorizontal: spacing.lg,
         paddingVertical: 18,
-        backgroundColor: colors.text,
+        backgroundColor: colors.solid,
         borderRadius: radii.md,
     },
     maxBtnText: {
         fontSize: 13,
         fontWeight: '600' as const,
-        color: colors.white,
+        color: colors.onSolid,
     },
     progressBox: {
         backgroundColor: '#0E0E0E',
