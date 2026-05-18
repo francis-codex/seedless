@@ -51,9 +51,7 @@ import {
   TokenRow,
   WalletHeader,
   ScreenHeader,
-  BottomNav,
   PrimaryButton,
-  NavTab,
 } from '../components/ui';
 
 interface WalletScreenProps {
@@ -98,7 +96,6 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
   const [receiveModalOpen, setReceiveModalOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'tokens' | 'tools'>('tokens');
-  const [navTab, setNavTab] = useState<NavTab>('wallet');
   const [priceChange24h, setPriceChange24h] = useState<{ sol: number | null; usdc: number | null }>({ sol: null, usdc: null });
 
   const walletIdRef = useRef<string | null>(null);
@@ -707,21 +704,6 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
               renderToolsTab()
             )}
           </ScrollView>
-
-          <BottomNav
-            active={navTab}
-            onChange={(t) => {
-              if (t === 'wallet') {
-                setNavTab('wallet');
-                setActiveTab('tokens');
-              } else if (t === 'swap') {
-                onSwap?.();
-              } else if (t === 'settings') {
-                setNavTab('settings');
-                setActiveTab('tools');
-              }
-            }}
-          />
         </View>
 
         {/* Wallet Drawer */}

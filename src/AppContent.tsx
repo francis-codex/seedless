@@ -16,6 +16,7 @@ import { BurnerScreen } from './screens/BurnerScreen';
 import { UmbraDebugScreen } from './screens/UmbraDebugScreen';
 // IkaScreen kept for post-mainnet demos; hidden from this build
 // import { IkaScreen } from './screens/IkaScreen';
+import { BottomNav, type NavTab } from './components/ui';
 import { colors } from './theme';
 
 type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'umbradebug' | 'ika';
@@ -62,24 +63,47 @@ export function AppContent() {
   if (isConnected) {
     const effectiveScreen = currentScreen;
 
+    // BottomNav active state is derived from the current screen. Sub-screens
+    // (stealth, burner, umbradebug) belong under the wallet tab — only swap
+    // gets its own tab indicator.
+    const navActive: NavTab =
+      effectiveScreen === 'swap' ? 'swap' : 'wallet';
+
     // Keep WalletScreen mounted to preserve balance state and avoid refetching
-    // Other screens overlay on top — when they go back, WalletScreen is instant
+    // Other screens overlay on top — when they go back, WalletScreen is instant.
+    // The BottomNav lives outside the overlay so it persists across all
+    // wallet-mode screens (was the May 13 tester report about "bottom menu
+    // disappearing on swap").
     return (
-      <>
-        <View style={{ display: effectiveScreen === 'wallet' ? 'flex' : 'none', flex: 1 }}>
-          <WalletScreen
-            onDisconnect={() => setCurrentScreen('wallet')}
-            onSwap={() => setCurrentScreen('swap')}
-            onStealth={() => setCurrentScreen('stealth')}
-            onBurner={() => setCurrentScreen('burner')}
-            onUmbraDebug={() => setCurrentScreen('umbradebug')}
-          />
+      <View style={styles.shell}>
+        <View style={styles.screenArea}>
+          <View style={{ display: effectiveScreen === 'wallet' ? 'flex' : 'none', flex: 1 }}>
+            <WalletScreen
+              onDisconnect={() => setCurrentScreen('wallet')}
+              onSwap={() => setCurrentScreen('swap')}
+              onStealth={() => setCurrentScreen('stealth')}
+              onBurner={() => setCurrentScreen('burner')}
+              onUmbraDebug={() => setCurrentScreen('umbradebug')}
+            />
+          </View>
+          {effectiveScreen === 'swap' && <View style={styles.overlay}><SwapScreen onBack={() => setCurrentScreen('wallet')} /></View>}
+          {effectiveScreen === 'stealth' && <View style={styles.overlay}><StealthScreen onBack={() => setCurrentScreen('wallet')} /></View>}
+          {effectiveScreen === 'burner' && <View style={styles.overlay}><BurnerScreen onBack={() => setCurrentScreen('wallet')} /></View>}
+          {effectiveScreen === 'umbradebug' && <View style={styles.overlay}><UmbraDebugScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         </View>
-        {effectiveScreen === 'swap' && <View style={styles.overlay}><SwapScreen onBack={() => setCurrentScreen('wallet')} /></View>}
-        {effectiveScreen === 'stealth' && <View style={styles.overlay}><StealthScreen onBack={() => setCurrentScreen('wallet')} /></View>}
-        {effectiveScreen === 'burner' && <View style={styles.overlay}><BurnerScreen onBack={() => setCurrentScreen('wallet')} /></View>}
-        {effectiveScreen === 'umbradebug' && <View style={styles.overlay}><UmbraDebugScreen onBack={() => setCurrentScreen('wallet')} /></View>}
-      </>
+        <BottomNav
+          active={navActive}
+          onChange={(t) => {
+            if (t === 'swap') {
+              setCurrentScreen('swap');
+            } else {
+              // wallet and settings both bring the user back to the wallet
+              // surface; settings is currently a tab inside WalletScreen.
+              setCurrentScreen('wallet');
+            }
+          }}
+        />
+      </View>
     );
   }
 
@@ -92,6 +116,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.bg,
+  },
+  shell: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  screenArea: {
+    flex: 1,
   },
   overlay: {
     position: 'absolute',
