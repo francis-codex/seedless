@@ -555,8 +555,12 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                                                     setSendAmount('');
                                                 }}
                                             >
-                                                <Text style={[styles.burnerTokenChipLabel, selected && styles.burnerTokenChipLabelSelected]}>{t.symbol}</Text>
-                                                <Text style={[styles.burnerTokenChipBal, selected && styles.burnerTokenChipBalSelected]}>
+                                                <Text style={[styles.burnerTokenChipLabel, selected && styles.burnerTokenChipLabelSelected]} numberOfLines={1}>{t.symbol}</Text>
+                                                <Text
+                                                    style={[styles.burnerTokenChipBal, selected && styles.burnerTokenChipBalSelected]}
+                                                    numberOfLines={1}
+                                                    ellipsizeMode="tail"
+                                                >
                                                     {bal.toLocaleString(undefined, { maximumFractionDigits: t.decimals === 6 ? 2 : 4 })}
                                                 </Text>
                                             </TouchableOpacity>

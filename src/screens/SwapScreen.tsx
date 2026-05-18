@@ -517,11 +517,11 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
                     >
                       <TokenLogo symbol={sym} size={32} />
                       <View style={styles.pickerRowText}>
-                        <Text style={styles.pickerSymbol}>{sym}</Text>
-                        <Text style={styles.pickerName}>{token.name}</Text>
+                        <Text style={styles.pickerSymbol} numberOfLines={1}>{sym}</Text>
+                        <Text style={styles.pickerName} numberOfLines={1}>{token.name}</Text>
                       </View>
                       <View style={styles.pickerRowRight}>
-                        <Text style={styles.pickerBalance}>
+                        <Text style={styles.pickerBalance} numberOfLines={1} ellipsizeMode="tail">
                           {arePickerBalancesLoading ? '…' : balanceFmt}
                         </Text>
                         {isSelected && <Text style={styles.pickerCheck}>✓</Text>}

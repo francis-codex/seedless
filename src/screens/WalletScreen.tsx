@@ -869,8 +869,12 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
                           setAmount('');
                         }}
                       >
-                        <Text style={[styles.tokenChipSymbol, selected && styles.tokenChipSymbolSelected]}>{t.symbol}</Text>
-                        <Text style={[styles.tokenChipBalance, selected && styles.tokenChipBalanceSelected]}>
+                        <Text style={[styles.tokenChipSymbol, selected && styles.tokenChipSymbolSelected]} numberOfLines={1}>{t.symbol}</Text>
+                        <Text
+                          style={[styles.tokenChipBalance, selected && styles.tokenChipBalanceSelected]}
+                          numberOfLines={1}
+                          ellipsizeMode="tail"
+                        >
                           {bal.toLocaleString(undefined, { maximumFractionDigits: t.decimals === 6 ? 2 : 4 })}
                         </Text>
                       </TouchableOpacity>
