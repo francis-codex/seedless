@@ -31,7 +31,59 @@ interface SwapScreenProps {
   onBack: () => void;
 }
 
-const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
+// Shared singleton connections — see src/utils/connection.ts
+import { connection, fallbackConnection } from '../utils/connection';
+
+// 4-second per-call timeout — guarantees a hung Helius socket never freezes
+// the picker. Loses to whichever resolves first.
+const withTimeout = <T,>(p: Promise<T>, ms = 4000): Promise<T> =>
+  Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('rpc-timeout')), ms)),
+  ]);
+
+// Fetch ONE token's balance. Primary → fallback cascade, each call timeout-guarded.
+// Returns -1 as a sentinel for "fetch failed, keep last known". Returns 0 only
+// when both RPCs agree the account is empty (no ATA, no SOL).
+const fetchTokenBalance = async (t: typeof SUPPORTED_TOKENS[number], owner: PublicKey): Promise<number> => {
+  if (t.isNative) {
+    try {
+      const lamports = await withTimeout(connection.getBalance(owner));
+      return lamports / LAMPORTS_PER_SOL;
+    } catch {
+      try {
+        const lamports = await withTimeout(fallbackConnection.getBalance(owner));
+        return lamports / LAMPORTS_PER_SOL;
+      } catch {
+        return -1;
+      }
+    }
+  }
+  try {
+    const ata = await getAssociatedTokenAddress(new PublicKey(t.mint), owner, true);
+    try {
+      const acc = await withTimeout(getAccount(connection, ata));
+      return Number(acc.amount) / Math.pow(10, t.decimals);
+    } catch (primaryErr: any) {
+      try {
+        const acc = await withTimeout(getAccount(fallbackConnection, ata));
+        return Number(acc.amount) / Math.pow(10, t.decimals);
+      } catch (fallbackErr: any) {
+        // Only treat as a genuine "no ATA" when BOTH RPCs agree the account
+        // doesn't exist (TokenAccountNotFoundError). Any other failure
+        // (timeout, RPC down) returns the -1 sentinel so the caller keeps
+        // the last-known balance instead of silently zeroing the row.
+        const msg = String(fallbackErr?.name ?? '') + ' ' + String(fallbackErr?.message ?? '');
+        if (msg.includes('TokenAccountNotFound') || msg.includes('could not find account')) {
+          return 0;
+        }
+        return -1;
+      }
+    }
+  } catch {
+    return -1;
+  }
+};
 
 const toSmallestUnit = (humanAmount: string, decimals: number): string => {
   const num = parseFloat(humanAmount);
@@ -74,14 +126,24 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
   const [pair, setPair] = useState<SwapPair>('SOL_TO_SEED');
   const [swapSource, setSwapSource] = useState<SwapSource>('jupiter');
   const [pickerSide, setPickerSide] = useState<'input' | 'output' | null>(null);
-  // Per-token balances for the picker rows. Fetched lazily when the picker
-  // opens — we don't want the swap screen to block its first render on this.
+  // Per-token balances for the picker rows. Prefetched on mount so the picker
+  // never opens to "…" — we hold last-known values and only show the loading
+  // dots for tokens that have literally never been fetched.
   const [pickerBalances, setPickerBalances] = useState<Record<TokenSymbol, number>>({
     SOL: 0,
     USDC: 0,
     SEED: 0,
   });
-  const [arePickerBalancesLoading, setArePickerBalancesLoading] = useState(false);
+  const [pickerBalanceLoading, setPickerBalanceLoading] = useState<Record<TokenSymbol, boolean>>({
+    SOL: true,
+    USDC: true,
+    SEED: true,
+  });
+  const [pickerBalanceFetched, setPickerBalanceFetched] = useState<Record<TokenSymbol, boolean>>({
+    SOL: false,
+    USDC: false,
+    SEED: false,
+  });
 
   // Quote state
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
@@ -94,53 +156,71 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
   // Get input/output token info based on pair
   const { input: inputToken, output: outputToken, inputMint, outputMint, inputDecimals, outputDecimals } = SWAP_PAIRS[pair];
 
-  // Refresh balances for every token in the picker. Triggered when the user
-  // opens the picker so the rows show real numbers instead of "—".
-  const refreshPickerBalances = useCallback(async () => {
-    if (!smartWalletPubkey) return;
-    setArePickerBalancesLoading(true);
-    try {
-      const owner = new PublicKey(smartWalletPubkey);
-      const next: Record<TokenSymbol, number> = { SOL: 0, USDC: 0, SEED: 0 };
-      for (const t of SUPPORTED_TOKENS) {
-        try {
-          if (t.isNative) {
-            const lamports = await connection.getBalance(owner);
-            next[t.symbol as TokenSymbol] = lamports / LAMPORTS_PER_SOL;
-          } else {
-            const ata = await getAssociatedTokenAddress(new PublicKey(t.mint), owner, true);
-            const acc = await getAccount(connection, ata);
-            next[t.symbol as TokenSymbol] = Number(acc.amount) / Math.pow(10, t.decimals);
-          }
-        } catch {
-          next[t.symbol as TokenSymbol] = 0;
-        }
-      }
-      setPickerBalances(next);
-    } finally {
-      setArePickerBalancesLoading(false);
-    }
-  }, [smartWalletPubkey]);
+  // Stable string form of the wallet pubkey. useWallet() returns a new
+  // PublicKey instance every render, so depending on the object identity
+  // causes useEffect to re-fire infinitely. The base58 string is stable.
+  const walletKey = smartWalletPubkey?.toString() ?? null;
 
-  // Refresh balances every time the picker is opened.
+  // Refresh balances for all tokens in parallel with per-token loading state.
+  // Each token resolves independently so the UI fills in as fetches complete.
+  const refreshPickerBalances = useCallback(async () => {
+    if (!walletKey) return;
+    const owner = new PublicKey(walletKey);
+    // Mark every token as loading. Render only shows "…" when fetched=false,
+    // so already-known tokens keep their stale value during refresh.
+    setPickerBalanceLoading({ SOL: true, USDC: true, SEED: true });
+    await Promise.all(
+      SUPPORTED_TOKENS.map(async (t) => {
+        const sym = t.symbol as TokenSymbol;
+        const result = await fetchTokenBalance(t, owner);
+        if (result >= 0) {
+          setPickerBalances((prev) => ({ ...prev, [sym]: result }));
+          setPickerBalanceFetched((prev) => ({ ...prev, [sym]: true }));
+        }
+        setPickerBalanceLoading((prev) => ({ ...prev, [sym]: false }));
+      }),
+    );
+  }, [walletKey]);
+
+  // Prefetch on mount + when wallet changes, so the picker opens to real
+  // numbers instantly. Refresh on picker open as well to catch new sends.
+  useEffect(() => {
+    if (walletKey) {
+      refreshPickerBalances();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletKey]);
+
   useEffect(() => {
     if (pickerSide !== null) {
       refreshPickerBalances();
     }
-  }, [pickerSide, refreshPickerBalances]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickerSide]);
 
   // Max button — fill input with full balance of input token (SOL keeps rent buffer)
+  // Falls back to public RPC if primary fails, same pattern as picker balances.
   const handleMax = useCallback(async () => {
     if (!smartWalletPubkey) return;
     try {
       const owner = new PublicKey(smartWalletPubkey);
       if (inputMint === SOL_MINT) {
-        const lamports = await connection.getBalance(owner);
+        let lamports: number;
+        try {
+          lamports = await connection.getBalance(owner);
+        } catch {
+          lamports = await fallbackConnection.getBalance(owner);
+        }
         const usable = Math.max(0, lamports / LAMPORTS_PER_SOL - MIN_SOL_FOR_TX);
         setAmount(usable > 0 ? usable.toFixed(4) : '0');
       } else {
         const ata = await getAssociatedTokenAddress(new PublicKey(inputMint), owner, true);
-        const acc = await getAccount(connection, ata);
+        let acc;
+        try {
+          acc = await getAccount(connection, ata);
+        } catch {
+          acc = await getAccount(fallbackConnection, ata);
+        }
         setAmount((Number(acc.amount) / Math.pow(10, inputDecimals)).toString());
       }
       setQuote(null);
@@ -522,7 +602,7 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
                       </View>
                       <View style={styles.pickerRowRight}>
                         <Text style={styles.pickerBalance} numberOfLines={1} ellipsizeMode="tail">
-                          {arePickerBalancesLoading ? '…' : balanceFmt}
+                          {pickerBalanceLoading[sym] && !pickerBalanceFetched[sym] ? '…' : balanceFmt}
                         </Text>
                         {isSelected && <Text style={styles.pickerCheck}>✓</Text>}
                       </View>

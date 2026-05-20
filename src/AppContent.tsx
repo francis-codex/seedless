@@ -13,13 +13,15 @@ import { WalletScreen } from './screens/WalletScreen';
 import { SwapScreen } from './screens/SwapScreen';
 import { StealthScreen } from './screens/StealthScreen';
 import { BurnerScreen } from './screens/BurnerScreen';
-import { UmbraDebugScreen } from './screens/UmbraDebugScreen';
+// UmbraDebugScreen is archived under src/screens/_archive and intentionally
+// not wired into navigation. Code stays for reference / future debugging
+// sessions; the user-facing private mode lives in WalletScreen's mini sheet.
 // IkaScreen kept for post-mainnet demos; hidden from this build
 // import { IkaScreen } from './screens/IkaScreen';
 import { BottomNav, type NavTab } from './components/ui';
 import { colors } from './theme';
 
-type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'umbradebug' | 'ika';
+type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'ika';
 
 // Navigation state for tracking screen transitions
 export type NavigationState = {
@@ -83,13 +85,11 @@ export function AppContent() {
               onSwap={() => setCurrentScreen('swap')}
               onStealth={() => setCurrentScreen('stealth')}
               onBurner={() => setCurrentScreen('burner')}
-              onUmbraDebug={() => setCurrentScreen('umbradebug')}
             />
           </View>
           {effectiveScreen === 'swap' && <View style={styles.overlay}><SwapScreen onBack={() => setCurrentScreen('wallet')} /></View>}
           {effectiveScreen === 'stealth' && <View style={styles.overlay}><StealthScreen onBack={() => setCurrentScreen('wallet')} /></View>}
           {effectiveScreen === 'burner' && <View style={styles.overlay}><BurnerScreen onBack={() => setCurrentScreen('wallet')} /></View>}
-          {effectiveScreen === 'umbradebug' && <View style={styles.overlay}><UmbraDebugScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         </View>
         <BottomNav
           active={navActive}

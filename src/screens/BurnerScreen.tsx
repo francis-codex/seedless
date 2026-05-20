@@ -23,6 +23,7 @@ import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 import {
     createBurner,
     listBurnersWithBalances,
+    listBurnersWithCachedBalances,
     getBurnerBalance,
     getBurnerTokenBalances,
     sendFromBurner,
@@ -88,6 +89,16 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
     const [privateResultSig, setPrivateResultSig] = useState<string | null>(null);
 
     const loadBurners = useCallback(async (): Promise<BurnerWalletWithBalance[]> => {
+        // Two-phase load: show CACHED balances instantly so the screen renders
+        // with real numbers, then fire the live fetch in the background to
+        // refresh + repersist the cache. Avoids a "0.0000 SOL" flash on every
+        // tab open.
+        try {
+            const cached = await listBurnersWithCachedBalances(walletId);
+            if (cached.length > 0) setBurners(cached);
+        } catch {
+            // Cache miss is non-fatal — live fetch below will populate.
+        }
         setIsLoading(true);
         try {
             const burnersWithBalances = await listBurnersWithBalances(walletId);
@@ -432,13 +443,24 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                         <Text style={styles.emptyText}>No burner wallets yet. Create one above.</Text>
                     </View>
                 ) : (
-                    burners.map((burner) => (
+                    burners.map((burner) => {
+                        const tokenBalances = burner.tokenBalances ?? { SOL: burner.balance, USDC: 0, SEED: 0 };
+                        const nonZeroEntries = SUPPORTED_TOKENS
+                            .map((t) => ({ symbol: t.symbol as TokenSymbol, amount: tokenBalances[t.symbol as TokenSymbol] ?? 0, decimals: t.decimals }))
+                            .filter((e) => e.amount > 0);
+                        const hasAnyBalance = nonZeroEntries.length > 0;
+                        const pillLabel = hasAnyBalance
+                            ? nonZeroEntries
+                                .map((e) => `${e.amount.toLocaleString(undefined, { maximumFractionDigits: e.decimals === 6 ? 2 : 4 })} ${e.symbol}`)
+                                .join(' · ')
+                            : '0.0000 SOL';
+                        return (
                         <View key={burner.id} style={styles.burnerItem}>
                             <View style={styles.burnerHeader}>
                                 <Text style={styles.burnerLabel}>{burner.label}</Text>
                                 <Pill
-                                    label={`${burner.balance.toFixed(4)} SOL`}
-                                    variant={burner.balance > 0 ? 'success' : 'neutral'}
+                                    label={pillLabel}
+                                    variant={hasAnyBalance ? 'success' : 'neutral'}
                                 />
                             </View>
 
@@ -450,11 +472,11 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                                 <TouchableOpacity
                                     style={[styles.actionBtn, styles.sendBtn]}
                                     onPress={() => handleOpenSend(burner)}
-                                    disabled={burner.balance === 0}
+                                    disabled={!hasAnyBalance}
                                     activeOpacity={0.7}
                                 >
-                                    <Icon name="send" size={16} color={burner.balance === 0 ? colors.textSubtle : colors.white} />
-                                    <Text style={[styles.actionBtnText, burner.balance === 0 && { color: colors.textSubtle }]}>Send</Text>
+                                    <Icon name="send" size={16} color={!hasAnyBalance ? colors.textSubtle : colors.white} />
+                                    <Text style={[styles.actionBtnText, !hasAnyBalance && { color: colors.textSubtle }]}>Send</Text>
                                 </TouchableOpacity>
 
                                 <TouchableOpacity style={styles.actionBtn} onPress={() => copyAddress(burner.publicKey)} activeOpacity={0.7}>
@@ -474,9 +496,9 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
 
                             {UMBRA_FEATURE_ENABLED && (
                                 <TouchableOpacity
-                                    style={[styles.privateSendBtn, burner.balance === 0 && { opacity: 0.4 }]}
+                                    style={[styles.privateSendBtn, !hasAnyBalance && { opacity: 0.4 }]}
                                     onPress={() => handleOpenPrivateSend(burner)}
-                                    disabled={burner.balance === 0}
+                                    disabled={!hasAnyBalance}
                                     activeOpacity={0.85}
                                 >
                                     <Icon name="lock" size={16} color="#9af09a" />
@@ -484,7 +506,8 @@ export function BurnerScreen({ onBack }: BurnerScreenProps) {
                                 </TouchableOpacity>
                             )}
                         </View>
-                    ))
+                        );
+                    })
                 )}
 
             </ScrollView>

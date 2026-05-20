@@ -54,28 +54,21 @@ import {
   ScreenHeader,
   PrimaryButton,
 } from '../components/ui';
+import { usePrivateMode } from '../hooks/usePrivateMode';
+import type { FundSignerFn } from '../umbra/auto-setup';
 
 interface WalletScreenProps {
   onDisconnect: () => void;
   onSwap?: () => void;
   onStealth?: () => void;
   onBurner?: () => void;
-  onUmbraDebug?: () => void;
   onIka?: () => void;
 }
 
-const connection = new Connection(SOLANA_RPC_URL, {
-  commitment: 'confirmed',
-  disableRetryOnRateLimit: true,
-});
+// Shared singleton connections — see src/utils/connection.ts
+import { connection, fallbackConnection } from '../utils/connection';
 
-// Fallback public RPC for balance fetching when Helius is rate-limited
-const fallbackConnection = new Connection(
-  IS_DEVNET ? 'https://api.devnet.solana.com' : 'https://api.mainnet-beta.solana.com',
-  { commitment: 'confirmed' },
-);
-
-export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbraDebug, onIka }: WalletScreenProps) {
+export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka }: WalletScreenProps) {
   const {
     smartWalletPubkey,
     disconnect,
@@ -95,6 +88,21 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
   const [isSessionBusy, setIsSessionBusy] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
   const [receiveModalOpen, setReceiveModalOpen] = useState(false);
+  // Private mode UI state. `sendPrivately` is the toggle inside the send
+  // modal; `privateSheetOpen` is the mini sheet that opens from the header
+  // when the user taps their private balance line.
+  // `setupExplainerOpen` + `pendingPrivateSend` gate the first-time setup
+  // explainer that runs before any heavy passkey work, so granma sees a
+  // friendly prompt before the Face ID screen shows an unfamiliar address.
+  const [sendPrivately, setSendPrivately] = useState(false);
+  const [privateSheetOpen, setPrivateSheetOpen] = useState(false);
+  const [setupExplainerOpen, setSetupExplainerOpen] = useState(false);
+  const [pendingPrivateSend, setPendingPrivateSend] = useState<{ recipient: string; amount: number } | null>(null);
+  // Per-button loading flags so tapping one button only spins that button,
+  // not both. Sharing `privateMode.status === 'busy'` made both spin together.
+  const [isCheckingIncoming, setIsCheckingIncoming] = useState(false);
+  const [isMovingToPublic, setIsMovingToPublic] = useState(false);
+  const privateMode = usePrivateMode();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'tokens' | 'tools'>('tokens');
   const [priceChange24h, setPriceChange24h] = useState<{ sol: number | null; usdc: number | null }>({ sol: null, usdc: null });
@@ -360,6 +368,111 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
     }
   }, [solBalance, usdcBalance, seedBalance]);
 
+  // ============================================================
+  // Private mode bridge — declared BEFORE handleSend because the public-send
+  // path branches into handlePrivateSend when the user toggles "Send privately".
+  // ============================================================
+
+  // fundSigner: bridge that lets the Umbra hook ask us to send SOL from the
+  // smart wallet to the user's throwaway umbra signer. Reuses v2 `transferSol`
+  // (passkey-prompted) so the user sees one prompt → SOL lands on signer →
+  // registration proceeds.
+  const fundSigner = useCallback<FundSignerFn>(async (signerAddress, lamports) => {
+    const signature = await transferSol(
+      {
+        recipient: new PublicKey(signerAddress),
+        lamports,
+      },
+      { redirectUrl: Linking.createURL('lazor-callback') },
+    );
+    return signature;
+  }, [transferSol]);
+
+  // Private send via Umbra. Returns the send result so handleSend can decide
+  // whether to fall through to the public-send flow when the recipient isn't
+  // registered and the user consents to a public-fallback send.
+  const handlePrivateSend = useCallback(async (
+    recipientAddr: string,
+    amountSol: number,
+  ) => {
+    if (!smartWalletPubkey) throw new Error('Wallet not connected');
+    if (privateMode.status === 'unregistered') {
+      await privateMode.setUp(fundSigner);
+    }
+    const lamports = Math.floor(amountSol * LAMPORTS_PER_SOL);
+    return privateMode.privateSend({
+      destination: recipientAddr,
+      lamports,
+      fundSigner,
+      onDegradationRequested: async ({ recipient: rcp }) => new Promise<boolean>((resolve) => {
+        Alert.alert(
+          'Recipient is not on private mode',
+          `${rcp.slice(0, 6)}…${rcp.slice(-4)} hasn't set up private mode yet, so this send can't stay encrypted. Send it as a normal public transfer instead?`,
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+            { text: 'Send publicly', onPress: () => resolve(true) },
+          ],
+          { cancelable: true, onDismiss: () => resolve(false) },
+        );
+      }),
+    });
+  }, [smartWalletPubkey, privateMode, fundSigner]);
+
+  // Confirmed first-time setup: user tapped "Set up" in the explainer sheet,
+  // so we now run the same private-send path that handleSend's main branch
+  // would have run for a returning user. Heavy work fires here, with a clean
+  // mental model for the user (they just opted in).
+  const handleConfirmFirstTimePrivateSetup = useCallback(async () => {
+    const pending = pendingPrivateSend;
+    if (!pending) return;
+    setSetupExplainerOpen(false);
+    setIsSending(true);
+    try {
+      const result = await handlePrivateSend(pending.recipient, pending.amount);
+      if (result.mode === 'umbra-encrypted') {
+        Alert.alert(
+          'Sent privately',
+          `Sent ${pending.amount.toFixed(4)} SOL privately. The amount and recipient stay hidden on chain.`,
+        );
+        setRecipient('');
+        setAmount('');
+        setSendPrivately(false);
+        setSendModalOpen(false);
+        setTimeout(() => handleRefresh(), 2000);
+      } else {
+        // Recipient unregistered + user consented to public fallback in the
+        // degradation dialog. Honour that consent and route through the
+        // normal public-send path (same as if "Send privately" were off).
+        const lamports = Math.floor(pending.amount * LAMPORTS_PER_SOL);
+        const sig = await transferSol(
+          {
+            recipient: new PublicKey(pending.recipient),
+            lamports,
+          },
+          { redirectUrl: Linking.createURL('sign-callback') },
+        );
+        Alert.alert(
+          'Sent publicly',
+          `Sent ${pending.amount.toFixed(4)} SOL to ${pending.recipient.slice(0, 6)}…${pending.recipient.slice(-4)} as a normal public transfer (recipient wasn't on private mode).\n\nTx: ${sig.slice(0, 20)}…`,
+        );
+        setRecipient('');
+        setAmount('');
+        setSendPrivately(false);
+        setSendModalOpen(false);
+        setTimeout(() => handleRefresh(), 2000);
+      }
+    } catch (err: any) {
+      if (err?.name === 'PrivateSendFromMainDeclined') {
+        Alert.alert('Private send cancelled', 'No funds moved.');
+      } else {
+        Alert.alert('Failed', err?.message ?? 'Could not set up private mode.');
+      }
+    } finally {
+      setPendingPrivateSend(null);
+      setIsSending(false);
+    }
+  }, [pendingPrivateSend, handlePrivateSend, handleRefresh, transferSol]);
+
   const handleSend = useCallback(async () => {
     if (!smartWalletPubkey || !recipient || !amount) {
       Alert.alert('Missing fields', 'Enter recipient and amount');
@@ -412,6 +525,51 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
 
     setIsSending(true);
     try {
+      // === PRIVATE SEND PATH ===
+      // Routes through Umbra's encrypted UTXO flow when the user has flipped
+      // the "Send privately" toggle on the send modal. Only available for SOL
+      // in this MVP; the toggle is hidden for other tokens until mainnet
+      // multi-mint support is confirmed.
+      if (sendPrivately && selectedToken.isNative) {
+        // First-time setup explainer: if the user has never used private mode,
+        // pause the send and show a friendly sheet explaining the ~0.02 SOL
+        // one-time setup BEFORE the passkey prompt (which would otherwise
+        // show an unfamiliar destination address and confuse them).
+        if (privateMode.status === 'idle' || privateMode.status === 'unregistered') {
+          setPendingPrivateSend({ recipient: recipient.trim(), amount: parsedAmount });
+          setSetupExplainerOpen(true);
+          setIsSending(false);
+          return;
+        }
+        try {
+          const result = await handlePrivateSend(recipient.trim(), parsedAmount);
+          if (result.mode === 'umbra-encrypted') {
+            Alert.alert(
+              'Sent privately',
+              `Sent ${parsedAmount.toFixed(4)} SOL privately. The amount and recipient stay hidden on chain.`,
+              [{ text: 'OK' }],
+            );
+            setRecipient('');
+            setAmount('');
+            setSendPrivately(false);
+            setSendModalOpen(false);
+            setTimeout(() => handleRefresh(), 2000);
+            return;
+          }
+          // mode === 'fallback-public' means the user consented to a public
+          // send (recipient wasn't registered). Fall through to the normal
+          // path so the existing handler does the actual transfer.
+        } catch (err: any) {
+          if (err?.name === 'PrivateSendFromMainDeclined') {
+            Alert.alert('Private send cancelled', 'No funds moved.');
+            setIsSending(false);
+            return;
+          }
+          // Unknown private-send error → fall through and try public.
+          console.warn('[private-send] failed, attempting public fallback:', err?.message ?? err);
+        }
+      }
+
       const redirectUrl = Linking.createURL('sign-callback');
       const txOpts = {
         clusterSimulation: CLUSTER_SIMULATION as 'mainnet' | 'devnet',
@@ -524,7 +682,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
   }, [
     smartWalletPubkey, walletId, recipient, amount, selectedToken, solBalance,
     activeSession, signAndSendWithSession, signAndSendTransaction, transferSol,
-    balanceForToken,
+    balanceForToken, sendPrivately, handlePrivateSend,
   ]);
 
   // ============================================================
@@ -595,14 +753,16 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
           onPress={onBurner}
         />
       )}
-      {onUmbraDebug && (
-        <ToolRow
-          title="Private mode"
-          subtitle="Send and receive privately on Solana"
-          iconName="lock"
-          onPress={onUmbraDebug}
-        />
-      )}
+      {/* Private mode — opens the granma-friendly mini sheet (balance +
+          claim incoming + move back to public). The legacy full-debug
+          surface is archived under src/screens/_archive and is NOT exposed
+          anywhere in the UI. */}
+      <ToolRow
+        title="Private mode"
+        subtitle="Send and receive privately on Solana"
+        iconName="lock"
+        onPress={() => setPrivateSheetOpen(true)}
+      />
       {/* Multi-chain (Ika) — hidden until Ika ships mainnet; re-enable for demos */}
       {false && onIka && (
         <ToolRow
@@ -756,7 +916,8 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
                     style={styles.drawerNameRow}
                     onPress={() => {
                       setRenameDraft(walletLabel);
-                      setRenameOpen(true);
+                      setDrawerOpen(false);
+                      setTimeout(() => setRenameOpen(true), 250);
                     }}
                   >
                     <Text style={styles.drawerName} numberOfLines={1}>{walletLabel}</Text>
@@ -874,6 +1035,10 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
           animationType="slide"
           transparent={false}
           presentationStyle="pageSheet"
+          // No auto-probe on send-modal open. The heavy Umbra client build
+          // only runs when the user actively flips "Send privately" and taps
+          // Send — at that point handlePrivateSend will lazily build the
+          // client itself. Keeps the modal-open animation snappy.
           onRequestClose={() => setSendModalOpen(false)}
         >
           <SafeAreaView style={styles.safe}>
@@ -990,9 +1155,53 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
                   </TouchableOpacity>
                 </View>
 
+                {/* Send privately toggle — SOL only for MVP. Hidden for other
+                    tokens until Umbra mainnet confirms multi-mint support. */}
+                {selectedToken.isNative ? (
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => setSendPrivately((v) => !v)}
+                    style={[
+                      styles.privateToggleRow,
+                      sendPrivately && { borderWidth: 1, borderColor: colors.accent },
+                    ]}
+                  >
+                    <View style={styles.privateToggleLabel}>
+                      <Icon name="lock" size={16} color={sendPrivately ? colors.accent : colors.textMuted} strokeWidth={2} />
+                      <View style={styles.privateToggleTextWrap}>
+                        <Text style={styles.privateToggleText}>Send privately</Text>
+                        <Text style={styles.privateToggleHint} numberOfLines={2}>
+                          {sendPrivately ? 'Encrypted via Umbra' : 'Hide this send on-chain'}
+                        </Text>
+                      </View>
+                    </View>
+                    <View
+                      style={{
+                        width: 44,
+                        height: 26,
+                        borderRadius: 13,
+                        backgroundColor: sendPrivately ? colors.accent : colors.textSubtle,
+                        justifyContent: 'center',
+                        paddingHorizontal: 3,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: 10,
+                          backgroundColor: colors.white,
+                          alignSelf: sendPrivately ? 'flex-end' : 'flex-start',
+                        }}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                ) : null}
+
                 <View style={{ marginTop: spacing.xxl }}>
                   <PrimaryButton
-                    label={isSending ? 'Sending...' : `Send ${selectedToken.symbol}`}
+                    label={isSending ? (sendPrivately ? 'Sending privately…' : 'Sending...') : (sendPrivately ? `Send ${selectedToken.symbol} privately` : `Send ${selectedToken.symbol}`)}
                     onPress={handleSend}
                     loading={isSending}
                     fullWidth
@@ -1000,10 +1209,65 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
                 </View>
 
                 <Text style={styles.helperText}>
-                  No SOL needed for fees · Paymaster sponsors gas · Instant confirmation
+                  {sendPrivately
+                    ? 'One-time setup happens automatically on first private send. Costs about 0.02 SOL once for network fees.'
+                    : 'No SOL needed for fees · Paymaster sponsors gas · Instant confirmation'}
                 </Text>
               </ScrollView>
             </KeyboardAvoidingView>
+
+            {/* First-time private-send explainer — rendered as an absolute
+                overlay INSIDE the send modal's SafeArea rather than a nested
+                Modal. iOS doesn't support presenting one RCTFabricModal on
+                top of another, so the previous nested-Modal approach worked
+                visually but emitted a "Attempt to present...already
+                presenting" UIKit warning. This overlay is pure RN view —
+                no native modal layer, no warning. */}
+            {setupExplainerOpen ? (
+              <View style={styles.explainerInlineOverlay} pointerEvents="auto">
+                <TouchableOpacity
+                  activeOpacity={1}
+                  style={{ flex: 1 }}
+                  onPress={() => {
+                    setSetupExplainerOpen(false);
+                    setPendingPrivateSend(null);
+                  }}
+                />
+                <View style={styles.privateSheet}>
+                  <View style={styles.privateSheetHandle} />
+                  <View style={styles.privateSheetHeader}>
+                    <Icon name="lock" size={28} color={colors.accent} strokeWidth={2} />
+                    <Text style={styles.privateSheetTitle}>Set up private mode</Text>
+                  </View>
+
+                  <Text style={[styles.helperText, { textAlign: 'center', lineHeight: 20 }]}>
+                    Your first private send needs a one-time setup. We'll move about 0.02 SOL into your private account for network fees and rent. After this, every private send takes one tap.
+                  </Text>
+
+                  <Text style={[styles.helperText, { textAlign: 'center', color: colors.textSubtle, marginTop: -spacing.sm }]}>
+                    Sending {pendingPrivateSend?.amount.toFixed(4) ?? '0'} SOL privately to {pendingPrivateSend?.recipient ? `${pendingPrivateSend.recipient.slice(0, 6)}…${pendingPrivateSend.recipient.slice(-4)}` : ''}
+                  </Text>
+
+                  <PrimaryButton
+                    label={privateMode.status === 'setting-up' || isSending ? 'Setting up…' : 'Set up and send'}
+                    onPress={handleConfirmFirstTimePrivateSetup}
+                    loading={privateMode.status === 'setting-up' || isSending}
+                    fullWidth
+                  />
+
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setSetupExplainerOpen(false);
+                      setPendingPrivateSend(null);
+                    }}
+                    style={{ alignItems: 'center', paddingVertical: spacing.sm }}
+                  >
+                    <Text style={[styles.helperText, { color: colors.textMuted }]}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : null}
           </SafeAreaView>
         </Modal>
 
@@ -1023,8 +1287,8 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
                   <QRCode
                     value={fullAddress}
                     size={220}
-                    backgroundColor={colors.white}
-                    color={colors.text}
+                    backgroundColor="#FFFFFF"
+                    color="#000000"
                   />
                 </View>
               ) : null}
@@ -1040,6 +1304,139 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onUmbr
             </ScrollView>
           </SafeAreaView>
         </Modal>
+
+        {/* Private balance mini sheet — opened from the "Private: X SOL" line
+            in the wallet header. Surfaces the encrypted balance + the two
+            actions a user actually needs: claim incoming + move back to public.
+            "Send privately" lives in the main send modal, not here. */}
+        <Modal
+          visible={privateSheetOpen}
+          animationType="slide"
+          transparent
+          onShow={() => {
+            // Sheet opens INSTANTLY with the cached balance. After the slide
+            // animation settles (~500ms), kick off a one-time background
+            // refresh so the displayed balance reflects on-chain reality
+            // instead of a stale SecureStore value. The Umbra client build
+            // is heavy, but deferring 500ms lets the sheet paint first and
+            // keeps the JS-thread freeze off the critical interaction path.
+            setTimeout(() => {
+              if (privateMode.status !== 'busy' && privateMode.status !== 'setting-up') {
+                privateMode.refreshDeep();
+              }
+            }, 500);
+          }}
+          onDismiss={() => privateMode.setIncomingPollEnabled(false)}
+          onRequestClose={() => {
+            privateMode.setIncomingPollEnabled(false);
+            setPrivateSheetOpen(false);
+          }}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.privateSheetOverlay}
+            onPress={() => setPrivateSheetOpen(false)}
+          >
+            <TouchableOpacity activeOpacity={1} onPress={() => {}} style={styles.privateSheet}>
+              <View style={styles.privateSheetHandle} />
+              <View style={styles.privateSheetHeader}>
+                <Text style={styles.privateSheetTitle}>Private balance</Text>
+                {privateMode.status === 'loading' || privateMode.status === 'setting-up' ? (
+                  <ActivityIndicator color={colors.textMuted} size="small" style={{ marginTop: spacing.sm }} />
+                ) : (
+                  <Text style={styles.privateSheetBalance}>
+                    {privateMode.privateBalanceSol.toLocaleString(undefined, { maximumFractionDigits: 4 })} SOL
+                  </Text>
+                )}
+              </View>
+
+              {privateMode.incoming.count > 0 ? (
+                <View style={styles.privateSheetIncoming}>
+                  <Text style={styles.privateSheetIncomingText}>
+                    {privateMode.incoming.count} new private payment{privateMode.incoming.count === 1 ? '' : 's'}
+                  </Text>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={async () => {
+                      try {
+                        await privateMode.claimIncoming();
+                        Alert.alert('Claimed', 'New private payments are now in your private balance.');
+                      } catch (err: any) {
+                        Alert.alert('Failed', err?.message ?? 'Could not claim incoming payments.');
+                      }
+                    }}
+                  >
+                    <Text style={[styles.privateSheetIncomingText, { textDecorationLine: 'underline' }]}>Claim</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              <PrimaryButton
+                label={isCheckingIncoming ? 'Checking…' : 'Check for new payments'}
+                onPress={async () => {
+                  if (isCheckingIncoming) return;
+                  setIsCheckingIncoming(true);
+                  try {
+                    await privateMode.refreshIncoming();
+                  } catch (err: any) {
+                    Alert.alert('Failed', err?.message ?? 'Could not check incoming payments.');
+                  } finally {
+                    setIsCheckingIncoming(false);
+                  }
+                }}
+                loading={isCheckingIncoming}
+                fullWidth
+              />
+
+              <PrimaryButton
+                label={isMovingToPublic ? 'Moving…' : 'Move all to public'}
+                onPress={async () => {
+                  if (isMovingToPublic) return;
+                  if (!smartWalletPubkey || privateMode.privateBalanceLamports === 0n) return;
+                  setIsMovingToPublic(true);
+                  try {
+                    // moveAllToPublic does the full pipeline:
+                    //   1. SDK withdraw → signer's wSOL ATA
+                    //   2. close wSOL ATA → unwraps native SOL to smart wallet
+                    await privateMode.moveAllToPublic(smartWalletPubkey.toBase58());
+                    Alert.alert('Moved to public', 'Your private balance is now back in your main wallet.');
+                    setTimeout(() => handleRefresh(), 2000);
+                  } catch (err: any) {
+                    // Branch by the actual error rather than blanket-mapping
+                    // every failure to "v4↔v11 mismatch". A real bug
+                    // (network drop, balance gone, key issue) deserves the
+                    // truth, not a friendly lie.
+                    const raw = String(err?.message ?? '') + ' ' + String(err?.cause?.message ?? '');
+                    const causeLogs = err?.cause?.context?.logs;
+                    const logStr = Array.isArray(causeLogs) ? causeLogs.join(' ') : '';
+                    const isV4V11Mismatch =
+                      raw.includes('InstructionFallbackNotFound') ||
+                      raw.includes('0x65') ||
+                      raw.includes('Error Number: 101') ||
+                      logStr.includes('InstructionFallbackNotFound');
+                    if (isV4V11Mismatch) {
+                      Alert.alert(
+                        'Withdrawal temporarily unavailable',
+                        'Private withdrawals are paused while we sync with an Umbra mainnet program update. Your encrypted balance is safe and will be withdrawable in the next build.',
+                      );
+                    } else {
+                      Alert.alert('Failed', String(err?.message ?? 'Could not move funds to public.'));
+                    }
+                  } finally {
+                    setIsMovingToPublic(false);
+                  }
+                }}
+                loading={isMovingToPublic}
+                fullWidth
+              />
+
+              <Text style={[styles.helperText, { textAlign: 'center' }]}>
+                Encrypted balance held privately via Umbra. Only you can decrypt it.
+              </Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -1116,6 +1513,126 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.dangerText,
     marginTop: spacing.sm,
+  },
+
+  // Private balance pill — small inline row sitting between the hero balance
+  // and the Send/Receive action row. Visually understated so it never
+  // competes with the main USD figure for attention.
+  privateBalanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    marginTop: spacing.sm,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.pill,
+  },
+  privateBalanceText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '600' as const,
+  },
+  privateBalanceDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.successText,
+    marginLeft: 2,
+  },
+  // Private-send toggle row inside the send modal — sits below Amount,
+  // above the Send button. Matches the existing fast-send row visual.
+  privateToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    marginTop: spacing.lg,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.lg,
+  },
+  privateToggleLabel: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginRight: spacing.md,
+  },
+  privateToggleTextWrap: {
+    flex: 1,
+    flexShrink: 1,
+  },
+  privateToggleText: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '600' as const,
+  },
+  privateToggleHint: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  // Inline (in-modal) explainer overlay. Absolute-positioned so it covers
+  // the send modal's content without spawning a second native modal layer.
+  explainerInlineOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  // Mini sheet styles
+  privateSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  privateSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radii.lg,
+    borderTopRightRadius: radii.lg,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
+    gap: spacing.lg,
+  },
+  privateSheetHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: colors.textSubtle,
+    borderRadius: 2,
+    alignSelf: 'center',
+    opacity: 0.4,
+  },
+  privateSheetHeader: {
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  privateSheetTitle: {
+    ...typography.heading,
+  },
+  privateSheetBalance: {
+    fontSize: 36,
+    fontWeight: '700' as const,
+    color: colors.text,
+    letterSpacing: -1,
+  },
+  privateSheetIncoming: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    backgroundColor: colors.successBg,
+    borderRadius: radii.md,
+  },
+  privateSheetIncomingText: {
+    ...typography.body,
+    color: colors.successText,
+    fontWeight: '600' as const,
   },
 
   emptyTokens: {

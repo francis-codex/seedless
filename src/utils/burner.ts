@@ -12,19 +12,11 @@ import {
   getAssociatedTokenAddress,
 } from '@solana/spl-token';
 import { SOLANA_RPC_URL, IS_DEVNET, MAX_BURNER_WALLETS, BURNER_LIMITS as LIMITS } from '../constants';
-import { type Token, type TokenSymbol } from '../tokens/registry';
+import { SUPPORTED_TOKENS, type Token, type TokenSymbol } from '../tokens/registry';
 
 export const BURNER_LIMITS = LIMITS;
 
-const connection = new Connection(SOLANA_RPC_URL, {
-    commitment: 'confirmed',
-    disableRetryOnRateLimit: true,
-});
-
-const fallbackConnection = new Connection(
-    IS_DEVNET ? 'https://api.devnet.solana.com' : 'https://api.mainnet-beta.solana.com',
-    { commitment: 'confirmed' },
-);
+import { connection, fallbackConnection } from './connection';
 
 const BURNER_LIST_KEY = 'lazor_burner_list';
 const BURNER_KEY_PREFIX = 'lazor_burner_';
@@ -44,6 +36,7 @@ export interface BurnerWallet {
 
 export interface BurnerWalletWithBalance extends BurnerWallet {
     balance: number;
+    tokenBalances?: Record<TokenSymbol, number>;
 }
 
 export async function listBurners(walletId?: string): Promise<BurnerWallet[]> {
@@ -152,15 +145,62 @@ export async function getBurnerTokenBalances(
     return Object.fromEntries(entries) as Record<TokenSymbol, number>;
 }
 
+// SecureStore key for cached per-burner token balances. Persisted so the
+// burners screen opens instantly with last-known values, then refreshes in
+// the background. The shape is { [publicKey]: { SOL, USDC, SEED } }.
+const BURNER_BALANCE_CACHE_KEY = 'burner_balance_cache_v1';
+
+async function readCachedBalances(): Promise<Record<string, Record<TokenSymbol, number>>> {
+    try {
+        const raw = await SecureStore.getItemAsync(BURNER_BALANCE_CACHE_KEY);
+        if (!raw) return {};
+        return JSON.parse(raw);
+    } catch { return {}; }
+}
+
+async function writeCachedBalances(cache: Record<string, Record<TokenSymbol, number>>): Promise<void> {
+    try {
+        await SecureStore.setItemAsync(BURNER_BALANCE_CACHE_KEY, JSON.stringify(cache));
+    } catch {
+        // Cache write is best-effort; the live fetch is the source of truth.
+    }
+}
+
 export async function listBurnersWithBalances(walletId?: string): Promise<BurnerWalletWithBalance[]> {
     const burners = await listBurners(walletId);
 
-    // Fetch all balances in parallel instead of sequentially
-    const balances = await Promise.all(
-        burners.map(b => getBurnerBalance(b.publicKey))
+    // Fetch native SOL + per-token balances per burner in parallel.
+    const tokenBalancesByBurner = await Promise.all(
+        burners.map(b => getBurnerTokenBalances(b.publicKey, SUPPORTED_TOKENS)),
     );
 
-    return burners.map((burner, i) => ({ ...burner, balance: balances[i] }));
+    // Persist to cache so the next open is instant. Fire-and-forget.
+    const cache = burners.reduce<Record<string, Record<TokenSymbol, number>>>(
+        (acc, b, i) => { acc[b.publicKey] = tokenBalancesByBurner[i]; return acc; },
+        {},
+    );
+    void writeCachedBalances(cache);
+
+    return burners.map((burner, i) => ({
+        ...burner,
+        balance: tokenBalancesByBurner[i].SOL ?? 0,
+        tokenBalances: tokenBalancesByBurner[i],
+    }));
+}
+
+// Synchronous-ish read: returns burners with CACHED balances immediately,
+// or empty balances if no cache exists. UI shows these while the live
+// fetch (listBurnersWithBalances) runs in parallel.
+export async function listBurnersWithCachedBalances(walletId?: string): Promise<BurnerWalletWithBalance[]> {
+    const [burners, cache] = await Promise.all([
+        listBurners(walletId),
+        readCachedBalances(),
+    ]);
+    return burners.map((b) => {
+        const cached = cache[b.publicKey];
+        const tokenBalances = cached ?? ({ SOL: 0, USDC: 0, SEED: 0 } as Record<TokenSymbol, number>);
+        return { ...b, balance: tokenBalances.SOL ?? 0, tokenBalances };
+    });
 }
 
 export async function sendFromBurner(

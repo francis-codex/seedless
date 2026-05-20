@@ -49,15 +49,8 @@ import {
 import { colors, radii, spacing, typography } from '../theme';
 import { ScreenHeader, PrimaryButton, Pill, Icon } from '../components/ui';
 
-const connection = new Connection(SOLANA_RPC_URL, {
-    commitment: 'confirmed',
-    disableRetryOnRateLimit: true,
-});
-
-const fallbackConnection = new Connection(
-    IS_DEVNET ? 'https://api.devnet.solana.com' : 'https://api.mainnet-beta.solana.com',
-    { commitment: 'confirmed' },
-);
+// Shared singleton connections — see src/utils/connection.ts
+import { connection, fallbackConnection } from '../utils/connection';
 
 interface StealthScreenProps {
     onBack: () => void;
@@ -409,7 +402,7 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                         <Text style={styles.explainerTitle}>What is a stealth address?</Text>
                     </View>
                     <Text style={styles.explainerBody}>
-                        A stealth address is a fresh, one-time receiving address that's mathematically linked to your wallet but unlinkable on chain. Share one with a payer and they send to it. You sweep the funds back to your main wallet whenever you want — nobody watching the chain can tell which payments are yours.
+                        A one-time address you share to receive funds. No one watching the chain can link it back to you. Sweep the funds into your main wallet anytime.
                     </Text>
                 </View>
 
@@ -548,7 +541,7 @@ export function StealthScreen({ onBack }: StealthScreenProps) {
                                 {generatedQrUrl ? (
                                     <View style={styles.qrContainer}>
                                         <View style={styles.qrFrame}>
-                                            <QRCode value={generatedQrUrl} size={200} backgroundColor="#fff" color={colors.text} />
+                                            <QRCode value={generatedQrUrl} size={200} backgroundColor="#FFFFFF" color="#000000" />
                                         </View>
                                         <Text style={styles.qrLabel}>Scan with a Solana Pay wallet</Text>
                                         <TouchableOpacity

@@ -19,17 +19,17 @@ import {
   runHelloWorldRegistration,
   type RegistrationProgress,
   type RegistrationStep,
-} from '../umbra/registration';
-import { depositToEncryptedBalance } from '../umbra/deposit';
-import { withdrawToPublicBalance } from '../umbra/withdraw';
-import { createReceiverClaimableFromPublicBalance, scanClaimableUtxosAcrossTrees } from '../umbra/utxo';
-import { claimReceiverClaimableUtxosToEncryptedBalance } from '../umbra/claim';
+} from '../../umbra/registration';
+import { depositToEncryptedBalance } from '../../umbra/deposit';
+import { withdrawToPublicBalance } from '../../umbra/withdraw';
+import { createReceiverClaimableFromPublicBalance, scanClaimableUtxosAcrossTrees } from '../../umbra/utxo';
+import { claimReceiverClaimableUtxosToEncryptedBalance } from '../../umbra/claim';
 import type { ScannedUtxoData } from '@umbra-privacy/sdk/interfaces';
-import { getTxExplorerUrl, getAccountExplorerUrl, UMBRA_TEST_MINT_DEVNET, SOLANA_RPC_URL } from '../constants';
+import { getTxExplorerUrl, getAccountExplorerUrl, UMBRA_TEST_MINT_DEVNET, SOLANA_RPC_URL } from '../../constants';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { colors, radii, spacing, typography } from '../theme';
-import { ScreenHeader, PrimaryButton, Pill, Icon } from '../components/ui';
+import { colors, radii, spacing, typography } from '../../theme';
+import { ScreenHeader, PrimaryButton, Pill, Icon } from '../../components/ui';
 
 interface UmbraDebugScreenProps {
   onBack: () => void;
@@ -473,10 +473,10 @@ export function UmbraDebugScreen({ onBack }: UmbraDebugScreenProps) {
             <Text style={styles.explainerTitle}>What is private mode?</Text>
           </View>
           <Text style={styles.explainerBody}>
-            Private mode hides what's inside your wallet. After setup, you can move SOL or tokens into a private (encrypted) balance — the chain sees the move but nobody can see your private balance amount or trace it back to you. Use it when you want to hold or send funds without anyone on chain knowing how much you have.
+            Private mode hides how much is in your wallet. Funds you move in become an encrypted balance no one on chain can see or trace back to you.
           </Text>
           <Text style={styles.explainerSteps}>
-            Setup runs once: tap "Turn on private mode" → send a small amount of SOL to the address shown → tap again to finish. Then you can move funds in and out.
+            One-time setup: tap the button, send a little SOL to the address shown, then tap again to finish.
           </Text>
         </View>
 
