@@ -14,7 +14,11 @@ interface LazorProviderProps {
   // Smart wallet functionality (PDAs)
 
 export function LazorProvider({ children }: LazorProviderProps) {
-  console.log('[LazorProvider] paymasterUrl=', PAYMASTER_URL, 'apiKeyLen=', PAYMASTER_API_KEY?.length ?? 0, 'apiKeyHead=', PAYMASTER_API_KEY?.slice(0, 4));
+  // DEV-only log. Production builds must not leak any portion of the API key,
+  // not even the first 4 chars, because the JS bundle is shipped to users.
+  if (__DEV__) {
+    console.log('[LazorProvider] paymasterUrl=', PAYMASTER_URL, 'apiKeySet=', !!PAYMASTER_API_KEY);
+  }
   return (
     <LazorKitProvider
       rpcUrl={SOLANA_RPC_URL}
