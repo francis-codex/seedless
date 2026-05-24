@@ -34,6 +34,7 @@ import {
   uiAmountToRaw,
 } from '../tokens/registry';
 import { buildTransferInstructions } from '../tokens/transfer';
+import { consumeSendSlot } from '../utils/sendRateLimit';
 import { DEFAULT_WALLET_LABEL, getWalletLabel, setWalletLabel } from '../utils/walletLabel';
 import {
   ActiveSession,
@@ -568,6 +569,18 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka 
           // Unknown private-send error → fall through and try public.
           console.warn('[private-send] failed, attempting public fallback:', err?.message ?? err);
         }
+      }
+
+      // Per-wallet rate limit on Kora-sponsored sends. Reserve a slot before
+      // firing — submitting is what costs the relayer. Caps one wallet at
+      // 5 sends/min so a leaked paymaster key (reused on a single wallet)
+      // can't spam Kora. See src/utils/sendRateLimit.ts.
+      const slot = await consumeSendSlot(smartWalletPubkey.toBase58());
+      if (!slot.allowed) {
+        const secs = Math.ceil((slot.retryAfterMs ?? 0) / 1000);
+        Alert.alert('Slow down a sec', `You've hit the limit of 5 sends per minute. Try again in ${secs}s.`);
+        setIsSending(false);
+        return;
       }
 
       const redirectUrl = Linking.createURL('sign-callback');
