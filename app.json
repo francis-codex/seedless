@@ -2,7 +2,7 @@
   "expo": {
     "name": "Seedless",
     "slug": "seedless",
-    "version": "0.4.1-beta",
+    "version": "0.4.2-beta",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -35,7 +35,7 @@
       "expo-asset"
     ],
     "owner": "seedless-labs",
-    "runtimeVersion": "0.4.1-beta",
+    "runtimeVersion": "0.4.2-beta",
     "extra": {
       "eas": {
         "projectId": "8959a78f-ccad-40da-978b-b6d69160e15f"
