@@ -1,106 +1,74 @@
 # Seedless Wallet
 
-A passkey-native Solana wallet. No seed phrases. No gas fees. Just biometrics.
+A simple and private passkey wallet on Solana. No seed phrases. No gas. Just your face.
 
-> Currently in **Phase 3 Beta** on Solana devnet. Mainnet launch pending infrastructure partner audit.
+> **Live in private mainnet beta.** Dark by default. Built for people who get paid in crypto but don't want to live in crypto: receive, hold, send, and cash out, without ever learning what a seed phrase is.
 
 ## Download
 
-**[Android APK]()**
+**[Android APK](https://www.seedlesslabs.xyz/)** (request access via the waitlist)
 
 ## Screenshots
 
-### Passkey Authentication
-<p align="left">
-  <img src="./assets/screenshots/01-home-screen.jpg" width="180" alt="Home Screen" />
-  <img src="./assets/screenshots/02-creating-account.jpg" width="180" alt="Creating Account" />
-  <img src="./assets/screenshots/03-passkey-prompt.jpg" width="180" alt="Passkey Prompt" />
-</p>
+Fresh captures from the current dark-mode mainnet build are being added. The earlier light-mode devnet shots were removed because they no longer reflect the app.
 
-### Wallet
-<p align="left">
-  <img src="./assets/screenshots/04-wallet-balance-hidden.jpg" width="180" alt="Balance Hidden" />
-  <img src="./assets/screenshots/05-wallet-balance-visible.jpg" width="180" alt="Balance Visible" />
-</p>
-
-### Gasless Transfers
-<p align="left">
-  <img src="./assets/screenshots/06-send-sol-form.jpg" width="180" alt="Send SOL" />
-  <img src="./assets/screenshots/07-send-transaction.jpg" width="180" alt="Transaction" />
-  <img src="./assets/screenshots/08-transaction-passkey.jpg" width="180" alt="Sign with Passkey" />
-</p>
-
-### Token Swaps
-<p align="left">
-  <img src="./assets/screenshots/09-jupiter-swap.jpg" width="180" alt="Jupiter Swap" />
-</p>
-
-### Stealth Addresses
-<p align="left">
-  <img src="./assets/screenshots/10-stealth-home.jpg" width="180" alt="Stealth Home" />
-  <img src="./assets/screenshots/11-stealth-payment-request.jpg" width="180" alt="Payment Request" />
-</p>
-
-### Burner Wallets
-<p align="left">
-  <img src="./assets/screenshots/12-burner-home.jpg" width="180" alt="Burner Home" />
-  <img src="./assets/screenshots/13-burner-with-balance.jpg" width="180" alt="Burner With Balance" />
-</p>
+<!--
+Capture checklist (current dark build), drop into assets/screenshots/ as PNGs:
+  01-passkey-login.png      passkey / FaceID create + sign-in
+  02-wallet-dark.png        home, dark theme, multi-token balances
+  03-send-token.png         multi-token send sheet (SOL/USDC/SEED)
+  04-send-private.png       "Send privately" toggle (Umbra)
+  05-swap.png               Jupiter swap with token picker
+  06-stealth.png            stealth receive address + QR
+  07-burner.png             burner wallet list + balance
+  08-private-mode.png       hidden balances / biometric reveal
+Then re-add the <img> grid here.
+-->
 
 ## Features
 
-- **Passkey authentication** - FaceID, TouchID, fingerprint. No seed phrase ever.
-- **Gasless transactions** - Send, swap, and sign without holding SOL for fees
-- **Jupiter swaps** - Best-price token swaps, completely gas-free
-- **Stealth addresses** - One-time receiving addresses for private payments
-- **Burner wallets** - Disposable identities with zero on-chain link
-- **Private mode** - Hide balances, biometric auth to reveal
-- **SEED token tracking** - Native balance display for the SEED token
-- **Address validation** - Input validation before transactions to prevent errors
+- **Passkey login.** FaceID, fingerprint, or device biometrics through LazorKit. No seed phrase, ever.
+- **No gas.** Sends and swaps are sponsored through the Kora paymaster, so you don't need to hold SOL just to pay fees.
+- **Multi-token sends.** Send SOL, USDC, and SEED from one place, each with its own balance and max.
+- **Send privately.** Flip one switch before you send and the amount stays between you and the person you're paying, powered by the Umbra SDK.
+- **Stealth addresses.** One-time receiving addresses so incoming payments aren't tied to your main wallet.
+- **Burner wallets.** Disposable, isolated wallets with no on-chain link to your identity, now with SPL token support.
+- **Jupiter swaps.** Best-price token swaps with a live token picker, gas-free.
+- **Private mode.** Hide balances behind a tap, biometric auth to reveal.
+- **Wallet rename.** Name your wallet, persisted per passkey.
 
-## Setup
+## Architecture
 
-```bash
-git clone https://github.com/francis-codex/seedless.git
-cd seedless
-npm install
-```
+Seedless is a product, not a library, so this is a high-level look at how it works rather than a build guide.
 
-Copy `.env.example` to `.env` and add your keys:
+- **Identity.** Every user is a LazorKit smart wallet controlled by a WebAuthn passkey held in the device Secure Enclave or Android Keystore. There is no seed phrase to store, leak, or recover.
+- **No gas.** Transactions are relayed through the Kora paymaster, which sponsors the network fee, so a user never needs SOL just to move money. App-level rate limiting protects the relayer.
+- **Private sends.** The Umbra SDK shields the transfer amount so it stays between the sender and the person being paid.
+- **Swaps.** Jupiter routes best-price swaps, executed gas-free through the same relayer path.
+- **Cross-chain (in progress).** The PasskeyDWalletController program verifies a passkey signature on-chain (secp256r1 precompile introspection, mirroring SIMD-0048) before authorizing an Ika MPC dWallet to sign EVM transactions.
+- **Infrastructure.** Alchemy is the primary mainnet RPC, with Helius serving websockets.
 
-```bash
-cp .env.example .env
-```
-
-```
-EXPO_PUBLIC_HELIUS_API_KEY=your-helius-api-key
-EXPO_PUBLIC_JUPITER_API_KEY=your-jupiter-api-key
-EXPO_PUBLIC_PAYMASTER_API_KEY=your-kora-api-key
-```
-
-Run:
-
-```bash
-npx expo start
-```
+The design goal is invisibility. The crypto is the engine, not the dashboard.
 
 ## Tech Stack
 
-React Native (Expo) / TypeScript / LazorKit SDK / Kora Paymaster / Solana Web3.js / Jupiter API
+React Native (Expo) and TypeScript on the client. LazorKit for passkey smart wallets, Kora for gasless transactions, Umbra for private sends, Jupiter for swaps, and Solana web3.js throughout.
 
-## Beta Phases
+## Recognition
 
-| Phase | Focus | Status |
-|-------|-------|--------|
-| Phase 1 | Core wallet, passkeys, gasless sends | Completed |
-| Phase 2 | Jupiter swaps, stealth addresses, burner wallets | Completed |
-| Phase 3 | UX polish, balance display, error handling | Active |
-| Mainnet | Production launch on Solana mainnet | Pending audit |
+- **Bags Hackathon winner** (top 5).
+- **2nd place, Umbra Colosseum Frontier sidetrack** for bringing private payments to the wallet layer.
+- **Placed in the Encrypt/Ika Frontier sidetrack** with [PasskeyDWalletController](https://github.com/francis-codex/passkey-dwallet-controller), an on-chain authority that lets a passkey control an Ika MPC dWallet.
+
+## On the roadmap
+
+- **Cash out to your bank.** Crypto to local currency offramp, the retention piece that makes this real money for everyday users.
+- **Cross-chain signing via Ika.** Sign EVM transactions from your passkey through the PasskeyDWalletController program (live on devnet), wiring into the app for mainnet.
+- **Multi-token private send.** Extend private sends beyond SOL to USDC and other tokens.
 
 ## Links
 
 - [Landing Page](https://seedlesslabs.xyz)
-- [Roadmap](https://seedlesslabs.xyz/#roadmap)
 - [Twitter](https://x.com/seedless_wallet)
 - [Seedless Labs](https://github.com/seedless-labs)
 
