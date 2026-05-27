@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>seedless × alchemy</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1280px;
+    height: 720px;
+    background: #ffffff;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .frame {
+    width: 1280px;
+    height: 720px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .logos {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 60px;
+    margin-bottom: 56px;
+  }
+
+  .logo-tile {
+    width: 200px;
+    height: 200px;
+    border-radius: 46px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.16);
+  }
+
+  .logo-tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .x {
+    font-size: 44px;
+    font-weight: 700;
+    color: #0a0a0a;
+  }
+
+  .headline {
+    font-size: 92px;
+    font-weight: 900;
+    color: #0a0a0a;
+    letter-spacing: -0.04em;
+    line-height: 0.95;
+    text-align: center;
+  }
+
+  .subline {
+    margin-top: 22px;
+    font-size: 30px;
+    font-weight: 700;
+    color: #111111;
+    letter-spacing: -0.01em;
+  }
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="logos">
+      <div class="logo-tile"><img src="seedless-icon.png" alt="seedless" /></div>
+      <div class="x">×</div>
+      <div class="logo-tile"><img src="alchemy.png" alt="alchemy" /></div>
+    </div>
+    <div class="headline">always on, always fast</div>
+    <div class="subline">seedless runs on alchemy</div>
+  </div>
+</body>
+</html>
