@@ -516,12 +516,31 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka 
       Alert.alert('Insufficient balance', `You only have ${tokenBalance.toFixed(selectedToken.decimals === 6 ? 2 : 4)} ${selectedToken.symbol}`);
       return;
     }
-    if (!selectedToken.isNative && solBalance < MIN_SOL_FOR_TX) {
-      // SPL transfer still touches the sender's wallet for the smart-wallet
-      // program; if the wallet itself is below rent-exempt we can't safely
-      // route the tx.
-      Alert.alert('Need a little SOL', `Send a small amount of SOL (~${MIN_SOL_FOR_TX} SOL) to keep your wallet active before sending tokens.`);
-      return;
+    // SPL transfers are fully gasless end-to-end via Kora when the recipient
+    // already has an ATA for the token. If they don't, the SENDER funds the
+    // ATA-creation rent (~0.002 SOL), which is the actual reason for the
+    // SOL-balance gate. Skipping the gate when no ATA needs creating is what
+    // lets a zero-SOL wallet actually send USDC to a wallet that already
+    // holds USDC — the previous blanket gate broke that case.
+    if (!selectedToken.isNative) {
+      let recipientNeedsAta = false;
+      try {
+        const mint = new PublicKey(selectedToken.mint);
+        const toAta = await getAssociatedTokenAddress(mint, recipientPubkey, true);
+        const ataInfo = await connection.getAccountInfo(toAta);
+        recipientNeedsAta = !ataInfo;
+      } catch {
+        // Conservative on RPC hiccup: assume an ATA may need creating so we
+        // gate rather than ship a tx that could fail on chain.
+        recipientNeedsAta = true;
+      }
+      if (recipientNeedsAta && solBalance < MIN_SOL_FOR_TX) {
+        Alert.alert(
+          'Just a tiny bit of SOL',
+          `This is the first ${selectedToken.symbol} payment to this address — a small one-time account (~0.002 SOL) needs to be set up for the recipient. Add ~${MIN_SOL_FOR_TX} SOL to your wallet and try again.`,
+        );
+        return;
+      }
     }
 
     setIsSending(true);
@@ -1224,7 +1243,9 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka 
                 <Text style={styles.helperText}>
                   {sendPrivately
                     ? 'One-time setup happens automatically on first private send. Costs about 0.02 SOL once for network fees.'
-                    : 'No SOL needed for fees · Paymaster sponsors gas · Instant confirmation'}
+                    : selectedToken.isNative
+                      ? 'Paymaster sponsors gas · No SOL needed · Instant confirmation'
+                      : 'Paymaster sponsors gas · Tiny SOL only if recipient is new'}
                 </Text>
               </ScrollView>
             </KeyboardAvoidingView>
