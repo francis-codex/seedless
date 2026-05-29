@@ -5,6 +5,8 @@ import {
   StyleSheet,
   BackHandler,
   StatusBar,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
@@ -13,6 +15,15 @@ import { WalletScreen } from './screens/WalletScreen';
 import { SwapScreen } from './screens/SwapScreen';
 import { StealthScreen } from './screens/StealthScreen';
 import { BurnerScreen } from './screens/BurnerScreen';
+import { SettingsScreen } from './screens/SettingsScreen';
+import { AddressBookScreen } from './screens/AddressBookScreen';
+import { HistoryScreen } from './screens/HistoryScreen';
+import { LockOverlay } from './components/LockOverlay';
+import { IncomingToast } from './components/IncomingToast';
+import { armLock, consumeLockArm, isLockEnabled } from './utils/walletLock';
+import { fetchTxHistory, TxRecord } from './utils/txHistory';
+import * as SecureStore from 'expo-secure-store';
+import { PublicKey } from '@solana/web3.js';
 // UmbraDebugScreen is archived under src/screens/_archive and intentionally
 // not wired into navigation. Code stays for reference / future debugging
 // sessions; the user-facing private mode lives in WalletScreen's mini sheet.
@@ -21,7 +32,10 @@ import { BurnerScreen } from './screens/BurnerScreen';
 import { BottomNav, type NavTab } from './components/ui';
 import { colors } from './theme';
 
-type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'ika';
+type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'settings' | 'addressBook' | 'history' | 'ika';
+
+const LAST_SEEN_SIG_KEY = 'tx_last_seen_sig';
+const POLL_INTERVAL_MS = 20_000;
 
 // Navigation state for tracking screen transitions
 export type NavigationState = {
@@ -37,8 +51,13 @@ const DEFAULT_SCREEN: Screen = 'wallet';
 // When user reconnects, the session is automatically restored
 
 export function AppContent() {
-  const { isConnected, isLoading } = useWallet();
+  const { isConnected, isLoading, smartWalletPubkey } = useWallet();
   const [currentScreen, setCurrentScreen] = useState<Screen>('wallet');
+  const [locked, setLocked] = useState(false);
+  const [toast, setToast] = useState<{ visible: boolean; message: string }>({
+    visible: false,
+    message: '',
+  });
 
   // Android back button — go back to wallet instead of exiting app
   useEffect(() => {
@@ -51,6 +70,85 @@ export function AppContent() {
     });
     return () => handler.remove();
   }, [isConnected, currentScreen]);
+
+  // Wallet lock: arm on background, challenge on foreground if the timeout
+  // elapsed while away. No-op when the user hasn't enabled the lock in
+  // settings. We never lock if the wallet isn't connected — locking the
+  // HomeScreen would just confuse first-time users.
+  useEffect(() => {
+    if (!isConnected) return;
+
+    // If the user toggled the lock on while in foreground, treat the
+    // wallet as currently unlocked (they just authenticated to the OS to
+    // turn it on). Subsequent backgrounding will arm the lock.
+
+    const handleChange = async (state: AppStateStatus) => {
+      if (state === 'background' || state === 'inactive') {
+        const enabled = await isLockEnabled();
+        if (enabled) await armLock();
+      } else if (state === 'active') {
+        const shouldChallenge = await consumeLockArm();
+        if (shouldChallenge) setLocked(true);
+      }
+    };
+
+    const sub = AppState.addEventListener('change', handleChange);
+    return () => sub.remove();
+  }, [isConnected]);
+
+  // Incoming tx poll — diff getSignaturesForAddress against last-seen sig and
+  // surface a toast when a new "receive" lands. No native push, no server.
+  // Closes the loop tester E asked for ("notifications when receiving").
+  // Background push requires expo-notifications + APNs/FCM + server infra
+  // and is tracked as a separate task; this is the in-foreground version.
+  useEffect(() => {
+    if (!isConnected || !smartWalletPubkey || locked) return;
+    const owner = smartWalletPubkey;
+    let cancelled = false;
+
+    const tick = async () => {
+      try {
+        const records = await fetchTxHistory(owner, { limit: 5 });
+        if (cancelled || records.length === 0) return;
+        const lastSeen = await SecureStore.getItemAsync(LAST_SEEN_SIG_KEY);
+        const latest = records[0];
+        if (!lastSeen) {
+          // First run — seed without firing a toast, so app open doesn't
+          // surface old activity as "incoming".
+          await SecureStore.setItemAsync(LAST_SEEN_SIG_KEY, latest.signature);
+          return;
+        }
+        if (latest.signature === lastSeen) return;
+
+        // Find the newest receive in the unseen prefix.
+        const unseen: TxRecord[] = [];
+        for (const r of records) {
+          if (r.signature === lastSeen) break;
+          unseen.push(r);
+        }
+        const incoming = unseen.find(
+          (r) => r.kind === 'receive' && r.status === 'success',
+        );
+        await SecureStore.setItemAsync(LAST_SEEN_SIG_KEY, latest.signature);
+        if (incoming) {
+          const amount = incoming.splDelta
+            ? `${incoming.splDelta.uiAmount.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${incoming.splDelta.symbol ?? 'SPL'}`
+            : `${incoming.solDelta.toLocaleString(undefined, { maximumFractionDigits: 4 })} SOL`;
+          setToast({ visible: true, message: `You received ${amount}` });
+        }
+      } catch {
+        // Polling is best-effort. Silent on errors so we don't spam toasts
+        // when the RPC blips.
+      }
+    };
+
+    tick();
+    const id = setInterval(tick, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [isConnected, smartWalletPubkey, locked]);
 
   // Show loading while checking for persisted session
   if (isLoading) {
@@ -69,7 +167,11 @@ export function AppContent() {
     // (stealth, burner, umbradebug) belong under the wallet tab — only swap
     // gets its own tab indicator.
     const navActive: NavTab =
-      effectiveScreen === 'swap' ? 'swap' : 'wallet';
+      effectiveScreen === 'swap'
+        ? 'swap'
+        : effectiveScreen === 'settings' || effectiveScreen === 'addressBook'
+          ? 'settings'
+          : 'wallet';
 
     // Keep WalletScreen mounted to preserve balance state and avoid refetching
     // Other screens overlay on top — when they go back, WalletScreen is instant.
@@ -85,22 +187,33 @@ export function AppContent() {
               onSwap={() => setCurrentScreen('swap')}
               onStealth={() => setCurrentScreen('stealth')}
               onBurner={() => setCurrentScreen('burner')}
+              onHistory={() => setCurrentScreen('history')}
             />
           </View>
           {effectiveScreen === 'swap' && <View style={styles.overlay}><SwapScreen onBack={() => setCurrentScreen('wallet')} /></View>}
           {effectiveScreen === 'stealth' && <View style={styles.overlay}><StealthScreen onBack={() => setCurrentScreen('wallet')} /></View>}
           {effectiveScreen === 'burner' && <View style={styles.overlay}><BurnerScreen onBack={() => setCurrentScreen('wallet')} /></View>}
+          {effectiveScreen === 'settings' && <View style={styles.overlay}><SettingsScreen onBack={() => setCurrentScreen('wallet')} onOpenAddressBook={() => setCurrentScreen('addressBook')} /></View>}
+          {effectiveScreen === 'addressBook' && <View style={styles.overlay}><AddressBookScreen onBack={() => setCurrentScreen('settings')} /></View>}
+          {effectiveScreen === 'history' && <View style={styles.overlay}><HistoryScreen onBack={() => setCurrentScreen('wallet')} /></View>}
         </View>
+        <IncomingToast
+          visible={toast.visible}
+          message={toast.message}
+          onDismiss={() => setToast((t) => ({ ...t, visible: false }))}
+          onPress={() => setCurrentScreen('history')}
+        />
+        {locked && (
+          <View style={styles.lockOverlay}>
+            <LockOverlay onUnlock={() => setLocked(false)} />
+          </View>
+        )}
         <BottomNav
           active={navActive}
           onChange={(t) => {
-            if (t === 'swap') {
-              setCurrentScreen('swap');
-            } else {
-              // wallet and settings both bring the user back to the wallet
-              // surface; settings is currently a tab inside WalletScreen.
-              setCurrentScreen('wallet');
-            }
+            if (t === 'swap') setCurrentScreen('swap');
+            else if (t === 'settings') setCurrentScreen('settings');
+            else setCurrentScreen('wallet');
           }}
         />
       </View>
@@ -131,6 +244,11 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: colors.bg,
+  },
+  lockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.bg,
+    zIndex: 100,
   },
 });
 

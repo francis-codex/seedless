@@ -23,6 +23,7 @@ import { SOL_MINT, USDC_MINT, SEED_MINT, TOKEN_DECIMALS, SEED_DECIMALS, CLUSTER_
 import { prepareSwap, QuoteResponse } from '../utils/jupiter';
 import { getBagsQuote, createBagsSwapTransaction, BagsQuoteResponse } from '../utils/bags';
 import { DEFAULT_AUTH_EXPIRY_SLOTS, shouldUseDeferredExec } from '../utils/deferredExec';
+import { clearSession as clearStoredSession, getActiveSession } from '../utils/session';
 import { colors, radii, spacing, typography } from '../theme';
 import { ScreenHeader, TokenLogo, PrimaryButton, Pill, Icon } from '../components/ui';
 import { SUPPORTED_TOKENS, TOKEN_REGISTRY, type Token } from '../tokens/registry';
@@ -119,7 +120,7 @@ function pairFromTokens(input: TokenSymbol, output: TokenSymbol): SwapPair {
 }
 
 export function SwapScreen({ onBack }: SwapScreenProps) {
-  const { smartWalletPubkey, signAndSendTransaction, authorizeAndExecute } = useWallet();
+  const { smartWalletPubkey, signAndSendTransaction, signAndSendWithSession, authorizeAndExecute } = useWallet();
 
   // Form state
   const [amount, setAmount] = useState('');
@@ -393,26 +394,58 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
         clusterSimulation: CLUSTER_SIMULATION as 'mainnet' | 'devnet',
       };
 
-      const callbacks = {
-        redirectUrl,
-        onSuccess: () => Alert.alert('Swap complete', successLabel),
-        onFail: (error: Error) => Alert.alert('Swap failed', error.message),
-      };
+      // Re-check the session right before sending so we don't try to use one
+      // that just expired between screen mount and tap. Mirrors the send fast
+      // path in WalletScreen so swap gets the same no-redirect UX as send.
+      const walletId = smartWalletPubkey.toBase58();
+      const session = await getActiveSession(walletId);
 
-      if (shouldUseDeferredExec(instructions)) {
-        await authorizeAndExecute(
-          {
+      let signature: string | undefined;
+
+      // Fast path: ed25519 session signer, no passkey prompt. Jupiter swap
+      // CPIs into Raydium/Orca/Meteora via Jupiter's program; if any inner
+      // program isn't covered by the LazorKit session allowlist this throws
+      // a scope-style error and we fall through to the passkey path silently.
+      if (session) {
+        try {
+          signature = await signAndSendWithSession({
+            sessionKeypair: session.sessionKeypair,
+            sessionPda: session.sessionPda,
             instructions,
             transactionOptions: txOpts,
-            expiryOffset: DEFAULT_AUTH_EXPIRY_SLOTS,
-          },
-          callbacks,
-        );
-      } else {
-        await signAndSendTransaction(
-          { instructions, transactionOptions: txOpts },
-          callbacks,
-        );
+          });
+        } catch (err: any) {
+          const sessMsg = String(err?.message ?? err ?? '');
+          const isScopeErr = /session|SessionExpired|SessionInactive|unauthorized|not authorized|allowlist|scope|invalid authority/i.test(sessMsg);
+          if (!isScopeErr) throw err;
+          // Drop the session client-side so the next attempt doesn't loop
+          // the same failure.
+          await clearStoredSession(walletId);
+        }
+      }
+
+      // Passkey-prompted path: either no session, or the session fell
+      // through on a scope error above.
+      if (!signature) {
+        if (shouldUseDeferredExec(instructions)) {
+          signature = await authorizeAndExecute(
+            {
+              instructions,
+              transactionOptions: txOpts,
+              expiryOffset: DEFAULT_AUTH_EXPIRY_SLOTS,
+            },
+            { redirectUrl },
+          );
+        } else {
+          signature = await signAndSendTransaction(
+            { instructions, transactionOptions: txOpts },
+            { redirectUrl },
+          );
+        }
+      }
+
+      if (signature) {
+        Alert.alert('Swap complete', successLabel);
       }
 
       // Reset form
@@ -448,6 +481,7 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
     outputDecimals,
     smartWalletPubkey,
     signAndSendTransaction,
+    signAndSendWithSession,
     authorizeAndExecute,
     swapSource,
   ]);

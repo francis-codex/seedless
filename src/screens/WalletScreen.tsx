@@ -35,6 +35,8 @@ import {
 } from '../tokens/registry';
 import { buildTransferInstructions } from '../tokens/transfer';
 import { consumeSendSlot } from '../utils/sendRateLimit';
+import { AddressBookEntry, getAddressBook } from '../utils/addressBook';
+import { detectWalletTokens, DetectedToken } from '../utils/detectTokens';
 import { DEFAULT_WALLET_LABEL, getWalletLabel, setWalletLabel } from '../utils/walletLabel';
 import {
   ActiveSession,
@@ -64,12 +66,13 @@ interface WalletScreenProps {
   onStealth?: () => void;
   onBurner?: () => void;
   onIka?: () => void;
+  onHistory?: () => void;
 }
 
 // Shared singleton connections — see src/utils/connection.ts
 import { connection, fallbackConnection } from '../utils/connection';
 
-export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka }: WalletScreenProps) {
+export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka, onHistory }: WalletScreenProps) {
   const {
     smartWalletPubkey,
     disconnect,
@@ -88,6 +91,43 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka 
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [isSessionBusy, setIsSessionBusy] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
+  const [savedAddresses, setSavedAddresses] = useState<AddressBookEntry[]>([]);
+  const [detectedTokens, setDetectedTokens] = useState<DetectedToken[]>([]);
+
+  // Discover every verified SPL token this wallet holds beyond the curated
+  // registry trio. Unverified tokens drop at the util layer to keep airdrop
+  // spam out of the surfaced list. Re-scans whenever the smart wallet
+  // changes; manual pull-to-refresh on the home screen can re-trigger via
+  // refreshDetectedTokens below.
+  const refreshDetectedTokens = useCallback(async () => {
+    if (!smartWalletPubkey) return;
+    try {
+      const toks = await detectWalletTokens(smartWalletPubkey);
+      const filtered = toks.filter(
+        (t) => t.mint !== USDC_MINT && t.mint !== SEED_MINT,
+      );
+      setDetectedTokens(filtered);
+    } catch {
+      // best-effort: silent on RPC/jupiter errors
+    }
+  }, [smartWalletPubkey]);
+
+  useEffect(() => {
+    refreshDetectedTokens();
+  }, [refreshDetectedTokens]);
+
+  // Refresh the saved-address chips whenever the send modal opens so the
+  // user always sees the latest book without rebooting the screen.
+  useEffect(() => {
+    if (!sendModalOpen) return;
+    let alive = true;
+    getAddressBook().then((entries) => {
+      if (alive) setSavedAddresses(entries);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [sendModalOpen]);
   const [receiveModalOpen, setReceiveModalOpen] = useState(false);
   // Private mode UI state. `sendPrivately` is the toggle inside the send
   // modal; `privateSheetOpen` is the mini sheet that opens from the header
@@ -764,8 +804,21 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka 
         changePct: null,
       });
     }
+    // Append every verified non-registry token this wallet holds. No price
+    // feed wired up here yet (would need a Jupiter price call per mint);
+    // we show the balance and leave USD blank rather than fabricate it.
+    for (const d of detectedTokens) {
+      list.push({
+        symbol: d.symbol,
+        name: d.name,
+        balance: `${d.uiAmount.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${d.symbol}`,
+        usdValue: '—',
+        price: '—',
+        changePct: null,
+      });
+    }
     return list;
-  }, [solBalance, usdcBalance, seedBalance, prices, priceChange24h]);
+  }, [solBalance, usdcBalance, seedBalance, prices, priceChange24h, detectedTokens]);
 
   const renderToolsTab = () => (
     <View style={styles.toolsCol}>
@@ -877,6 +930,16 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka 
                 <Icon name="arrowDown" size={22} color={colors.text} strokeWidth={2} />
                 <Text style={styles.bigActionLabel}>Receive</Text>
               </TouchableOpacity>
+              {onHistory ? (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.bigAction}
+                  onPress={onHistory}
+                >
+                  <Icon name="history" size={22} color={colors.text} strokeWidth={2} />
+                  <Text style={styles.bigActionLabel}>History</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
 
             {/* Tabs */}
@@ -1153,6 +1216,42 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka 
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
+                {savedAddresses.length > 0 ? (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.savedChipsRow}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {savedAddresses.map((entry) => (
+                      <TouchableOpacity
+                        key={entry.id}
+                        activeOpacity={0.7}
+                        onPress={() => setRecipient(entry.address)}
+                        style={[
+                          styles.savedChip,
+                          recipient === entry.address && styles.savedChipActive,
+                        ]}
+                      >
+                        <Icon
+                          name="bookmark"
+                          size={12}
+                          color={recipient === entry.address ? colors.onSolid : colors.textMuted}
+                          strokeWidth={2}
+                        />
+                        <Text
+                          style={[
+                            styles.savedChipText,
+                            recipient === entry.address && styles.savedChipTextActive,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {entry.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                ) : null}
 
                 <Text style={styles.fieldLabel}>Amount</Text>
                 <View style={styles.amountRow}>
@@ -1316,6 +1415,10 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka 
           <SafeAreaView style={styles.safe}>
             <ScreenHeader title="Receive" onClose={() => setReceiveModalOpen(false)} />
             <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.receiveBody} showsVerticalScrollIndicator={false}>
+              <View style={styles.networkBadge}>
+                <View style={styles.networkDot} />
+                <Text style={styles.networkBadgeText}>Solana mainnet wallet</Text>
+              </View>
               {fullAddress ? (
                 <View style={styles.qrFrame}>
                   <QRCode
@@ -2035,6 +2138,55 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     alignItems: 'center',
     gap: spacing.lg,
+  },
+  savedChipsRow: {
+    gap: spacing.sm,
+    paddingBottom: spacing.sm,
+    paddingTop: spacing.xs,
+  },
+  savedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    maxWidth: 160,
+  },
+  savedChipActive: {
+    backgroundColor: colors.solid,
+    borderColor: colors.solid,
+  },
+  savedChipText: {
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+  savedChipTextActive: {
+    color: colors.onSolid,
+  },
+  networkBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  networkDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.successText,
+  },
+  networkBadgeText: {
+    ...typography.caption,
+    color: colors.textMuted,
   },
   qrFrame: {
     backgroundColor: colors.white,

@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Image, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing } from '../../theme';
 import { Icon, IconName } from './Icon';
 
@@ -19,8 +20,13 @@ const TABS: { key: NavTab; icon: IconName }[] = [
 ];
 
 export function BottomNav({ active, onChange }: BottomNavProps) {
+  const insets = useSafeAreaInsets();
+  // Android nav bar (gesture or 3-button) was overlapping the floating pill.
+  // Honor the bottom inset but keep a floor so iOS without home-indicator
+  // still gets breathing room.
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? spacing.md : spacing.lg);
   return (
-    <View style={styles.bar}>
+    <View style={[styles.bar, { marginBottom: bottomInset }]}>
       {TABS.map((t) => {
         const isActive = t.key === active;
         return (
