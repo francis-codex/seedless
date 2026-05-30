@@ -66,6 +66,10 @@ claude-session.jsonl
 # Personal financial receipts (Claude API + grant submissions) — never commit
 /grant-receipts/
 
+# D&B / DUNS / KYC questionnaires with PII — never commit
+/DB DUNS Questionnaire.docx
+*.docx
+
 # Large local-only media
 /seedless demo.mp4
 *.mp4
