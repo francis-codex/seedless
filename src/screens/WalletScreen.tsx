@@ -576,8 +576,8 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
       }
       if (recipientNeedsAta && solBalance < MIN_SOL_FOR_TX) {
         Alert.alert(
-          'Just a tiny bit of SOL',
-          `This is the first ${selectedToken.symbol} payment to this address — a small one-time account (~0.002 SOL) needs to be set up for the recipient. Add ~${MIN_SOL_FOR_TX} SOL to your wallet and try again.`,
+          'First-time payment to this address',
+          `This recipient hasn't received ${selectedToken.symbol} before, so a one-time ~0.002 SOL account setup is needed. Two ways forward: ask them to receive a small ${selectedToken.symbol} deposit first (so the account already exists), or top up this wallet to cover the setup.`,
         );
         return;
       }
@@ -763,6 +763,19 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
 
   const totalUsd = solBalance * prices.sol + usdcBalance * prices.usdc + seedBalance * prices.seed;
 
+  // Cold wallet = zero SOL + zero registry balances + zero verified SPL tokens.
+  // Per Kay's answer on Kora ATA sponsorship: paying recipient rent at the
+  // paymaster level is an open invite for bot drain. So instead of trying to
+  // make a cold wallet send/swap successfully, we funnel the user into a
+  // "receive first" flow — once they get ANY token, the sender pays the ATA
+  // rent on chain and the wallet is warm. Honest match with how Solana works.
+  const isColdWallet =
+    hasFetchedRef.current &&
+    solBalance === 0 &&
+    usdcBalance === 0 &&
+    seedBalance === 0 &&
+    detectedTokens.length === 0;
+
   // Token list for the Tokens tab — hide zero-balance tokens
   const tokens = useMemo(() => {
     const fmtPrice = (p: number) => (p >= 1 ? `$${p.toFixed(2)}` : `$${p.toFixed(4)}`);
@@ -888,31 +901,73 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
               </View>
             )}
 
-            {/* Balance hero — tap to toggle hide/show */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={togglePrivacyMode}
-              style={styles.heroSection}
-            >
-              <View style={styles.heroBalanceRow}>
-                <Text style={styles.heroBalance}>
-                  {isPrivateMode ? '••••' : `$${totalUsd.toFixed(2)}`}
+            {/* Balance hero — tap to toggle hide/show. Suppressed when cold
+                so the user isn't staring at $0.00 with no path forward. */}
+            {!isColdWallet && (
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={togglePrivacyMode}
+                style={styles.heroSection}
+              >
+                <View style={styles.heroBalanceRow}>
+                  <Text style={styles.heroBalance}>
+                    {isPrivateMode ? '••••' : `$${totalUsd.toFixed(2)}`}
+                  </Text>
+                  <Icon
+                    name={isPrivateMode ? 'eyeOff' : 'eye'}
+                    size={20}
+                    color={colors.textMuted}
+                    strokeWidth={2}
+                  />
+                </View>
+                {balanceError && !isPrivateMode ? (
+                  <Text style={styles.heroError}>{balanceError}</Text>
+                ) : isLoadingBalance && !hasFetchedRef.current ? (
+                  <ActivityIndicator color={colors.textMuted} size="small" style={{ marginTop: spacing.sm }} />
+                ) : null}
+              </TouchableOpacity>
+            )}
+
+            {/* Cold-wallet empty state. Replaces the balance hero, action row,
+                and tabs when the user has nothing on chain. Per Kay's pattern:
+                receive first → wallet becomes warm → normal flow resumes. We
+                do NOT show send/swap/tools entry points here because every one
+                of them needs a funded wallet, and surfacing them just to error
+                out is what the cold-start gap was about. */}
+            {isColdWallet && (
+              <View style={styles.coldSection}>
+                <View style={styles.coldIconWrap}>
+                  <Icon name="arrowDown" size={28} color={colors.text} strokeWidth={2} />
+                </View>
+                <Text style={styles.coldTitle}>Fund your wallet to get started</Text>
+                <Text style={styles.coldBody}>
+                  Share your address to receive your first SOL or USDC. Anyone can send to you. No setup, no fees on your end.
                 </Text>
-                <Icon
-                  name={isPrivateMode ? 'eyeOff' : 'eye'}
-                  size={20}
-                  color={colors.textMuted}
-                  strokeWidth={2}
-                />
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.coldPrimaryBtn}
+                  onPress={() => setReceiveModalOpen(true)}
+                >
+                  <Icon name="arrowDown" size={18} color={colors.onSolid} strokeWidth={2} />
+                  <Text style={styles.coldPrimaryLabel}>Share address</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={styles.coldSecondaryBtn}
+                  onPress={() =>
+                    Alert.alert(
+                      'Buy crypto',
+                      'Onramp support is coming soon. For now, ask a friend to send you a small amount, or move funds from another wallet.',
+                    )
+                  }
+                >
+                  <Text style={styles.coldSecondaryLabel}>Buy crypto with cash</Text>
+                </TouchableOpacity>
               </View>
-              {balanceError && !isPrivateMode ? (
-                <Text style={styles.heroError}>{balanceError}</Text>
-              ) : isLoadingBalance && !hasFetchedRef.current ? (
-                <ActivityIndicator color={colors.textMuted} size="small" style={{ marginTop: spacing.sm }} />
-              ) : null}
-            </TouchableOpacity>
+            )}
 
             {/* Action row — Send + Receive only (bigger, Jupiter-style) */}
+            {!isColdWallet && <>
             <View style={styles.actionRow}>
               <TouchableOpacity
                 activeOpacity={0.85}
@@ -985,6 +1040,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
             ) : (
               renderToolsTab()
             )}
+            </>}
           </ScrollView>
         </View>
 
@@ -1782,6 +1838,63 @@ const styles = StyleSheet.create({
   },
   emptyTokensHint: {
     ...typography.caption,
+  },
+
+  // Cold-wallet empty state. Shown when the wallet has nothing on chain.
+  // Replaces the balance hero + action row + tabs to funnel the user into
+  // "receive first" instead of letting them hit send/swap errors.
+  coldSection: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xxxl,
+    paddingBottom: spacing.xxl,
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  coldIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
+  coldTitle: {
+    ...typography.heading,
+    color: colors.text,
+    textAlign: 'center',
+  },
+  coldBody: {
+    ...typography.body,
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  coldPrimaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xxl,
+    backgroundColor: colors.solid,
+    borderRadius: 999,
+    minWidth: 220,
+  },
+  coldPrimaryLabel: {
+    ...typography.body,
+    fontWeight: '600' as const,
+    color: colors.onSolid,
+  },
+  coldSecondaryBtn: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  coldSecondaryLabel: {
+    ...typography.caption,
+    color: colors.textMuted,
+    textDecorationLine: 'underline',
   },
 
   // Wallet drawer

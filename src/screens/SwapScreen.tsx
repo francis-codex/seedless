@@ -313,6 +313,26 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
       return;
     }
 
+    // Cold-input guard. If we've actually fetched and the input balance is
+    // zero, don't waste a Jupiter quote call — point the user at receive
+    // first. Mirrors the cold-wallet pattern on WalletScreen so the swap
+    // entry doesn't dead-end users with no funds.
+    const inSym = inputToken as TokenSymbol;
+    if (pickerBalanceFetched[inSym] && pickerBalances[inSym] <= 0) {
+      Alert.alert(
+        `No ${inputToken} to swap`,
+        `Your wallet has 0 ${inputToken}. Receive ${inputToken} first (or pick a different token you already hold), then try again.`,
+      );
+      return;
+    }
+    if (pickerBalanceFetched[inSym] && parsedAmount > pickerBalances[inSym]) {
+      Alert.alert(
+        'Not enough balance',
+        `You have ${pickerBalances[inSym].toFixed(inputDecimals === 6 ? 2 : 4)} ${inputToken}. Lower the amount or receive more first.`,
+      );
+      return;
+    }
+
     setIsLoadingQuote(true);
     setQuote(null);
     setBagsQuote(null);
