@@ -138,7 +138,17 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
   const [sendPrivately, setSendPrivately] = useState(false);
   const [privateSheetOpen, setPrivateSheetOpen] = useState(false);
   const [setupExplainerOpen, setSetupExplainerOpen] = useState(false);
-  const [pendingPrivateSend, setPendingPrivateSend] = useState<{ recipient: string; amount: number } | null>(null);
+  const [pendingPrivateSend, setPendingPrivateSend] = useState<{
+    recipient: string;
+    amount: number;
+    /** Mint of the token being sent privately. Defaults to SOL on legacy
+     *  setters that haven't been updated yet. */
+    mint: string;
+    /** Token symbol for display in setup/confirmation copy. */
+    symbol: string;
+    /** Token decimals for raw-unit conversion at fire time. */
+    decimals: number;
+  } | null>(null);
   // Per-button loading flags so tapping one button only spins that button,
   // not both. Sharing `privateMode.status === 'busy'` made both spin together.
   const [isCheckingIncoming, setIsCheckingIncoming] = useState(false);
@@ -434,16 +444,22 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
   // registered and the user consents to a public-fallback send.
   const handlePrivateSend = useCallback(async (
     recipientAddr: string,
-    amountSol: number,
+    uiAmount: number,
+    token?: Token,
   ) => {
     if (!smartWalletPubkey) throw new Error('Wallet not connected');
     if (privateMode.status === 'unregistered') {
       await privateMode.setUp(fundSigner);
     }
-    const lamports = Math.floor(amountSol * LAMPORTS_PER_SOL);
+    // Default to SOL when the caller is the legacy SOL-only path. Multi-mint
+    // callers pass the resolved Token explicitly so we get the right mint +
+    // decimals for raw-unit conversion.
+    const t: Token = token ?? TOKEN_REGISTRY.SOL;
+    const rawAmount = BigInt(Math.floor(uiAmount * Math.pow(10, t.decimals)));
     return privateMode.privateSend({
       destination: recipientAddr,
-      lamports,
+      amount: rawAmount,
+      mint: t.mint,
       fundSigner,
       onDegradationRequested: async ({ recipient: rcp }) => new Promise<boolean>((resolve) => {
         Alert.alert(
@@ -468,12 +484,14 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
     if (!pending) return;
     setSetupExplainerOpen(false);
     setIsSending(true);
+    const pendingToken = TOKEN_REGISTRY[pending.symbol as TokenSymbol] ?? TOKEN_REGISTRY.SOL;
+    const tokenDp = pendingToken.decimals === 6 ? 2 : 4;
     try {
-      const result = await handlePrivateSend(pending.recipient, pending.amount);
+      const result = await handlePrivateSend(pending.recipient, pending.amount, pendingToken);
       if (result.mode === 'umbra-encrypted') {
         Alert.alert(
           'Sent privately',
-          `Sent ${pending.amount.toFixed(4)} SOL privately. The amount and recipient stay hidden on chain.`,
+          `Sent ${pending.amount.toFixed(tokenDp)} ${pending.symbol} privately. The amount and recipient stay hidden on chain.`,
         );
         setRecipient('');
         setAmount('');
@@ -482,25 +500,37 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
         setTimeout(() => handleRefresh(), 2000);
       } else {
         // Recipient unregistered + user consented to public fallback in the
-        // degradation dialog. Honour that consent and route through the
-        // normal public-send path (same as if "Send privately" were off).
-        const lamports = Math.floor(pending.amount * LAMPORTS_PER_SOL);
-        const sig = await transferSol(
-          {
-            recipient: new PublicKey(pending.recipient),
-            lamports,
-          },
-          { redirectUrl: Linking.createURL('sign-callback') },
-        );
-        Alert.alert(
-          'Sent publicly',
-          `Sent ${pending.amount.toFixed(4)} SOL to ${pending.recipient.slice(0, 6)}…${pending.recipient.slice(-4)} as a normal public transfer (recipient wasn't on private mode).\n\nTx: ${sig.slice(0, 20)}…`,
-        );
-        setRecipient('');
-        setAmount('');
-        setSendPrivately(false);
-        setSendModalOpen(false);
-        setTimeout(() => handleRefresh(), 2000);
+        // degradation dialog. SOL gets the legacy `transferSol` fast path.
+        // For SPL we abort gracefully — the main send flow handles SPL public
+        // transfers correctly, but `transferSol` doesn't, and re-entering the
+        // full SPL build path from inside this confirm handler isn't worth
+        // the duplication for a corner case (user consented to public but
+        // also happened to be in first-time setup). Ask them to retry from
+        // the regular send screen with the toggle off.
+        if (pendingToken.isNative) {
+          const lamports = Math.floor(pending.amount * LAMPORTS_PER_SOL);
+          const sig = await transferSol(
+            {
+              recipient: new PublicKey(pending.recipient),
+              lamports,
+            },
+            { redirectUrl: Linking.createURL('sign-callback') },
+          );
+          Alert.alert(
+            'Sent publicly',
+            `Sent ${pending.amount.toFixed(tokenDp)} SOL to ${pending.recipient.slice(0, 6)}…${pending.recipient.slice(-4)} as a normal public transfer (recipient wasn't on private mode).\n\nTx: ${sig.slice(0, 20)}…`,
+          );
+          setRecipient('');
+          setAmount('');
+          setSendPrivately(false);
+          setSendModalOpen(false);
+          setTimeout(() => handleRefresh(), 2000);
+        } else {
+          Alert.alert(
+            'Recipient not on private mode',
+            `${pending.recipient.slice(0, 6)}…${pending.recipient.slice(-4)} hasn't set up private mode yet, so this ${pending.symbol} send can't stay encrypted. Send again with the privacy toggle off to route it as a normal ${pending.symbol} transfer.`,
+          );
+        }
       }
     } catch (err: any) {
       if (err?.name === 'PrivateSendFromMainDeclined') {
@@ -587,26 +617,34 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
     try {
       // === PRIVATE SEND PATH ===
       // Routes through Umbra's encrypted UTXO flow when the user has flipped
-      // the "Send privately" toggle on the send modal. Only available for SOL
-      // in this MVP; the toggle is hidden for other tokens until mainnet
-      // multi-mint support is confirmed.
-      if (sendPrivately && selectedToken.isNative) {
+      // the "Send privately" toggle on the send modal. Available for every
+      // mint in the registry (Phase A+B of #38). Public-fallback after a
+      // recipient-unregistered consent falls through to the existing send
+      // path below, which handles SOL and SPL transfers correctly.
+      if (sendPrivately) {
+        const tokenDp = selectedToken.decimals === 6 ? 2 : 4;
         // First-time setup explainer: if the user has never used private mode,
         // pause the send and show a friendly sheet explaining the ~0.02 SOL
         // one-time setup BEFORE the passkey prompt (which would otherwise
         // show an unfamiliar destination address and confuse them).
         if (privateMode.status === 'idle' || privateMode.status === 'unregistered') {
-          setPendingPrivateSend({ recipient: recipient.trim(), amount: parsedAmount });
+          setPendingPrivateSend({
+            recipient: recipient.trim(),
+            amount: parsedAmount,
+            mint: selectedToken.mint,
+            symbol: selectedToken.symbol,
+            decimals: selectedToken.decimals,
+          });
           setSetupExplainerOpen(true);
           setIsSending(false);
           return;
         }
         try {
-          const result = await handlePrivateSend(recipient.trim(), parsedAmount);
+          const result = await handlePrivateSend(recipient.trim(), parsedAmount, selectedToken);
           if (result.mode === 'umbra-encrypted') {
             Alert.alert(
               'Sent privately',
-              `Sent ${parsedAmount.toFixed(4)} SOL privately. The amount and recipient stay hidden on chain.`,
+              `Sent ${parsedAmount.toFixed(tokenDp)} ${selectedToken.symbol} privately. The amount and recipient stay hidden on chain.`,
               [{ text: 'OK' }],
             );
             setRecipient('');
@@ -1434,7 +1472,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
                   </Text>
 
                   <Text style={[styles.helperText, { textAlign: 'center', color: colors.textSubtle, marginTop: -spacing.sm }]}>
-                    Sending {pendingPrivateSend?.amount.toFixed(4) ?? '0'} SOL privately to {pendingPrivateSend?.recipient ? `${pendingPrivateSend.recipient.slice(0, 6)}…${pendingPrivateSend.recipient.slice(-4)}` : ''}
+                    Sending {pendingPrivateSend?.amount.toFixed((pendingPrivateSend?.decimals ?? 9) === 6 ? 2 : 4) ?? '0'} {pendingPrivateSend?.symbol ?? 'SOL'} privately to {pendingPrivateSend?.recipient ? `${pendingPrivateSend.recipient.slice(0, 6)}…${pendingPrivateSend.recipient.slice(-4)}` : ''}
                   </Text>
 
                   <PrimaryButton
