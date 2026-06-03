@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -19,14 +19,15 @@ import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import * as Linking from 'expo-linking';
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { getAccount, getAssociatedTokenAddress } from '@solana/spl-token';
-import { SOL_MINT, USDC_MINT, SEED_MINT, TOKEN_DECIMALS, SEED_DECIMALS, CLUSTER_SIMULATION, SOLANA_RPC_URL, MIN_SOL_FOR_TX } from '../constants';
+import { SOL_MINT, SEED_MINT, CLUSTER_SIMULATION, SOLANA_RPC_URL, MIN_SOL_FOR_TX } from '../constants';
 import { prepareSwap, QuoteResponse } from '../utils/jupiter';
 import { getBagsQuote, createBagsSwapTransaction, BagsQuoteResponse } from '../utils/bags';
 import { DEFAULT_AUTH_EXPIRY_SLOTS, shouldUseDeferredExec } from '../utils/deferredExec';
 import { clearSession as clearStoredSession, getActiveSession } from '../utils/session';
 import { colors, radii, spacing, typography } from '../theme';
 import { ScreenHeader, TokenLogo, PrimaryButton, Pill, Icon } from '../components/ui';
-import { SUPPORTED_TOKENS, TOKEN_REGISTRY, type Token } from '../tokens/registry';
+import { SUPPORTED_TOKENS, type Token } from '../tokens/registry';
+import { detectWalletTokens, type DetectedToken } from '../utils/detectTokens';
 
 interface SwapScreenProps {
   onBack: () => void;
@@ -98,53 +99,70 @@ const toHumanAmount = (smallestUnit: string, decimals: number): string => {
   return (num / Math.pow(10, decimals)).toFixed(decimals === 6 ? 2 : 4);
 };
 
-type SwapPair = 'SOL_TO_USDC' | 'USDC_TO_SOL' | 'SOL_TO_SEED' | 'SEED_TO_SOL' | 'USDC_TO_SEED' | 'SEED_TO_USDC';
 type SwapSource = 'jupiter' | 'bags';
-type TokenSymbol = 'SOL' | 'USDC' | 'SEED';
 
-const SWAP_PAIRS: Record<SwapPair, { input: string; output: string; inputMint: string; outputMint: string; inputDecimals: number; outputDecimals: number }> = {
-  SOL_TO_USDC: { input: 'SOL', output: 'USDC', inputMint: SOL_MINT, outputMint: USDC_MINT, inputDecimals: TOKEN_DECIMALS.SOL, outputDecimals: TOKEN_DECIMALS.USDC },
-  USDC_TO_SOL: { input: 'USDC', output: 'SOL', inputMint: USDC_MINT, outputMint: SOL_MINT, inputDecimals: TOKEN_DECIMALS.USDC, outputDecimals: TOKEN_DECIMALS.SOL },
-  SOL_TO_SEED: { input: 'SOL', output: 'SEED', inputMint: SOL_MINT, outputMint: SEED_MINT, inputDecimals: TOKEN_DECIMALS.SOL, outputDecimals: SEED_DECIMALS },
-  SEED_TO_SOL: { input: 'SEED', output: 'SOL', inputMint: SEED_MINT, outputMint: SOL_MINT, inputDecimals: SEED_DECIMALS, outputDecimals: TOKEN_DECIMALS.SOL },
-  USDC_TO_SEED: { input: 'USDC', output: 'SEED', inputMint: USDC_MINT, outputMint: SEED_MINT, inputDecimals: TOKEN_DECIMALS.USDC, outputDecimals: SEED_DECIMALS },
-  SEED_TO_USDC: { input: 'SEED', output: 'USDC', inputMint: SEED_MINT, outputMint: USDC_MINT, inputDecimals: SEED_DECIMALS, outputDecimals: TOKEN_DECIMALS.USDC },
-};
-
-// Derive picker rows from the central token registry. Keeps every screen's
-// token list aligned with one source of truth.
-const TOKEN_LIST: TokenSymbol[] = SUPPORTED_TOKENS.map((t) => t.symbol) as TokenSymbol[];
-
-function pairFromTokens(input: TokenSymbol, output: TokenSymbol): SwapPair {
-  return `${input}_TO_${output}` as SwapPair;
+// Picker row model is broader than the registry's Token type — registry's
+// symbol is a narrow literal ('SOL'|'USDC'|'SEED') used by other screens,
+// but detected tokens carry arbitrary verified symbols (JUP, BONK, etc).
+// Keeping a local row type lets us merge both sources without touching the
+// registry type and breaking WalletScreen / BurnerScreen.
+interface PickerRow {
+  mint: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  isNative: boolean;
+  logoURI?: string;
 }
+
+const tokenToRow = (t: Token): PickerRow => ({
+  mint: t.mint,
+  symbol: t.symbol,
+  name: t.name,
+  decimals: t.decimals,
+  isNative: t.isNative,
+});
+
+const detectedToRow = (d: DetectedToken): PickerRow => ({
+  mint: d.mint,
+  symbol: d.symbol,
+  name: d.name,
+  decimals: d.decimals,
+  isNative: false,
+  logoURI: d.logoURI,
+});
+
+// Render fallback if a mint somehow isn't in the row map. Should never trigger
+// since state is only set from rendered rows.
+const FALLBACK_ROW: PickerRow = tokenToRow(SUPPORTED_TOKENS[0]);
 
 export function SwapScreen({ onBack }: SwapScreenProps) {
   const { smartWalletPubkey, signAndSendTransaction, signAndSendWithSession, authorizeAndExecute } = useWallet();
 
-  // Form state
+  // Form state. Mint strings are the source of truth; everything else
+  // (symbol, decimals, name) is derived via the registry. Default = SOL → SEED.
   const [amount, setAmount] = useState('');
-  const [pair, setPair] = useState<SwapPair>('SOL_TO_SEED');
+  const [inputMint, setInputMint] = useState<string>(SOL_MINT);
+  const [outputMint, setOutputMint] = useState<string>(SEED_MINT);
   const [swapSource, setSwapSource] = useState<SwapSource>('jupiter');
   const [pickerSide, setPickerSide] = useState<'input' | 'output' | null>(null);
-  // Per-token balances for the picker rows. Prefetched on mount so the picker
-  // never opens to "…" — we hold last-known values and only show the loading
-  // dots for tokens that have literally never been fetched.
-  const [pickerBalances, setPickerBalances] = useState<Record<TokenSymbol, number>>({
-    SOL: 0,
-    USDC: 0,
-    SEED: 0,
-  });
-  const [pickerBalanceLoading, setPickerBalanceLoading] = useState<Record<TokenSymbol, boolean>>({
-    SOL: true,
-    USDC: true,
-    SEED: true,
-  });
-  const [pickerBalanceFetched, setPickerBalanceFetched] = useState<Record<TokenSymbol, boolean>>({
-    SOL: false,
-    USDC: false,
-    SEED: false,
-  });
+  // Per-token balances for the picker rows, keyed by mint so any-coin works in
+  // Phase 2 without re-keying. Prefetched on mount so the picker never opens
+  // to "…" — we hold last-known values and only show loading dots for tokens
+  // that have literally never been fetched.
+  const [pickerBalances, setPickerBalances] = useState<Record<string, number>>(
+    () => Object.fromEntries(SUPPORTED_TOKENS.map((t) => [t.mint, 0])),
+  );
+  const [pickerBalanceLoading, setPickerBalanceLoading] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(SUPPORTED_TOKENS.map((t) => [t.mint, true])),
+  );
+  const [pickerBalanceFetched, setPickerBalanceFetched] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(SUPPORTED_TOKENS.map((t) => [t.mint, false])),
+  );
+
+  // Detected verified SPL tokens (Jupiter verified list intersected with
+  // wallet holdings). Layered into the picker after the curated registry.
+  const [detectedTokens, setDetectedTokens] = useState<DetectedToken[]>([]);
 
   // Quote state
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
@@ -154,8 +172,34 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
   // Swap state
   const [isSwapping, setIsSwapping] = useState(false);
 
-  // Get input/output token info based on pair
-  const { input: inputToken, output: outputToken, inputMint, outputMint, inputDecimals, outputDecimals } = SWAP_PAIRS[pair];
+  // Build the combined picker rows: curated registry first (ordered SOL → USDC
+  // → SEED), then detected verified tokens not already in the registry. Dedup
+  // by mint so SOL/USDC don't appear twice if Jupiter detection ever returns
+  // them as SPL entries.
+  const pickerRows: PickerRow[] = useMemo(() => {
+    const rows: PickerRow[] = SUPPORTED_TOKENS.map(tokenToRow);
+    const seen = new Set(rows.map((r) => r.mint));
+    for (const d of detectedTokens) {
+      if (!seen.has(d.mint)) {
+        rows.push(detectedToRow(d));
+        seen.add(d.mint);
+      }
+    }
+    return rows;
+  }, [detectedTokens]);
+
+  const rowByMint = useMemo(() => {
+    const map: Record<string, PickerRow> = {};
+    for (const r of pickerRows) map[r.mint] = r;
+    return map;
+  }, [pickerRows]);
+
+  const inputRow = rowByMint[inputMint] ?? FALLBACK_ROW;
+  const outputRow = rowByMint[outputMint] ?? FALLBACK_ROW;
+  const inputToken = inputRow.symbol;
+  const outputToken = outputRow.symbol;
+  const inputDecimals = inputRow.decimals;
+  const outputDecimals = outputRow.decimals;
 
   // Stable string form of the wallet pubkey. useWallet() returns a new
   // PublicKey instance every render, so depending on the object identity
@@ -169,16 +213,17 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
     const owner = new PublicKey(walletKey);
     // Mark every token as loading. Render only shows "…" when fetched=false,
     // so already-known tokens keep their stale value during refresh.
-    setPickerBalanceLoading({ SOL: true, USDC: true, SEED: true });
+    setPickerBalanceLoading(
+      Object.fromEntries(SUPPORTED_TOKENS.map((t) => [t.mint, true])),
+    );
     await Promise.all(
       SUPPORTED_TOKENS.map(async (t) => {
-        const sym = t.symbol as TokenSymbol;
         const result = await fetchTokenBalance(t, owner);
         if (result >= 0) {
-          setPickerBalances((prev) => ({ ...prev, [sym]: result }));
-          setPickerBalanceFetched((prev) => ({ ...prev, [sym]: true }));
+          setPickerBalances((prev) => ({ ...prev, [t.mint]: result }));
+          setPickerBalanceFetched((prev) => ({ ...prev, [t.mint]: true }));
         }
-        setPickerBalanceLoading((prev) => ({ ...prev, [sym]: false }));
+        setPickerBalanceLoading((prev) => ({ ...prev, [t.mint]: false }));
       }),
     );
   }, [walletKey]);
@@ -190,6 +235,46 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
       refreshPickerBalances();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletKey]);
+
+  // Detect held verified SPL tokens beyond the curated registry. Runs on
+  // wallet change. Detected balances are prefilled into the picker state so
+  // those rows don't need a second RPC hit for their initial render.
+  useEffect(() => {
+    if (!walletKey) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const owner = new PublicKey(walletKey);
+        const list = await detectWalletTokens(owner);
+        if (cancelled) return;
+        setDetectedTokens(list);
+        // Prefill balances for any detected token NOT already in the
+        // registry. Registry tokens still flow through fetchTokenBalance for
+        // an authoritative read (and to pick up SOL via getBalance).
+        const registryMints = new Set(SUPPORTED_TOKENS.map((t) => t.mint));
+        setPickerBalances((prev) => {
+          const next = { ...prev };
+          for (const d of list) {
+            if (!registryMints.has(d.mint)) next[d.mint] = d.uiAmount;
+          }
+          return next;
+        });
+        setPickerBalanceFetched((prev) => {
+          const next = { ...prev };
+          for (const d of list) {
+            if (!registryMints.has(d.mint)) next[d.mint] = true;
+          }
+          return next;
+        });
+      } catch {
+        // Detection is best-effort. On failure the picker still shows the
+        // curated registry rows — no user-facing surface to flag.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [walletKey]);
 
   useEffect(() => {
@@ -205,7 +290,7 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
     if (!smartWalletPubkey) return;
     try {
       const owner = new PublicKey(smartWalletPubkey);
-      if (inputMint === SOL_MINT) {
+      if (inputRow.isNative) {
         let lamports: number;
         try {
           lamports = await connection.getBalance(owner);
@@ -229,7 +314,7 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
     } catch {
       Alert.alert('Max failed', 'Could not fetch balance — try again');
     }
-  }, [smartWalletPubkey, inputMint, inputDecimals]);
+  }, [smartWalletPubkey, inputMint, inputDecimals, inputRow.isNative]);
 
   // Silent quote fetch — no Alerts. Used by auto-quote on amount change.
   const lastQuoteKeyRef = useRef<string>('');
@@ -239,7 +324,7 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
       return;
     }
     // Dedupe identical fetches across re-renders
-    const key = `${pair}-${swapSource}-${amount}`;
+    const key = `${inputMint}-${outputMint}-${swapSource}-${amount}`;
     if (lastQuoteKeyRef.current === key) return;
     lastQuoteKeyRef.current = key;
 
@@ -258,38 +343,35 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
     } finally {
       setIsLoadingQuote(false);
     }
-  }, [amount, inputMint, outputMint, inputDecimals, smartWalletPubkey, swapSource, pair]);
+  }, [amount, inputMint, outputMint, inputDecimals, smartWalletPubkey, swapSource]);
 
   // Auto-fetch quote 500ms after user stops typing or changes pair
   useEffect(() => {
     if (!amount || !smartWalletPubkey) return;
     const timer = setTimeout(() => { fetchQuoteSilent(); }, 500);
     return () => clearTimeout(timer);
-  }, [amount, pair, swapSource, smartWalletPubkey, fetchQuoteSilent]);
+  }, [amount, inputMint, outputMint, swapSource, smartWalletPubkey, fetchQuoteSilent]);
 
   // Flip input/output sides
   const flipPair = () => {
-    const { input, output } = SWAP_PAIRS[pair];
-    setPair(pairFromTokens(output as TokenSymbol, input as TokenSymbol));
+    setInputMint(outputMint);
+    setOutputMint(inputMint);
     setQuote(null);
     setBagsQuote(null);
     setAmount('');
   };
 
-  // Pick a token for either side. If user picks same token on both sides, auto-flip.
-  const handlePickToken = (token: TokenSymbol) => {
+  // Pick a token for either side. If user picks the same token already on the
+  // other side, auto-swap so we never end up with input==output.
+  const handlePickToken = (row: PickerRow) => {
     if (!pickerSide) return;
-    const { input, output } = SWAP_PAIRS[pair];
-    let nextInput = input as TokenSymbol;
-    let nextOutput = output as TokenSymbol;
     if (pickerSide === 'input') {
-      nextInput = token;
-      if (token === output) nextOutput = input as TokenSymbol;
+      if (row.mint === outputMint) setOutputMint(inputMint);
+      setInputMint(row.mint);
     } else {
-      nextOutput = token;
-      if (token === input) nextInput = output as TokenSymbol;
+      if (row.mint === inputMint) setInputMint(outputMint);
+      setOutputMint(row.mint);
     }
-    setPair(pairFromTokens(nextInput, nextOutput));
     setQuote(null);
     setBagsQuote(null);
     setAmount('');
@@ -317,18 +399,19 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
     // zero, don't waste a Jupiter quote call — point the user at receive
     // first. Mirrors the cold-wallet pattern on WalletScreen so the swap
     // entry doesn't dead-end users with no funds.
-    const inSym = inputToken as TokenSymbol;
-    if (pickerBalanceFetched[inSym] && pickerBalances[inSym] <= 0) {
+    const inputBalance = pickerBalances[inputMint] ?? 0;
+    const inputFetched = pickerBalanceFetched[inputMint] ?? false;
+    if (inputFetched && inputBalance <= 0) {
       Alert.alert(
         `No ${inputToken} to swap`,
         `Your wallet has 0 ${inputToken}. Receive ${inputToken} first (or pick a different token you already hold), then try again.`,
       );
       return;
     }
-    if (pickerBalanceFetched[inSym] && parsedAmount > pickerBalances[inSym]) {
+    if (inputFetched && parsedAmount > inputBalance) {
       Alert.alert(
         'Not enough balance',
-        `You have ${pickerBalances[inSym].toFixed(inputDecimals === 6 ? 2 : 4)} ${inputToken}. Lower the amount or receive more first.`,
+        `You have ${inputBalance.toFixed(inputDecimals === 6 ? 2 : 4)} ${inputToken}. Lower the amount or receive more first.`,
       );
       return;
     }
@@ -541,7 +624,11 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
                 onPress={() => setPickerSide('input')}
                 style={styles.tokenChip}
               >
-                <TokenLogo symbol={inputToken} size={28} />
+                <TokenLogo
+                  symbol={inputToken}
+                  size={28}
+                  source={inputRow.logoURI ? { uri: inputRow.logoURI } : undefined}
+                />
                 <Text style={styles.tokenChipText}>{inputToken}</Text>
                 <Text style={styles.chevron}>▾</Text>
               </TouchableOpacity>
@@ -572,7 +659,11 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
                 onPress={() => setPickerSide('output')}
                 style={styles.tokenChip}
               >
-                <TokenLogo symbol={outputToken} size={28} />
+                <TokenLogo
+                  symbol={outputToken}
+                  size={28}
+                  source={outputRow.logoURI ? { uri: outputRow.logoURI } : undefined}
+                />
                 <Text style={styles.tokenChipText}>{outputToken}</Text>
                 <Text style={styles.chevron}>▾</Text>
               </TouchableOpacity>
@@ -637,26 +728,33 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
                 <Text style={styles.pickerTitle}>
                   {pickerSide === 'input' ? 'You pay' : 'You receive'}
                 </Text>
-                {TOKEN_LIST.map((sym) => {
-                  const isSelected = pickerSide === 'input' ? sym === inputToken : sym === outputToken;
-                  const token: Token = TOKEN_REGISTRY[sym];
-                  const balance = pickerBalances[sym] ?? 0;
-                  const balanceFmt = balance.toLocaleString(undefined, { maximumFractionDigits: token.decimals === 6 ? 2 : 4 });
+                {pickerRows.map((row) => {
+                  const isSelected =
+                    pickerSide === 'input' ? row.mint === inputMint : row.mint === outputMint;
+                  const balance = pickerBalances[row.mint] ?? 0;
+                  const balanceFmt = balance.toLocaleString(undefined, {
+                    maximumFractionDigits: row.decimals === 6 ? 2 : 4,
+                  });
+                  const isLoading = (pickerBalanceLoading[row.mint] ?? false) && !(pickerBalanceFetched[row.mint] ?? false);
                   return (
                     <TouchableOpacity
-                      key={sym}
+                      key={row.mint}
                       activeOpacity={0.7}
                       style={[styles.pickerRow, isSelected && styles.pickerRowActive]}
-                      onPress={() => handlePickToken(sym)}
+                      onPress={() => handlePickToken(row)}
                     >
-                      <TokenLogo symbol={sym} size={32} />
+                      <TokenLogo
+                        symbol={row.symbol}
+                        size={32}
+                        source={row.logoURI ? { uri: row.logoURI } : undefined}
+                      />
                       <View style={styles.pickerRowText}>
-                        <Text style={styles.pickerSymbol} numberOfLines={1}>{sym}</Text>
-                        <Text style={styles.pickerName} numberOfLines={1}>{token.name}</Text>
+                        <Text style={styles.pickerSymbol} numberOfLines={1}>{row.symbol}</Text>
+                        <Text style={styles.pickerName} numberOfLines={1}>{row.name}</Text>
                       </View>
                       <View style={styles.pickerRowRight}>
                         <Text style={styles.pickerBalance} numberOfLines={1} ellipsizeMode="tail">
-                          {pickerBalanceLoading[sym] && !pickerBalanceFetched[sym] ? '…' : balanceFmt}
+                          {isLoading ? '…' : balanceFmt}
                         </Text>
                         {isSelected && <Text style={styles.pickerCheck}>✓</Text>}
                       </View>
