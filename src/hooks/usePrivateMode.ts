@@ -24,11 +24,20 @@ import * as SecureStore from 'expo-secure-store';
 import type { IUmbraClient, IUmbraSigner } from '@umbra-privacy/sdk/interfaces';
 
 import { SOL_MINT, SOLANA_RPC_URL } from '../constants';
+import { SUPPORTED_TOKENS } from '../tokens/registry';
 
-// SecureStore key for the cached private balance. We persist this so the
-// sheet can open instantly with the last-known value instead of waiting on
-// the heavy Umbra client build to fetch fresh data.
-const CACHED_BALANCE_KEY = 'umbra_cached_balance_lamports_v1';
+// SecureStore key for the cached private balance. v1 was SOL-only (single
+// bigint string); v2 is a JSON record keyed by mint to support multi-mint
+// private balance display + send. We still read v1 as a fallback so existing
+// installs don't open to a blank sheet on first launch after upgrade.
+const CACHED_BALANCE_KEY_V1 = 'umbra_cached_balance_lamports_v1';
+const CACHED_BALANCES_KEY_V2 = 'umbra_cached_balances_by_mint_v2';
+
+// Mints we track in private mode. Pulled from the central token registry so
+// adding a new token in one place lights up its private-balance row + private
+// send path everywhere. Detected non-registry tokens are NOT auto-included
+// here — they're public-only in Phase 1 of #38.
+const PRIVATE_MINTS: readonly string[] = SUPPORTED_TOKENS.map((t) => t.mint);
 
 // Hard cap so a hung umbra RPC or stuck SDK call never spins forever.
 // 60s is generous for the slow first-time client build + multi-tree scan.
@@ -65,8 +74,16 @@ export interface IncomingSummary {
 export interface UsePrivateModeReturn {
   status: PrivateModeStatus;
   setupStage: SetupStage | null;
+  /** SOL private balance in lamports — kept for backward compat with the
+   *  header pill + zero-balance gate. New code should read
+   *  `privateBalancesByMint[mint]` directly. */
   privateBalanceLamports: bigint;
+  /** SOL private balance as a UI number (lamports / 1e9). Same caveat as
+   *  `privateBalanceLamports` — SOL-only accessor over the multi-mint map. */
   privateBalanceSol: number;
+  /** All tracked mints → raw private balance (smallest units of that mint).
+   *  Always contains entries for every PRIVATE_MINTS mint, defaulting to 0n. */
+  privateBalancesByMint: Record<string, bigint>;
   incoming: IncomingSummary;
   errorMessage: string | null;
 
@@ -75,13 +92,23 @@ export interface UsePrivateModeReturn {
   setIncomingPollEnabled: (enabled: boolean) => void;
   setUp: (fundSigner: FundSignerFn) => Promise<void>;
   // Full "move encrypted balance back to user's main wallet" pipeline.
-  // Wraps SDK withdraw + close-and-unwrap into a single granma call.
-  moveAllToPublic: (mainWalletPubkey: string) => Promise<string>;
+  // SOL-only in Phase A/B of #38 — the SPL branch is gated on the Umbra v5
+  // SDK migration (the wSOL-close-unwrap trick doesn't apply to non-native
+  // mints; SPL withdraw lands in signer's ATA and needs a follow-up transfer
+  // to the main wallet's ATA). Optional `mint` param reserved for that work.
+  moveAllToPublic: (mainWalletPubkey: string, mint?: string) => Promise<string>;
   refreshIncoming: () => Promise<void>;
   claimIncoming: () => Promise<void>;
   privateSend: (args: {
     destination: string;
-    lamports: number;
+    /** Raw amount in the mint's smallest units. Prefer this over `lamports`
+     *  for new callers — `lamports` stays for backward compat with the SOL
+     *  send path that pre-dates multi-mint. */
+    amount?: bigint;
+    /** Legacy SOL amount in lamports. Equivalent to `{amount: BigInt(lamports), mint: SOL_MINT}`. */
+    lamports?: number;
+    /** Mint to send privately. Defaults to SOL. */
+    mint?: string;
     onDegradationRequested?: (info: { reason: string; recipient: string }) => Promise<boolean>;
     fundSigner: FundSignerFn;
   }) => Promise<{ mode: 'umbra-encrypted' | 'fallback-public'; signature: string }>;
@@ -89,12 +116,19 @@ export interface UsePrivateModeReturn {
 
 const INCOMING_POLL_MS = 30_000;
 
+// Initial multi-mint balance map. Every tracked mint starts at 0n so consumers
+// never have to optional-chain into the record.
+const emptyBalances = (): Record<string, bigint> =>
+  Object.fromEntries(PRIVATE_MINTS.map((m) => [m, 0n]));
+
 export function usePrivateMode(): UsePrivateModeReturn {
   const [status, setStatus] = useState<PrivateModeStatus>('idle');
   const [setupStage, setSetupStage] = useState<SetupStage | null>(null);
-  const [privateBalanceLamports, setPrivateBalanceLamports] = useState<bigint>(0n);
+  const [privateBalancesByMint, setPrivateBalancesByMint] = useState<Record<string, bigint>>(emptyBalances);
   const [incoming, setIncoming] = useState<IncomingSummary>({ count: 0, totalLamports: 0n });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const privateBalanceLamports = privateBalancesByMint[SOL_MINT] ?? 0n;
 
   const clientRef = useRef<IUmbraClient | null>(null);
   const signerRef = useRef<IUmbraSigner | null>(null);
@@ -110,13 +144,30 @@ export function usePrivateMode(): UsePrivateModeReturn {
   // button.
   const refresh = useCallback(async () => {
     try {
-      const [stored, cachedBalance] = await Promise.all([
+      const [stored, cachedV2, cachedV1Sol] = await Promise.all([
         SecureStore.getItemAsync('umbra_throwaway_signer_v1'),
-        SecureStore.getItemAsync(CACHED_BALANCE_KEY),
+        SecureStore.getItemAsync(CACHED_BALANCES_KEY_V2),
+        SecureStore.getItemAsync(CACHED_BALANCE_KEY_V1),
       ]);
       if (!mountedRef.current) return;
-      if (cachedBalance) {
-        try { setPrivateBalanceLamports(BigInt(cachedBalance)); } catch {}
+      // Prefer v2 multi-mint cache. Fall back to v1 SOL-only cache so an
+      // existing tester upgrading from 0.4.2 → 0.4.3 sees their SOL balance
+      // immediately on first open instead of a blank sheet.
+      if (cachedV2) {
+        try {
+          const parsed = JSON.parse(cachedV2) as Record<string, string>;
+          const next = emptyBalances();
+          for (const [mint, raw] of Object.entries(parsed)) {
+            try { next[mint] = BigInt(raw); } catch {}
+          }
+          setPrivateBalancesByMint(next);
+        } catch {
+          // fall through to v1
+        }
+      } else if (cachedV1Sol) {
+        try {
+          setPrivateBalancesByMint((prev) => ({ ...prev, [SOL_MINT]: BigInt(cachedV1Sol) }));
+        } catch {}
       }
       setStatus(stored ? 'unregistered' : 'idle');
     } catch {
@@ -125,11 +176,16 @@ export function usePrivateMode(): UsePrivateModeReturn {
     }
   }, []);
 
-  // Persist balance to SecureStore so the next sheet open shows it instantly
-  // without rebuilding the client.
-  const cacheBalance = useCallback(async (lamports: bigint) => {
+  // Persist the full multi-mint balance map to SecureStore so the next sheet
+  // open shows real numbers instantly without rebuilding the client. JSON
+  // serialisation of bigint requires string conversion — handled here.
+  const cacheBalances = useCallback(async (balances: Record<string, bigint>) => {
     try {
-      await SecureStore.setItemAsync(CACHED_BALANCE_KEY, lamports.toString());
+      const serialisable: Record<string, string> = {};
+      for (const [mint, raw] of Object.entries(balances)) {
+        serialisable[mint] = raw.toString();
+      }
+      await SecureStore.setItemAsync(CACHED_BALANCES_KEY_V2, JSON.stringify(serialisable));
     } catch {
       // Cache miss isn't fatal — the next deep refresh will repopulate.
     }
@@ -165,21 +221,48 @@ export function usePrivateMode(): UsePrivateModeReturn {
   // toggles "Send privately". Builds the client + fetches the encrypted
   // balance + sets status='ready' (or 'unregistered' if the user hasn't
   // finished setup).
+  // Fetch every tracked mint's private balance in parallel, returning the
+  // aggregate map + an "is the signer registered at all" flag (true if any
+  // mint query succeeded as registered — SDK reports registration per-mint
+  // but practically the signer either exists or doesn't).
+  const fetchAllPrivateBalances = useCallback(
+    async (client: IUmbraClient): Promise<{ balances: Record<string, bigint>; registered: boolean }> => {
+      const results = await Promise.all(
+        PRIVATE_MINTS.map(async (mint) => {
+          try {
+            const r = await fetchPrivateBalanceForMint(client, mint);
+            return { mint, lamports: r.lamports, registered: r.registered };
+          } catch {
+            return { mint, lamports: 0n, registered: false };
+          }
+        }),
+      );
+      const balances = emptyBalances();
+      let anyRegistered = false;
+      for (const r of results) {
+        balances[r.mint] = r.lamports;
+        if (r.registered) anyRegistered = true;
+      }
+      return { balances, registered: anyRegistered };
+    },
+    [],
+  );
+
   const refreshDeep = useCallback(async () => {
     setStatus((prev) => (prev === 'busy' || prev === 'setting-up' ? prev : 'loading'));
     try {
       const { client } = await ensureClient();
-      const { lamports, registered } = await fetchPrivateBalanceForMint(client, SOL_MINT);
+      const { balances, registered } = await fetchAllPrivateBalances(client);
       if (!mountedRef.current) return;
-      setPrivateBalanceLamports(lamports);
-      cacheBalance(lamports);
+      setPrivateBalancesByMint(balances);
+      cacheBalances(balances);
       setStatus(registered ? 'ready' : 'unregistered');
     } catch {
       if (!mountedRef.current) return;
       setStatus('unregistered');
-      setPrivateBalanceLamports(0n);
+      setPrivateBalancesByMint(emptyBalances());
     }
-  }, [ensureClient]);
+  }, [ensureClient, fetchAllPrivateBalances, cacheBalances]);
 
   // No auto deep-refresh. The Umbra client is heavy enough that even a 2s
   // deferred build noticeably stalls the JS thread when it runs. Instead, we
@@ -200,10 +283,10 @@ export function usePrivateMode(): UsePrivateModeReturn {
       });
       signerRef.current = signer;
       clientRef.current = client;
-      const { lamports } = await fetchPrivateBalanceForMint(client, SOL_MINT);
+      const { balances } = await fetchAllPrivateBalances(client);
       if (!mountedRef.current) return;
-      setPrivateBalanceLamports(lamports);
-      cacheBalance(lamports);
+      setPrivateBalancesByMint(balances);
+      cacheBalances(balances);
       setStatus('ready');
       setSetupStage(null);
     } catch (err: any) {
@@ -212,7 +295,7 @@ export function usePrivateMode(): UsePrivateModeReturn {
       setStatus('unregistered');
       setSetupStage(null);
     }
-  }, []);
+  }, [fetchAllPrivateBalances, cacheBalances]);
 
   // `deposit` and `withdraw` low-level methods removed in 0.4.2 — only
   // `moveAllToPublic` is wired into the UI. If a future flow needs
@@ -235,7 +318,14 @@ export function usePrivateMode(): UsePrivateModeReturn {
   // Both txs are paid for by the signer (it already holds ~0.017 SOL from
   // the original setup fund). User sees one button → success → SOL
   // appears in their main wallet.
-  const moveAllToPublic = useCallback(async (mainWalletPubkey: string): Promise<string> => {
+  const moveAllToPublic = useCallback(async (mainWalletPubkey: string, mint?: string): Promise<string> => {
+    // Phase A/B of #38 keep this SOL-only. The `mint` arg exists so callers
+    // can start passing it now (forward-compat); non-SOL values throw until
+    // the v5 SDK migration unlocks the SPL withdraw → ATA-transfer path.
+    const targetMint = mint ?? SOL_MINT;
+    if (targetMint !== SOL_MINT) {
+      throw new Error('Moving non-SOL private balance to public is temporarily unavailable. Try again after the next app update.');
+    }
     setStatus('busy');
     try {
       const sig = await withOpTimeout(
@@ -256,8 +346,11 @@ export function usePrivateMode(): UsePrivateModeReturn {
           //    amount that exceeds reality and fails simulation.
           const fresh = await fetchPrivateBalanceForMint(client, SOL_MINT);
           if (mountedRef.current) {
-            setPrivateBalanceLamports(fresh.lamports);
-            cacheBalance(fresh.lamports);
+            setPrivateBalancesByMint((prev) => {
+              const next = { ...prev, [SOL_MINT]: fresh.lamports };
+              cacheBalances(next);
+              return next;
+            });
           }
           if (fresh.lamports === 0n) {
             throw new Error('Private balance is 0. Nothing to move to public.');
@@ -329,8 +422,11 @@ export function usePrivateMode(): UsePrivateModeReturn {
 
           // 7. Refresh cached balance to 0n since we just emptied it.
           if (mountedRef.current) {
-            setPrivateBalanceLamports(0n);
-            cacheBalance(0n);
+            setPrivateBalancesByMint((prev) => {
+              const next = { ...prev, [SOL_MINT]: 0n };
+              cacheBalances(next);
+              return next;
+            });
           }
 
           return closeSig;
@@ -347,7 +443,7 @@ export function usePrivateMode(): UsePrivateModeReturn {
       }
       throw err;
     }
-  }, [ensureClient]);
+  }, [ensureClient, cacheBalances]);
 
   const refreshIncoming = useCallback(async () => {
     try {
@@ -388,10 +484,13 @@ export function usePrivateMode(): UsePrivateModeReturn {
         }),
         'Claim incoming',
       );
-      const { lamports: newBal } = await fetchPrivateBalanceForMint(client, SOL_MINT);
+      // Claims today still aggregate into the SOL bucket (multi-mint UTXO
+      // partitioning is Phase C of #38). Refresh ALL mints since a claim may
+      // settle balances for any of them server-side.
+      const { balances } = await fetchAllPrivateBalances(client);
       if (mountedRef.current) {
-        setPrivateBalanceLamports(newBal);
-        cacheBalance(newBal);
+        setPrivateBalancesByMint(balances);
+        cacheBalances(balances);
         setIncoming({ count: 0, totalLamports: 0n });
         scannedUtxosRef.current = [];
         setStatus('ready');
@@ -403,7 +502,7 @@ export function usePrivateMode(): UsePrivateModeReturn {
       }
       throw err;
     }
-  }, [ensureClient]);
+  }, [ensureClient, fetchAllPrivateBalances, cacheBalances]);
 
   const privateSend = useCallback<UsePrivateModeReturn['privateSend']>(async (args) => {
     const { privateSendFromMain } = await import('../umbra/private-send-from-main');
@@ -411,21 +510,48 @@ export function usePrivateMode(): UsePrivateModeReturn {
       await setUp(args.fundSigner);
     }
     if (!clientRef.current || !signerRef.current) throw new Error('Private mode not ready');
+
+    // Resolve mint + amount. Prefer the explicit (amount, mint) pair; fall
+    // back to the legacy (lamports) shape for the SOL send path that
+    // pre-dates multi-mint. Reject empty/zero amounts up front so we don't
+    // hit the SDK with a bad value.
+    const mint = args.mint ?? SOL_MINT;
+    let amountRaw: bigint;
+    if (typeof args.amount === 'bigint') {
+      amountRaw = args.amount;
+    } else if (typeof args.lamports === 'number' && Number.isFinite(args.lamports)) {
+      amountRaw = BigInt(Math.floor(args.lamports));
+    } else {
+      throw new Error('privateSend requires either `amount` (bigint) or `lamports` (number).');
+    }
+    if (amountRaw <= 0n) {
+      throw new Error('Amount must be greater than zero.');
+    }
+
     setStatus('busy');
     try {
       const result = await privateSendFromMain({
         client: clientRef.current,
         signerAddress: signerRef.current.address,
         destinationAddress: args.destination,
-        amountLamports: BigInt(args.lamports),
+        amountLamports: amountRaw,
+        mint,
         onDegradationRequested: args.onDegradationRequested,
       });
-      const { lamports: newBal } = await fetchPrivateBalanceForMint(clientRef.current, SOL_MINT);
-      if (mountedRef.current) {
-        setPrivateBalanceLamports(newBal);
-        cacheBalance(newBal);
-        setStatus('ready');
+      // Refresh only the affected mint's balance (faster than a full sweep)
+      // unless the result fell through to the public-fallback path, in
+      // which case no encrypted balance changed.
+      if (result.mode === 'umbra-encrypted') {
+        const { lamports: newBal } = await fetchPrivateBalanceForMint(clientRef.current, mint);
+        if (mountedRef.current) {
+          setPrivateBalancesByMint((prev) => {
+            const next = { ...prev, [mint]: newBal };
+            cacheBalances(next);
+            return next;
+          });
+        }
       }
+      if (mountedRef.current) setStatus('ready');
       return result;
     } catch (err: any) {
       if (mountedRef.current) {
@@ -434,7 +560,7 @@ export function usePrivateMode(): UsePrivateModeReturn {
       }
       throw err;
     }
-  }, [setUp]);
+  }, [setUp, cacheBalances]);
 
   // No auto-poll for incoming claims. The multi-tree RPC scan is heavy
   // enough that even an opt-in interval freezes the JS thread when it fires.
@@ -467,10 +593,11 @@ export function usePrivateMode(): UsePrivateModeReturn {
       setupStage,
       privateBalanceLamports,
       privateBalanceSol: Number(privateBalanceLamports) / LAMPORTS_PER_SOL,
+      privateBalancesByMint,
       incoming,
       errorMessage,
       ...methodsRef.current,
     }),
-    [status, setupStage, privateBalanceLamports, incoming, errorMessage],
+    [status, setupStage, privateBalanceLamports, privateBalancesByMint, incoming, errorMessage],
   );
 }
