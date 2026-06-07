@@ -9,7 +9,8 @@ import {
   AppStateStatus,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useWallet } from '@lazorkit/wallet-mobile-adapter';
+import { useWallet, useWalletStore } from '@lazorkit/wallet-mobile-adapter';
+import { addKnownWallet, hasKnownWallet } from './utils/walletList';
 import { HomeScreen } from './screens/HomeScreen';
 import { WalletScreen } from './screens/WalletScreen';
 import { SwapScreen } from './screens/SwapScreen';
@@ -52,6 +53,21 @@ const DEFAULT_SCREEN: Screen = 'wallet';
 
 export function AppContent() {
   const { isConnected, isLoading, smartWalletPubkey } = useWallet();
+  const activeWallet = useWalletStore((s) => s.wallet);
+
+  // Pre-multi-wallet users have an active LazorKit wallet but no entry in
+  // our known-wallets list. Seed it once on mount so the drawer switcher
+  // sees the original wallet without requiring a re-connect.
+  useEffect(() => {
+    if (!isConnected || !activeWallet) return;
+    let cancelled = false;
+    (async () => {
+      const already = await hasKnownWallet(activeWallet.smartWallet);
+      if (cancelled || already) return;
+      await addKnownWallet(activeWallet).catch(() => {});
+    })();
+    return () => { cancelled = true; };
+  }, [isConnected, activeWallet?.smartWallet]);
   const [currentScreen, setCurrentScreen] = useState<Screen>('wallet');
   const [locked, setLocked] = useState(false);
   const [toast, setToast] = useState<{ visible: boolean; message: string }>({
