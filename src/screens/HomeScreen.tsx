@@ -16,6 +16,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { APP_VERSION } from '../constants';
 import { colors, spacing, typography } from '../theme';
 import { PrimaryButton } from '../components/ui';
+import { addKnownWallet } from '../utils/walletList';
 
 interface HomeScreenProps {
   onConnected: () => void;
@@ -86,7 +87,13 @@ export function HomeScreen({ onConnected }: HomeScreenProps) {
 
       await connect({
         redirectUrl,
-        onSuccess: () => onConnected(),
+        onSuccess: (wallet) => {
+          // Mirror into the known-wallets list so the drawer switcher can
+          // see this entry. Fire-and-forget — a SecureStore write failure
+          // shouldn't block the user from entering the app.
+          addKnownWallet(wallet).catch(() => {});
+          onConnected();
+        },
         onFail: (error) => {
           const msg = error.message || 'Connection failed';
           let friendly = msg;
