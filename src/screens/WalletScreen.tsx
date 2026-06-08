@@ -38,6 +38,7 @@ import { consumeSendSlot } from '../utils/sendRateLimit';
 import { AddressBookEntry, getAddressBook } from '../utils/addressBook';
 import { detectWalletTokens, DetectedToken } from '../utils/detectTokens';
 import { DEFAULT_WALLET_LABEL, getWalletLabel, setWalletLabel } from '../utils/walletLabel';
+import { useKnownWallets } from '../hooks/useKnownWallets';
 import {
   ActiveSession,
   clearSession as clearStoredSession,
@@ -75,7 +76,9 @@ import { connection, fallbackConnection } from '../utils/connection';
 export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka, onHistory }: WalletScreenProps) {
   const {
     smartWalletPubkey,
+    connect,
     disconnect,
+    isConnecting,
     isSigning,
     createSession,
     signAndSendWithSession,
@@ -83,6 +86,10 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
     revokeSession,
     transferSol,
   } = useWallet();
+  const knownWallets = useKnownWallets();
+  // Cache per-wallet labels for the drawer switcher. Loaded lazily when the
+  // known-wallets list changes; missing entries fall back to the default.
+  const [otherLabels, setOtherLabels] = useState<Record<string, string>>({});
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [selectedTokenSymbol, setSelectedTokenSymbol] = useState<TokenSymbol>('SOL');
@@ -401,6 +408,61 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
     await disconnect();
     onDisconnect();
   }, [disconnect, onDisconnect]);
+
+  // Lazy-load labels for every known wallet that isn't the active one, so
+  // the drawer switcher shows real names instead of "Wallet 01" everywhere.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        knownWallets.wallets
+          .filter((w) => w.smartWallet !== walletId)
+          .map(async (w) => [w.smartWallet, await getWalletLabel(w.smartWallet)] as const),
+      );
+      if (cancelled) return;
+      setOtherLabels(Object.fromEntries(entries));
+    })();
+    return () => { cancelled = true; };
+  }, [knownWallets.wallets, walletId]);
+
+  // Add another wallet: drop the active passkey, fire connect() so the
+  // portal can register or log in with a fresh credential, and mirror the
+  // new wallet into the known list. Closes the drawer first so the portal
+  // hand-off feels clean.
+  const handleAddWallet = useCallback(async () => {
+    setDrawerOpen(false);
+    try {
+      await disconnect();
+      const redirectUrl = Linking.createURL('callback');
+      await connect({
+        redirectUrl,
+        onSuccess: (wallet) => {
+          knownWallets.remember(wallet).catch(() => {});
+        },
+        onFail: (err) => {
+          Alert.alert('Could not add wallet', err.message || 'Please try again.');
+        },
+      });
+    } catch (err: any) {
+      Alert.alert('Could not add wallet', err?.message || 'Please try again.');
+    }
+  }, [connect, disconnect, knownWallets]);
+
+  // Hot-swap to a previously connected wallet without going through the
+  // portal. Existing screen effects keyed on walletId pick up the change
+  // and reload balances, labels, sessions, and detected tokens.
+  const handleSwitchWallet = useCallback(
+    (smartWallet: string) => {
+      const target = knownWallets.wallets.find((w) => w.smartWallet === smartWallet);
+      if (!target || smartWallet === walletId) {
+        setDrawerOpen(false);
+        return;
+      }
+      setDrawerOpen(false);
+      knownWallets.switchTo(target);
+    },
+    [knownWallets, walletId],
+  );
 
   const handleCopyAddress = useCallback(async () => {
     if (!fullAddress) return;
@@ -1144,6 +1206,53 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
                   <Icon name="qr" size={20} color={colors.text} />
                 </View>
                 <Text style={styles.drawerRowTitle}>Show QR code</Text>
+              </TouchableOpacity>
+
+              {/* Multi-wallet switcher. Hidden when there's only the active
+                  wallet — keeps first-time users from seeing an empty list. */}
+              {knownWallets.wallets.filter((w) => w.smartWallet !== walletId).length > 0 && (
+                <View style={styles.drawerSectionLabelWrap}>
+                  <Text style={styles.drawerSectionLabel}>Switch wallet</Text>
+                </View>
+              )}
+              {knownWallets.wallets
+                .filter((w) => w.smartWallet !== walletId)
+                .map((w) => {
+                  const label = otherLabels[w.smartWallet] || DEFAULT_WALLET_LABEL;
+                  const short = `${w.smartWallet.slice(0, 6)}...${w.smartWallet.slice(-4)}`;
+                  return (
+                    <TouchableOpacity
+                      key={w.smartWallet}
+                      activeOpacity={0.7}
+                      style={styles.drawerRow}
+                      onPress={() => handleSwitchWallet(w.smartWallet)}
+                    >
+                      <View style={[styles.drawerIcon, { backgroundColor: colors.surface }]}>
+                        <Image source={BRAND_LOGO} style={styles.drawerWalletAvatar} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.drawerRowTitle} numberOfLines={1}>{label}</Text>
+                        <Text style={styles.drawerRowSub} numberOfLines={1}>{short}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                style={styles.drawerRow}
+                disabled={isConnecting}
+                onPress={handleAddWallet}
+              >
+                <View style={[styles.drawerIcon, { backgroundColor: colors.surface }]}>
+                  <Icon name="plus" size={20} color={colors.text} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.drawerRowTitle}>
+                    {isConnecting ? 'Opening passkey...' : 'Add another wallet'}
+                  </Text>
+                  <Text style={styles.drawerRowSub}>Create or sign in with another passkey</Text>
+                </View>
               </TouchableOpacity>
 
               <View style={{ flex: 1 }} />
@@ -1969,6 +2078,22 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
+  },
+  drawerWalletAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  drawerSectionLabelWrap: {
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  drawerSectionLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    color: colors.textSubtle,
   },
   drawerNameRow: {
     flexDirection: 'row',
