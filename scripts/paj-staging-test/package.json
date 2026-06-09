@@ -1,0 +1,19 @@
+{
+  "name": "paj-staging-test",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dry": "tsx test.ts",
+    "full": "tsx test.ts --full"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "paj_ramp": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}
