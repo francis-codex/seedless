@@ -77,3 +77,11 @@ claude-session.jsonl
 lifi-interview-prep-may20.md
 lifi-interview-prep-may20.pdf
 resumes/
+
+# Waitlist + signup exports (contain PII) — never commit
+/notes/Seedless Mainnet-beta_Submissions_*.csv
+/notes/*signups*.csv
+
+# Partner pricing / commercial sheets — keep local
+/SolanaFloor campaign pricing sheet.pdf
+*campaign pricing*.pdf
