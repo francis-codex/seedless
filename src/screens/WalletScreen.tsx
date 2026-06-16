@@ -464,6 +464,33 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
     [knownWallets, walletId],
   );
 
+  // Long-press on a known (non-active) wallet row removes it from the
+  // device list. Active wallet is excluded — disconnect lives in the
+  // danger row below.
+  const handleForgetWallet = useCallback(
+    (smartWallet: string) => {
+      if (smartWallet === walletId) return;
+      const target = knownWallets.wallets.find((w) => w.smartWallet === smartWallet);
+      if (!target) return;
+      const label = otherLabels[smartWallet] || DEFAULT_WALLET_LABEL;
+      Alert.alert(
+        'Remove wallet?',
+        `${label} will be removed from this device. The wallet itself is safe — you can add it back by signing in with the same passkey.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: () => {
+              knownWallets.forget(smartWallet).catch(() => {});
+            },
+          },
+        ],
+      );
+    },
+    [knownWallets, otherLabels, walletId],
+  );
+
   const handleCopyAddress = useCallback(async () => {
     if (!fullAddress) return;
     await Clipboard.setStringAsync(fullAddress);
@@ -1226,6 +1253,8 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
                       activeOpacity={0.7}
                       style={styles.drawerRow}
                       onPress={() => handleSwitchWallet(w.smartWallet)}
+                      onLongPress={() => handleForgetWallet(w.smartWallet)}
+                      delayLongPress={400}
                     >
                       <View style={[styles.drawerIcon, { backgroundColor: colors.surface }]}>
                         <Image source={BRAND_LOGO} style={styles.drawerWalletAvatar} />
