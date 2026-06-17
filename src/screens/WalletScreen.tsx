@@ -1240,6 +1240,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
               {knownWallets.wallets.filter((w) => w.smartWallet !== walletId).length > 0 && (
                 <View style={styles.drawerSectionLabelWrap}>
                   <Text style={styles.drawerSectionLabel}>Switch wallet</Text>
+                  <Text style={styles.drawerSectionHint}>Tap to switch. Long-press to remove.</Text>
                 </View>
               )}
               {knownWallets.wallets
@@ -2123,6 +2124,12 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     color: colors.textSubtle,
+  },
+  drawerSectionHint: {
+    fontSize: 11,
+    fontWeight: '400',
+    color: colors.textSubtle,
+    marginTop: 2,
   },
   drawerNameRow: {
     flexDirection: 'row',
