@@ -1,8 +1,13 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radii, spacing, typography } from '../theme';
 import { Icon } from './ui';
+
+// Match the WalletHeader floor so the toast never clips behind the iOS 26
+// dynamic island. react-native-safe-area-context v5 has been returning
+// smaller insets than expected on the iOS 26.2 sim.
+const TOAST_TOP_FLOOR = Platform.OS === 'ios' ? 64 : 28;
 
 interface IncomingToastProps {
   message: string;
@@ -14,9 +19,16 @@ interface IncomingToastProps {
 // Slide-down banner shown when a new incoming tx is detected while the
 // app is in the foreground. Auto-dismisses after 4s, can be tapped to
 // open history.
+// Hide-distance must be large enough to push the entire toast above the
+// screen edge regardless of its `top:` offset. The previous -100 value was
+// sized for a smaller top inset and started peeking out below the dynamic
+// island once we floored top at 64pt. -240 covers any realistic top + toast
+// height combination.
+const HIDDEN_TRANSLATE_Y = -240;
+
 export function IncomingToast({ message, visible, onDismiss, onPress }: IncomingToastProps) {
   const insets = useSafeAreaInsets();
-  const translateY = useRef(new Animated.Value(-100)).current;
+  const translateY = useRef(new Animated.Value(HIDDEN_TRANSLATE_Y)).current;
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -31,7 +43,7 @@ export function IncomingToast({ message, visible, onDismiss, onPress }: Incoming
       }, 4000);
     } else {
       Animated.timing(translateY, {
-        toValue: -100,
+        toValue: HIDDEN_TRANSLATE_Y,
         duration: 200,
         useNativeDriver: true,
       }).start();
@@ -44,7 +56,7 @@ export function IncomingToast({ message, visible, onDismiss, onPress }: Incoming
   return (
     <Animated.View
       pointerEvents={visible ? 'auto' : 'none'}
-      style={[styles.wrap, { top: insets.top + spacing.sm, transform: [{ translateY }] }]}
+      style={[styles.wrap, { top: Math.max(insets.top, TOAST_TOP_FLOOR) + spacing.sm, transform: [{ translateY }] }]}
     >
       <TouchableOpacity
         activeOpacity={0.85}
@@ -101,7 +113,8 @@ const styles = StyleSheet.create({
   },
   title: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: colors.text,
+    fontWeight: '600',
   },
   body: {
     ...typography.body,
