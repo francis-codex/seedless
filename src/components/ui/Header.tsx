@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ViewStyle, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ViewStyle, Image, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radii, spacing, typography } from '../../theme';
 import { Icon, IconName } from './Icon';
 
@@ -11,9 +12,16 @@ interface WalletHeaderProps {
   style?: ViewStyle;
 }
 
+// iPhones with the dynamic island report insets.top ~59pt; older notched
+// iPhones ~44-50pt; Androids vary. We floor at a value that guarantees
+// the island is cleared even if the inset comes back smaller than expected
+// (observed on iOS 26.2 sim under react-native-safe-area-context v5).
+const HEADER_TOP_FLOOR = Platform.OS === 'ios' ? 64 : 28;
+
 export function WalletHeader({ onMenuPress, onScanPress, style }: WalletHeaderProps) {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.row, style]}>
+    <View style={[styles.row, { paddingTop: Math.max(insets.top, HEADER_TOP_FLOOR) + spacing.md }, style]}>
       <TouchableOpacity activeOpacity={0.7} onPress={onMenuPress} style={styles.menuBtn}>
         <Image source={BRAND_LOGO} style={styles.brandLogo} />
       </TouchableOpacity>
@@ -61,7 +69,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.sm,
     paddingBottom: spacing.lg,
   },
   menuBtn: {
