@@ -5,13 +5,24 @@
 // graceful degradation when an inner instruction can't be classified.
 
 import { Connection, PublicKey } from '@solana/web3.js';
-import { SOLANA_RPC_URL, USDC_MINT, SEED_MINT } from '../constants';
+import { SOLANA_RPC_URL, USDC_MINT, SEED_MINT, IS_DEVNET } from '../constants';
 import * as SecureStore from 'expo-secure-store';
 
 const connection = new Connection(SOLANA_RPC_URL, {
   commitment: 'confirmed',
   disableRetryOnRateLimit: true,
 });
+
+// Public mainnet as a second-source RPC. Alchemy's getSignaturesForAddress
+// index lags smart-wallet PDAs by 30-60s after a tx confirms (balances are
+// real-time, but the address-to-signatures index updates async). When the
+// primary returns empty we cross-check the public RPC before declaring
+// "Nothing here yet" — fixes the "i just sent/swapped but history is empty"
+// failure mode reported Jun 22.
+const fallbackHistoryConnection = new Connection(
+  IS_DEVNET ? 'https://api.devnet.solana.com' : 'https://api.mainnet-beta.solana.com',
+  { commitment: 'confirmed', disableRetryOnRateLimit: true },
+);
 
 export type TxKind = 'send' | 'receive' | 'swap' | 'other';
 
@@ -38,8 +49,20 @@ const KNOWN_MINTS: Record<string, string> = {
   [SEED_MINT]: 'SEED',
 };
 
-const HISTORY_CACHE_KEY = 'tx_history_cache_v1';
+const HISTORY_CACHE_KEY_PREFIX = 'tx_history_cache_v2:';
 const CACHE_MAX_AGE_MS = 5 * 60 * 1000;
+const FETCH_TIMEOUT_MS = 12_000;
+const SECURESTORE_SAFE_MAX_BYTES = 1900;
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+    p.then(
+      (v) => { clearTimeout(id); resolve(v); },
+      (e) => { clearTimeout(id); reject(e); },
+    );
+  });
+}
 
 interface HistoryCache {
   owner: string;
@@ -48,7 +71,7 @@ interface HistoryCache {
 }
 
 export async function getCachedHistory(owner: string): Promise<TxRecord[] | null> {
-  const raw = await SecureStore.getItemAsync(HISTORY_CACHE_KEY);
+  const raw = await SecureStore.getItemAsync(`${HISTORY_CACHE_KEY_PREFIX}${owner}`);
   if (!raw) return null;
   try {
     const parsed: HistoryCache = JSON.parse(raw);
@@ -61,26 +84,93 @@ export async function getCachedHistory(owner: string): Promise<TxRecord[] | null
 }
 
 async function cacheHistory(owner: string, records: TxRecord[]): Promise<void> {
-  const payload: HistoryCache = { owner, fetchedAt: Date.now(), records };
-  await SecureStore.setItemAsync(HISTORY_CACHE_KEY, JSON.stringify(payload));
+  // Trim down to the minimum a list row actually renders so the JSON stays
+  // under SecureStore's 2KB soft limit. Drop bulky optional fields.
+  const trimmed = records.slice(0, 15).map((r) => ({
+    signature: r.signature,
+    slot: r.slot,
+    blockTimeMs: r.blockTimeMs,
+    kind: r.kind,
+    solDelta: Number(r.solDelta.toFixed(6)),
+    splDelta: r.splDelta
+      ? { mint: r.splDelta.mint, symbol: r.splDelta.symbol, uiAmount: Number(r.splDelta.uiAmount.toFixed(6)) }
+      : undefined,
+    counterparty: r.counterparty,
+    status: r.status,
+  }));
+  const payload: HistoryCache = { owner, fetchedAt: Date.now(), records: trimmed as TxRecord[] };
+  const serialised = JSON.stringify(payload);
+  if (serialised.length > SECURESTORE_SAFE_MAX_BYTES) {
+    // Too large — skip persistence rather than trigger the SDK warning. In-memory
+    // state still has the full list for this session.
+    return;
+  }
+  try {
+    await SecureStore.setItemAsync(`${HISTORY_CACHE_KEY_PREFIX}${owner}`, serialised);
+  } catch {
+    // Cache write is best-effort.
+  }
 }
 
 interface FetchOptions {
   limit?: number;
 }
 
+// Cheap "is anything new?" probe for the foreground poll. Only fetches
+// signatures (no parsed-tx), so it costs a small fraction of fetchTxHistory.
+// Returns the newest signature or null. Use this BEFORE calling
+// fetchTxHistory in any polling loop — most ticks will short-circuit here
+// because nothing has changed since lastSeen.
+export async function fetchLatestSignature(owner: PublicKey): Promise<string | null> {
+  const sigs = await withTimeout(
+    connection.getSignaturesForAddress(owner, { limit: 1 }, 'confirmed'),
+    FETCH_TIMEOUT_MS,
+    'history.getLatestSig',
+  );
+  return sigs[0]?.signature ?? null;
+}
+
 export async function fetchTxHistory(
   owner: PublicKey,
   opts: FetchOptions = {},
 ): Promise<TxRecord[]> {
-  const limit = opts.limit ?? 25;
-  const sigs = await connection.getSignaturesForAddress(owner, { limit }, 'confirmed');
+  const limit = opts.limit ?? 15;
+  // Try primary (Alchemy) first.
+  let sigs = await withTimeout(
+    connection.getSignaturesForAddress(owner, { limit }, 'confirmed'),
+    FETCH_TIMEOUT_MS,
+    'history.getSignatures',
+  );
+  // If Alchemy returned nothing, cross-check public mainnet — Alchemy's
+  // smart-wallet signature index lags real-time. We want either source to
+  // surface recent activity even when one is stale.
+  let parsedConn = connection;
+  if (sigs.length === 0) {
+    try {
+      const fallbackSigs = await withTimeout(
+        fallbackHistoryConnection.getSignaturesForAddress(owner, { limit }, 'confirmed'),
+        FETCH_TIMEOUT_MS,
+        'history.getSignatures.fallback',
+      );
+      if (fallbackSigs.length > 0) {
+        sigs = fallbackSigs;
+        parsedConn = fallbackHistoryConnection;
+      }
+    } catch {
+      // Fallback failure is fine — we just return the (empty) primary result.
+    }
+  }
   if (sigs.length === 0) return [];
 
-  // Pull parsed transactions in one batch.
-  const parsed = await connection.getParsedTransactions(
-    sigs.map((s) => s.signature),
-    { commitment: 'confirmed', maxSupportedTransactionVersion: 0 },
+  // Parse via whichever connection produced the signatures so the parsed
+  // call hits the same indexer's snapshot.
+  const parsed = await withTimeout(
+    parsedConn.getParsedTransactions(
+      sigs.map((s) => s.signature),
+      { commitment: 'confirmed', maxSupportedTransactionVersion: 0 },
+    ),
+    FETCH_TIMEOUT_MS,
+    'history.getParsedTransactions',
   );
 
   const ownerStr = owner.toBase58();

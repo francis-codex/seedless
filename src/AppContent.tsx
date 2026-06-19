@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   ActivityIndicator,
@@ -22,7 +22,7 @@ import { HistoryScreen } from './screens/HistoryScreen';
 import { LockOverlay } from './components/LockOverlay';
 import { IncomingToast } from './components/IncomingToast';
 import { armLock, consumeLockArm, isLockEnabled } from './utils/walletLock';
-import { fetchTxHistory, TxRecord } from './utils/txHistory';
+import { fetchLatestSignature, fetchTxHistory, TxRecord } from './utils/txHistory';
 import * as SecureStore from 'expo-secure-store';
 import { PublicKey } from '@solana/web3.js';
 // UmbraDebugScreen is archived under src/screens/_archive and intentionally
@@ -35,7 +35,7 @@ import { colors } from './theme';
 
 type Screen = 'wallet' | 'swap' | 'stealth' | 'burner' | 'settings' | 'addressBook' | 'history' | 'ika';
 
-const LAST_SEEN_SIG_KEY = 'tx_last_seen_sig';
+const LAST_SEEN_SIG_KEY_PREFIX = 'tx_last_seen_sig:';
 const POLL_INTERVAL_MS = 20_000;
 
 // Navigation state for tracking screen transitions
@@ -74,6 +74,13 @@ export function AppContent() {
     visible: false,
     message: '',
   });
+  // Bump each time an incoming receive is detected so WalletScreen can
+  // refetch balances and flip out of the cold-wallet empty state.
+  const [incomingNonce, setIncomingNonce] = useState(0);
+  // Holds the current poll tick fn so WalletScreen can trigger it on pull-
+  // to-refresh. Without this, toast lagged balance update by up to 20s
+  // (poll interval) — user saw balance change, toast fired much later.
+  const tickRef = useRef<(() => Promise<void>) | null>(null);
 
   // Android back button — go back to wallet instead of exiting app
   useEffect(() => {
@@ -120,21 +127,31 @@ export function AppContent() {
   useEffect(() => {
     if (!isConnected || !smartWalletPubkey || locked) return;
     const owner = smartWalletPubkey;
+    // Per-wallet key so switching wallets doesn't surface another wallet's
+    // last-seen sig as "new" for this one. Multi-wallet bug surfaced Jun 22.
+    const lastSeenKey = `${LAST_SEEN_SIG_KEY_PREFIX}${owner.toBase58()}`;
     let cancelled = false;
 
     const tick = async () => {
       try {
-        const records = await fetchTxHistory(owner, { limit: 5 });
-        if (cancelled || records.length === 0) return;
-        const lastSeen = await SecureStore.getItemAsync(LAST_SEEN_SIG_KEY);
-        const latest = records[0];
+        // Cheap probe first: just the latest signature. Skips the heavy
+        // parsed-tx call when nothing has changed since lastSeen, which is
+        // the common case and was the source of Alchemy 429s (we were
+        // parsing 5 sigs every 20s for no reason).
+        const latestSig = await fetchLatestSignature(owner);
+        if (cancelled || !latestSig) return;
+        const lastSeen = await SecureStore.getItemAsync(lastSeenKey);
         if (!lastSeen) {
           // First run — seed without firing a toast, so app open doesn't
           // surface old activity as "incoming".
-          await SecureStore.setItemAsync(LAST_SEEN_SIG_KEY, latest.signature);
+          await SecureStore.setItemAsync(lastSeenKey, latestSig);
           return;
         }
-        if (latest.signature === lastSeen) return;
+        if (latestSig === lastSeen) return;
+
+        // Something new — now pay for the parsed-tx fetch to classify it.
+        const records = await fetchTxHistory(owner, { limit: 5 });
+        if (cancelled || records.length === 0) return;
 
         // Find the newest receive in the unseen prefix.
         const unseen: TxRecord[] = [];
@@ -145,12 +162,13 @@ export function AppContent() {
         const incoming = unseen.find(
           (r) => r.kind === 'receive' && r.status === 'success',
         );
-        await SecureStore.setItemAsync(LAST_SEEN_SIG_KEY, latest.signature);
+        await SecureStore.setItemAsync(lastSeenKey, records[0].signature);
         if (incoming) {
           const amount = incoming.splDelta
             ? `${incoming.splDelta.uiAmount.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${incoming.splDelta.symbol ?? 'SPL'}`
             : `${incoming.solDelta.toLocaleString(undefined, { maximumFractionDigits: 4 })} SOL`;
           setToast({ visible: true, message: `You received ${amount}` });
+          setIncomingNonce((n) => n + 1);
         }
       } catch {
         // Polling is best-effort. Silent on errors so we don't spam toasts
@@ -158,10 +176,12 @@ export function AppContent() {
       }
     };
 
+    tickRef.current = tick;
     tick();
     const id = setInterval(tick, POLL_INTERVAL_MS);
     return () => {
       cancelled = true;
+      tickRef.current = null;
       clearInterval(id);
     };
   }, [isConnected, smartWalletPubkey, locked]);
@@ -204,6 +224,10 @@ export function AppContent() {
               onStealth={() => setCurrentScreen('stealth')}
               onBurner={() => setCurrentScreen('burner')}
               onHistory={() => setCurrentScreen('history')}
+              incomingNonce={incomingNonce}
+              onUserRefresh={() => {
+                if (tickRef.current) tickRef.current();
+              }}
             />
           </View>
           {effectiveScreen === 'swap' && <View style={styles.overlay}><SwapScreen onBack={() => setCurrentScreen('wallet')} /></View>}
