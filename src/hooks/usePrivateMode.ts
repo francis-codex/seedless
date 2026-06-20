@@ -185,7 +185,9 @@ export function usePrivateMode(): UsePrivateModeReturn {
       for (const [mint, raw] of Object.entries(balances)) {
         serialisable[mint] = raw.toString();
       }
-      await SecureStore.setItemAsync(CACHED_BALANCES_KEY_V2, JSON.stringify(serialisable));
+      const serialised = JSON.stringify(serialisable);
+      if (serialised.length > 1900) return;
+      await SecureStore.setItemAsync(CACHED_BALANCES_KEY_V2, serialised);
     } catch {
       // Cache miss isn't fatal — the next deep refresh will repopulate.
     }

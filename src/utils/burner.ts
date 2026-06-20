@@ -160,7 +160,11 @@ async function readCachedBalances(): Promise<Record<string, Record<TokenSymbol, 
 
 async function writeCachedBalances(cache: Record<string, Record<TokenSymbol, number>>): Promise<void> {
     try {
-        await SecureStore.setItemAsync(BURNER_BALANCE_CACHE_KEY, JSON.stringify(cache));
+        const serialised = JSON.stringify(cache);
+        // SecureStore warns + may throw above ~2KB. Cache is convenience only,
+        // skip silently when oversized rather than spamming the dev log.
+        if (serialised.length > 1900) return;
+        await SecureStore.setItemAsync(BURNER_BALANCE_CACHE_KEY, serialised);
     } catch {
         // Cache write is best-effort; the live fetch is the source of truth.
     }

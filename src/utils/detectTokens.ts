@@ -8,7 +8,6 @@
 
 import { Connection, ParsedAccountData, PublicKey } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import * as SecureStore from 'expo-secure-store';
 import { SOLANA_RPC_URL } from '../constants';
 
 const connection = new Connection(SOLANA_RPC_URL, {
@@ -35,8 +34,13 @@ interface VerifiedTokenMeta {
   logoURI?: string;
 }
 
-const VERIFIED_CACHE_KEY = 'jupiter_verified_tokens_v1';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+// In-memory cache only. The Jupiter verified list runs into the hundreds of KB
+// and was previously flooding SecureStore with oversize-payload warnings (and
+// will throw in a future SDK). Refetch on cold start is one HTTP call; not
+// worth persisting.
+let inMemoryCache: CacheShape | null = null;
 
 // Dust threshold — accounts holding less than this in UI units are dropped
 // from the surfaced list to keep airdrop spam from cluttering the wallet
@@ -49,18 +53,11 @@ interface CacheShape {
 }
 
 async function getVerifiedMap(): Promise<Record<string, VerifiedTokenMeta>> {
-  const raw = await SecureStore.getItemAsync(VERIFIED_CACHE_KEY);
-  if (raw) {
-    try {
-      const parsed: CacheShape = JSON.parse(raw);
-      if (Date.now() - parsed.fetchedAt < CACHE_TTL_MS) return parsed.tokens;
-    } catch {
-      // fall through
-    }
+  if (inMemoryCache && Date.now() - inMemoryCache.fetchedAt < CACHE_TTL_MS) {
+    return inMemoryCache.tokens;
   }
 
   try {
-    // Jupiter's verified-only token list. Keeps scam-airdrop tokens out.
     const res = await fetch('https://lite-api.jup.ag/tokens/v1/tagged/verified', {
       headers: { Accept: 'application/json' },
     });
@@ -70,13 +67,10 @@ async function getVerifiedMap(): Promise<Record<string, VerifiedTokenMeta>> {
     for (const t of list) {
       if (t && t.address) map[t.address] = t;
     }
-    await SecureStore.setItemAsync(
-      VERIFIED_CACHE_KEY,
-      JSON.stringify({ fetchedAt: Date.now(), tokens: map } satisfies CacheShape),
-    );
+    inMemoryCache = { fetchedAt: Date.now(), tokens: map };
     return map;
   } catch {
-    return {};
+    return inMemoryCache?.tokens ?? {};
   }
 }
 
