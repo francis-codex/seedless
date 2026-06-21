@@ -30,7 +30,6 @@ interface SettingsScreenProps {
 }
 
 const SEEDLESS_X = 'https://x.com/seedless_wallet';
-const FRANCIS_X = 'https://x.com/francis_codex';
 const WEBSITE = 'https://seedlesslabs.xyz';
 
 const TIMEOUT_OPTIONS: { label: string; ms: number }[] = [
@@ -169,18 +168,8 @@ export function SettingsScreen({ onBack, onOpenAddressBook }: SettingsScreenProp
           <LinkRow icon="bookmark" label="Address book" onPress={onOpenAddressBook} />
         </Section>
 
-        <Section title="Appearance">
-          <Row
-            icon="eye"
-            label="Theme"
-            value="Dark"
-            subtitle="Light mode coming in the next build"
-          />
-        </Section>
-
         <Section title="About">
           <LinkRow icon="lightning" label="Follow @seedless_wallet" onPress={() => openUrl(SEEDLESS_X)} />
-          <LinkRow icon="lightning" label="Follow @francis_codex" onPress={() => openUrl(FRANCIS_X)} />
           <LinkRow icon="discover" label="seedlesslabs.xyz" onPress={() => openUrl(WEBSITE)} />
           <Row icon="settings" label="Version" value={version} />
         </Section>
