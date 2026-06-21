@@ -25,38 +25,63 @@ interface HistoryScreenProps {
 
 export function HistoryScreen({ onBack }: HistoryScreenProps) {
   const { smartWalletPubkey } = useWallet();
-  const [records, setRecords] = useState<TxRecord[] | null>(null);
+  // Empty array (not null) as the initial. The spinner is driven by the
+  // `loading` flag alone — never by records being absent — so we can never
+  // get into an "endless spinner" state if a fetch silently no-ops.
+  const [records, setRecords] = useState<TxRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const ownerStr = smartWalletPubkey?.toBase58() ?? null;
 
   const load = useCallback(
     async (mode: 'cache-first' | 'force') => {
-      if (!smartWalletPubkey) return;
-      const ownerStr = smartWalletPubkey.toBase58();
+      if (!ownerStr) {
+        setLoading(false);
+        return;
+      }
 
       if (mode === 'cache-first') {
         const cached = await getCachedHistory(ownerStr);
-        if (cached) setRecords(cached);
+        if (cached && cached.length > 0) {
+          setRecords(cached);
+          setLoading(false);
+        }
       } else {
         setRefreshing(true);
       }
 
       try {
-        const fresh = await fetchTxHistory(new PublicKey(ownerStr), { limit: 25 });
-        setRecords(fresh);
+        const fresh = await fetchTxHistory(new PublicKey(ownerStr), { limit: 15 });
+        setRecords((current) => {
+          if (current.length === 0) return fresh;
+          const seen = new Set(fresh.map((r) => r.signature));
+          const tail = current.filter((r) => !seen.has(r.signature));
+          return [...fresh, ...tail];
+        });
         setError(null);
       } catch (err: any) {
-        setError(err?.message ?? 'Could not load history');
+        setError(normalizeHistoryError(err));
       } finally {
+        setLoading(false);
         setRefreshing(false);
       }
     },
-    [smartWalletPubkey],
+    [ownerStr],
   );
 
   useEffect(() => {
     load('cache-first');
   }, [load]);
+
+  // Hard ceiling: under no circumstance keep the spinner up past 8s. If the
+  // RPC stack is genuinely wedged, we want the empty/error state shown so
+  // pull-to-refresh becomes available instead of a frozen screen.
+  useEffect(() => {
+    if (!loading) return;
+    const id = setTimeout(() => setLoading(false), 8_000);
+    return () => clearTimeout(id);
+  }, [loading]);
 
   const openExplorer = async (sig: string) => {
     const url = getTxExplorerUrl(sig);
@@ -83,8 +108,11 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
           />
         }
       >
-        {records === null ? (
-          <ActivityIndicator color={colors.textMuted} style={{ marginTop: spacing.xxl }} />
+        {loading && records.length === 0 ? (
+          <View style={styles.loadingBlock}>
+            <ActivityIndicator color={colors.textMuted} />
+            <Text style={styles.loadingText}>Loading recent activity…</Text>
+          </View>
         ) : records.length === 0 ? (
           <View style={styles.emptyCard}>
             <Icon name="history" size={28} color={colors.textMuted} strokeWidth={1.8} />
@@ -126,11 +154,26 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
           </View>
         )}
 
-        {error ? <Text style={styles.errorLine}>{error}</Text> : null}
+        {error && records.length === 0 ? (
+          <Text style={styles.errorLine}>{error}</Text>
+        ) : null}
         <Text style={styles.hint}>Pull to refresh · tap a row to open it on the explorer</Text>
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+// Map known RPC failure shapes (rate-limit JSON, network timeouts, fetch
+// failures) into short, user-readable strings. Raw JSON-RPC payloads must
+// never reach the screen — they leak provider identity and look broken.
+function normalizeHistoryError(err: any): string {
+  const raw = typeof err?.message === 'string' ? err.message : String(err ?? '');
+  if (/\b429\b/.test(raw) || /rate ?limit/i.test(raw) || /compute units/i.test(raw)) {
+    return 'Too many requests — try again in a moment';
+  }
+  if (/timed out|timeout|aborted/i.test(raw)) return 'Network slow — pull to refresh';
+  if (/network|fetch failed|TypeError/i.test(raw)) return 'No connection — check internet';
+  return 'Could not load history — pull to refresh';
 }
 
 function kindLabel(r: TxRecord): string {
@@ -280,5 +323,14 @@ const styles = StyleSheet.create({
     color: colors.textSubtle,
     textAlign: 'center',
     marginTop: spacing.lg,
+  },
+  loadingBlock: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xxl,
+  },
+  loadingText: {
+    ...typography.caption,
+    color: colors.textMuted,
   },
 });
