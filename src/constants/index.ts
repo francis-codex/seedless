@@ -34,17 +34,6 @@ export const ALCHEMY_DEVNET_RPC_URL = ALCHEMY_DEVNET_KEY
   ? `https://solana-devnet.g.alchemy.com/v2/${ALCHEMY_DEVNET_KEY}`
   : null;
 
-// Helius mainnet HTTP endpoint for getSignaturesForAddress — Alchemy's index
-// for smart-wallet PDAs lags real-time by 30-60s after a tx confirms (the
-// "history empty right after sending" bug from Jun 22). Helius indexes PDA
-// activity faster and more reliably. We keep Alchemy as the general RPC
-// (it has full method coverage) and route only history reads through Helius.
-export const HELIUS_HTTP_URL = USE_DEVNET
-  ? null
-  : HELIUS_API_KEY
-    ? `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`
-    : null;
-
 // Umbra Privacy — programs, indexer, relayer, ZK CDN
 // Docs: https://docs.umbraprivacy.com · Plan: docs/umbra-integration-plan.md
 export const UMBRA_PROGRAM_ID = USE_DEVNET
