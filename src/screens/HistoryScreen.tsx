@@ -16,7 +16,7 @@ import { PublicKey } from '@solana/web3.js';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import { colors, radii, spacing, typography } from '../theme';
 import { ScreenHeader, Icon, IconName } from '../components/ui';
-import { fetchTxHistory, getCachedHistory, TxKind, TxRecord } from '../utils/txHistory';
+import { fetchTxHistory, TxKind, TxRecord } from '../utils/txHistory';
 import { getTxExplorerUrl } from '../constants';
 
 interface HistoryScreenProps {
@@ -34,75 +34,31 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const ownerStr = smartWalletPubkey?.toBase58() ?? null;
 
-  const load = useCallback(
-    async (mode: 'cache-first' | 'force') => {
-      if (!ownerStr) {
-        setLoading(false);
-        return;
-      }
-
-      if (mode === 'cache-first') {
-        const cached = await getCachedHistory(ownerStr);
-        if (cached && cached.length > 0) {
-          setRecords(cached);
-          setLoading(false);
-        }
-      } else {
-        setRefreshing(true);
-      }
-
-      let fresh: TxRecord[] = [];
-      let fetchErr: any = null;
-      try {
-        fresh = await fetchTxHistory(new PublicKey(ownerStr), { limit: 15 });
-      } catch (err: any) {
-        fetchErr = err;
-      }
-
-      // Cold-start retry. On a fresh app launch the first fetch can land
-      // before the RN networking stack + Alchemy connection are warm —
-      // it returns [] or times out, then a manual pull-to-refresh works
-      // first try. Auto-retry once after a short delay if we got nothing
-      // back and there's no cached records to show.
-      if (mode === 'cache-first' && fresh.length === 0) {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        try {
-          fresh = await fetchTxHistory(new PublicKey(ownerStr), { limit: 15 });
-          fetchErr = null;
-        } catch (err: any) {
-          fetchErr = err;
-        }
-      }
-
-      if (fresh.length > 0) {
-        setRecords((current) => {
-          if (current.length === 0) return fresh;
-          const seen = new Set(fresh.map((r) => r.signature));
-          const tail = current.filter((r) => !seen.has(r.signature));
-          return [...fresh, ...tail];
-        });
-        setError(null);
-      } else if (fetchErr) {
-        setError(normalizeHistoryError(fetchErr));
-      }
+  const load = useCallback(async () => {
+    if (!ownerStr) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const fresh = await fetchTxHistory(new PublicKey(ownerStr), { limit: 15 });
+      setRecords(fresh);
+      setError(null);
+    } catch (err: any) {
+      setError(normalizeHistoryError(err));
+    } finally {
       setLoading(false);
       setRefreshing(false);
-    },
-    [ownerStr],
-  );
+    }
+  }, [ownerStr]);
 
   useEffect(() => {
-    load('cache-first');
+    load();
   }, [load]);
 
-  // Hard ceiling: under no circumstance keep the spinner up past 8s. If the
-  // RPC stack is genuinely wedged, we want the empty/error state shown so
-  // pull-to-refresh becomes available instead of a frozen screen.
-  useEffect(() => {
-    if (!loading) return;
-    const id = setTimeout(() => setLoading(false), 8_000);
-    return () => clearTimeout(id);
-  }, [loading]);
+  const onPullRefresh = useCallback(() => {
+    setRefreshing(true);
+    load();
+  }, [load]);
 
   const openExplorer = async (sig: string) => {
     const url = getTxExplorerUrl(sig);
@@ -124,7 +80,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => load('force')}
+            onRefresh={onPullRefresh}
             tintColor={colors.textMuted}
           />
         }
