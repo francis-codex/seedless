@@ -51,8 +51,30 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
         setRefreshing(true);
       }
 
+      let fresh: TxRecord[] = [];
+      let fetchErr: any = null;
       try {
-        const fresh = await fetchTxHistory(new PublicKey(ownerStr), { limit: 15 });
+        fresh = await fetchTxHistory(new PublicKey(ownerStr), { limit: 15 });
+      } catch (err: any) {
+        fetchErr = err;
+      }
+
+      // Cold-start retry. On a fresh app launch the first fetch can land
+      // before the RN networking stack + Alchemy connection are warm —
+      // it returns [] or times out, then a manual pull-to-refresh works
+      // first try. Auto-retry once after a short delay if we got nothing
+      // back and there's no cached records to show.
+      if (mode === 'cache-first' && fresh.length === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        try {
+          fresh = await fetchTxHistory(new PublicKey(ownerStr), { limit: 15 });
+          fetchErr = null;
+        } catch (err: any) {
+          fetchErr = err;
+        }
+      }
+
+      if (fresh.length > 0) {
         setRecords((current) => {
           if (current.length === 0) return fresh;
           const seen = new Set(fresh.map((r) => r.signature));
@@ -60,12 +82,11 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
           return [...fresh, ...tail];
         });
         setError(null);
-      } catch (err: any) {
-        setError(normalizeHistoryError(err));
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
+      } else if (fetchErr) {
+        setError(normalizeHistoryError(fetchErr));
       }
+      setLoading(false);
+      setRefreshing(false);
     },
     [ownerStr],
   );
