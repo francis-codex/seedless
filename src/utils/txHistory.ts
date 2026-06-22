@@ -5,29 +5,22 @@
 // graceful degradation when an inner instruction can't be classified.
 
 import { Connection, PublicKey } from '@solana/web3.js';
-import { SOLANA_RPC_URL, USDC_MINT, SEED_MINT, IS_DEVNET, HELIUS_HTTP_URL } from '../constants';
+import { SOLANA_RPC_URL, USDC_MINT, SEED_MINT, IS_DEVNET } from '../constants';
 import * as SecureStore from 'expo-secure-store';
 
-// Primary history RPC. Prefer Helius on mainnet — its smart-wallet PDA
-// signature index updates faster + more reliably than Alchemy's, which was
-// the source of the "history empty right after I just swapped" bug on
-// Jun 22. Fall back to Alchemy when Helius isn't configured (e.g. devnet).
-const primaryHistoryRpc = HELIUS_HTTP_URL ?? SOLANA_RPC_URL;
-const connection = new Connection(primaryHistoryRpc, {
+const connection = new Connection(SOLANA_RPC_URL, {
   commitment: 'confirmed',
   disableRetryOnRateLimit: true,
 });
 
-// Secondary RPC. When Helius is the primary, Alchemy becomes the backup
-// (still full-coverage). When Alchemy is the primary, public mainnet is
-// the backup, with the caveat that public mainnet often refuses
-// getSignaturesForAddress for free-tier traffic — it's a soft fallback.
+// Public mainnet as a second-source RPC. Alchemy's getSignaturesForAddress
+// index lags smart-wallet PDAs by 30-60s after a tx confirms (balances are
+// real-time, but the address-to-signatures index updates async). When the
+// primary returns empty we cross-check the public RPC before declaring
+// "Nothing here yet" — fixes the "i just sent/swapped but history is empty"
+// failure mode reported Jun 22.
 const fallbackHistoryConnection = new Connection(
-  IS_DEVNET
-    ? 'https://api.devnet.solana.com'
-    : HELIUS_HTTP_URL
-      ? SOLANA_RPC_URL
-      : 'https://api.mainnet-beta.solana.com',
+  IS_DEVNET ? 'https://api.devnet.solana.com' : 'https://api.mainnet-beta.solana.com',
   { commitment: 'confirmed', disableRetryOnRateLimit: true },
 );
 
