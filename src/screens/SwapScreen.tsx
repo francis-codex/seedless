@@ -31,6 +31,7 @@ import { detectWalletTokens, type DetectedToken } from '../utils/detectTokens';
 
 interface SwapScreenProps {
   onBack: () => void;
+  onShowToast?: (title: string, message: string, iconName?: 'check' | 'swap') => void;
 }
 
 // Shared singleton connections — see src/utils/connection.ts
@@ -136,7 +137,7 @@ const detectedToRow = (d: DetectedToken): PickerRow => ({
 // since state is only set from rendered rows.
 const FALLBACK_ROW: PickerRow = tokenToRow(SUPPORTED_TOKENS[0]);
 
-export function SwapScreen({ onBack }: SwapScreenProps) {
+export function SwapScreen({ onBack, onShowToast }: SwapScreenProps) {
   const { smartWalletPubkey, signAndSendTransaction, signAndSendWithSession, authorizeAndExecute } = useWallet();
 
   // Form state. Mint strings are the source of truth; everything else
@@ -565,7 +566,14 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
       }
 
       if (signature) {
-        Alert.alert('Swap complete', successLabel);
+        // Replace OS Alert with the in-app toast banner. Lighter, matches
+        // the wallet's send confirmation pattern, dismisses on its own.
+        if (onShowToast) {
+          // Strip the "via Bags / via Jupiter" tail — the toast body has
+          // limited room and the route is noise for the user.
+          const trimmed = successLabel.replace(/\s+via\s+(Bags|Jupiter)\s*$/i, '');
+          onShowToast('Swap complete', trimmed, 'swap');
+        }
       }
 
       // Reset form
@@ -606,6 +614,7 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
     swapSource,
     inputRow.isNative,
     pickerBalances,
+    onShowToast,
   ]);
 
   return (

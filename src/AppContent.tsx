@@ -21,7 +21,7 @@ import { AddressBookScreen } from './screens/AddressBookScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
 import { LockOverlay } from './components/LockOverlay';
 import { IncomingToast } from './components/IncomingToast';
-import { armLock, consumeLockArm, isLockEnabled } from './utils/walletLock';
+import { armLock, clearLockArm, consumeLockArm, isLockEnabled } from './utils/walletLock';
 import { fetchLatestSignature, fetchTxHistory, TxRecord } from './utils/txHistory';
 import * as SecureStore from 'expo-secure-store';
 import { PublicKey } from '@solana/web3.js';
@@ -70,10 +70,17 @@ export function AppContent() {
   }, [isConnected, activeWallet?.smartWallet]);
   const [currentScreen, setCurrentScreen] = useState<Screen>('wallet');
   const [locked, setLocked] = useState(false);
-  const [toast, setToast] = useState<{ visible: boolean; message: string }>({
+  const [toast, setToast] = useState<{ visible: boolean; message: string; title?: string; iconName?: 'arrowDown' | 'check' | 'swap' }>({
     visible: false,
     message: '',
   });
+
+  // Trigger a success/info toast from any child screen. Mirrors the
+  // incoming-receive toast so send + swap confirmations live in the same
+  // banner instead of OS Alert dialogs.
+  const showToast = useCallback((title: string, message: string, iconName: 'check' | 'swap' = 'check') => {
+    setToast({ visible: true, message, title, iconName });
+  }, []);
   // Bump each time an incoming receive is detected so WalletScreen can
   // refetch balances and flip out of the cold-wallet empty state.
   const [incomingNonce, setIncomingNonce] = useState(0);
@@ -101,9 +108,16 @@ export function AppContent() {
   useEffect(() => {
     if (!isConnected) return;
 
-    // If the user toggled the lock on while in foreground, treat the
-    // wallet as currently unlocked (they just authenticated to the OS to
-    // turn it on). Subsequent backgrounding will arm the lock.
+    // Initial-mount check. If the app was force-quit while the lock was
+    // armed (e.g. tester canceled the biometric prompt then killed the
+    // app — the bypass we patched Jun 22), the armed key survives because
+    // consumeLockArm no longer deletes it. We re-evaluate on every mount
+    // so a cold-start after a cancel still challenges the user.
+    let cancelled = false;
+    (async () => {
+      const shouldChallenge = await consumeLockArm();
+      if (!cancelled && shouldChallenge) setLocked(true);
+    })();
 
     const handleChange = async (state: AppStateStatus) => {
       if (state === 'background' || state === 'inactive') {
@@ -116,7 +130,7 @@ export function AppContent() {
     };
 
     const sub = AppState.addEventListener('change', handleChange);
-    return () => sub.remove();
+    return () => { cancelled = true; sub.remove(); };
   }, [isConnected]);
 
   // Incoming tx poll — diff getSignaturesForAddress against last-seen sig and
@@ -228,9 +242,10 @@ export function AppContent() {
               onUserRefresh={() => {
                 if (tickRef.current) tickRef.current();
               }}
+              onShowToast={showToast}
             />
           </View>
-          {effectiveScreen === 'swap' && <View style={styles.overlay}><SwapScreen onBack={() => setCurrentScreen('wallet')} /></View>}
+          {effectiveScreen === 'swap' && <View style={styles.overlay}><SwapScreen onBack={() => setCurrentScreen('wallet')} onShowToast={showToast} /></View>}
           {effectiveScreen === 'stealth' && <View style={styles.overlay}><StealthScreen onBack={() => setCurrentScreen('wallet')} /></View>}
           {effectiveScreen === 'burner' && <View style={styles.overlay}><BurnerScreen onBack={() => setCurrentScreen('wallet')} /></View>}
           {effectiveScreen === 'settings' && <View style={styles.overlay}><SettingsScreen onBack={() => setCurrentScreen('wallet')} onOpenAddressBook={() => setCurrentScreen('addressBook')} /></View>}
@@ -240,12 +255,20 @@ export function AppContent() {
         <IncomingToast
           visible={toast.visible}
           message={toast.message}
+          title={toast.title}
+          iconName={toast.iconName}
           onDismiss={() => setToast((t) => ({ ...t, visible: false }))}
           onPress={() => setCurrentScreen('history')}
         />
         {locked && (
           <View style={styles.lockOverlay}>
-            <LockOverlay onUnlock={() => setLocked(false)} />
+            <LockOverlay onUnlock={async () => {
+              // Only NOW do we clear the armed key — successful unlock.
+              // Cancel + force-quit path leaves it set so the next launch
+              // re-challenges.
+              await clearLockArm();
+              setLocked(false);
+            }} />
           </View>
         )}
         <BottomNav

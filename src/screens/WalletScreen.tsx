@@ -75,12 +75,16 @@ interface WalletScreenProps {
   // the same beat as the balance fetch. Keeps the toast from lagging the
   // balance update by up to one poll interval.
   onUserRefresh?: () => void;
+  // Trigger a top-of-screen toast (success / confirmation). Used in place
+  // of OS Alert dialogs for send/swap confirmations so success affordances
+  // match the Wells UI instead of looking native-default.
+  onShowToast?: (title: string, message: string, iconName?: 'check' | 'swap') => void;
 }
 
 // Shared singleton connections — see src/utils/connection.ts
 import { connection, fallbackConnection } from '../utils/connection';
 
-export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka, onHistory, incomingNonce, onUserRefresh }: WalletScreenProps) {
+export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka, onHistory, incomingNonce, onUserRefresh, onShowToast }: WalletScreenProps) {
   const {
     smartWalletPubkey,
     connect,
@@ -858,17 +862,15 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
       const displayAmount = parsedAmount.toLocaleString(undefined, {
         maximumFractionDigits: selectedToken.decimals === 6 ? 2 : 4,
       });
-      Alert.alert(
-        'Transaction Successful',
-        `Sent ${displayAmount} ${selectedToken.symbol} successfully.\n\nTx: ${signature.slice(0, 20)}...`,
-        [
-          { text: 'OK' },
-          { text: 'View on Explorer', onPress: () => Linking.openURL(getTxExplorerUrl(signature)) },
-        ]
-      );
+      // Close the send modal first, then surface a top-of-screen toast.
+      // Replaces the OS Alert dialog so success affordances match the
+      // rest of the app (tester feedback Jun 22: "pop-ups feel heavy").
       setRecipient('');
       setAmount('');
       setSendModalOpen(false);
+      if (onShowToast) {
+        onShowToast('Sent', `${displayAmount} ${selectedToken.symbol}`, 'check');
+      }
       // Refresh balances after successful send (delay for RPC to reflect changes)
       setTimeout(() => handleRefresh(), 2000);
     } catch (error: any) {
@@ -911,7 +913,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
   }, [
     smartWalletPubkey, walletId, recipient, amount, selectedToken, solBalance,
     activeSession, signAndSendWithSession, signAndSendTransaction, transferSol,
-    balanceForToken, sendPrivately, handlePrivateSend,
+    balanceForToken, sendPrivately, handlePrivateSend, onShowToast,
   ]);
 
   // ============================================================
@@ -1420,11 +1422,18 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
                         { backgroundColor: activeSession ? colors.successText : colors.textSubtle },
                       ]}
                     />
-                    <Text style={styles.fastSendLabel}>
-                      {activeSession
-                        ? `Fast Send · ${Math.max(1, Math.round(activeSession.remainingMs / 60000))}m left`
-                        : 'Fast Send off'}
-                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.fastSendLabel}>
+                        {activeSession
+                          ? `Fast Send · ${Math.max(1, Math.round(activeSession.remainingMs / 60000))}m left`
+                          : 'Fast Send off'}
+                      </Text>
+                      {!activeSession ? (
+                        <Text style={styles.fastSendSubtitle}>
+                          Skip the passkey prompt for the next 15 minutes
+                        </Text>
+                      ) : null}
+                    </View>
                   </View>
                   <TouchableOpacity
                     activeOpacity={0.7}
@@ -2378,6 +2387,11 @@ const styles = StyleSheet.create({
   },
   fastSendLabel: {
     ...typography.body,
+  },
+  fastSendSubtitle: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginTop: 2,
   },
   fastSendBtn: {
     paddingHorizontal: spacing.lg,

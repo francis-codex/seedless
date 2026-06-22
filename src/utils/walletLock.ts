@@ -30,7 +30,8 @@ export async function setLockEnabled(enabled: boolean): Promise<void> {
 export async function getLockTimeoutMs(): Promise<number> {
   const v = await SecureStore.getItemAsync(LOCK_TIMEOUT_KEY);
   const parsed = v ? parseInt(v, 10) : NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_LOCK_TIMEOUT_MS;
+  // 0 is valid ("Immediately") — only reject NaN or negatives.
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_LOCK_TIMEOUT_MS;
 }
 
 export async function setLockTimeoutMs(ms: number): Promise<void> {
@@ -42,7 +43,11 @@ export async function armLock(): Promise<void> {
 }
 
 // Returns true if the lock should challenge the user now — enabled, armed,
-// and the timeout has elapsed since arming. Clears the armed timestamp.
+// and the timeout has elapsed since arming. Does NOT clear the armed
+// timestamp — the caller must call clearLockArm() AFTER a successful unlock.
+// Leaving the key set until then is what stops the cancel + force-quit
+// bypass (Jun 22 tester finding): if the user cancels the biometric prompt
+// and kills the app, the armed key survives so the next launch re-locks.
 export async function consumeLockArm(): Promise<boolean> {
   const enabled = await isLockEnabled();
   if (!enabled) {
@@ -53,8 +58,13 @@ export async function consumeLockArm(): Promise<boolean> {
   if (!armedAt) return false;
   const timeout = await getLockTimeoutMs();
   const elapsed = Date.now() - parseInt(armedAt, 10);
-  await SecureStore.deleteItemAsync(LOCK_ARMED_KEY);
   return elapsed >= timeout;
+}
+
+// Clear the armed timestamp. Called only after the user has successfully
+// authenticated (LockOverlay onUnlock). Idempotent.
+export async function clearLockArm(): Promise<void> {
+  await SecureStore.deleteItemAsync(LOCK_ARMED_KEY);
 }
 
 export interface BiometricCheck {

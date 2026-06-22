@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radii, spacing, typography } from '../theme';
-import { Icon } from './ui';
+import { Icon, IconName } from './ui';
 
 // Match the WalletHeader floor so the toast never clips behind the iOS 26
 // dynamic island. react-native-safe-area-context v5 has been returning
@@ -14,6 +14,12 @@ interface IncomingToastProps {
   visible: boolean;
   onDismiss: () => void;
   onPress?: () => void;
+  // Optional: override the default "Incoming transaction" title + arrowDown
+  // icon. Used to reuse this banner for outgoing-tx confirmations (send,
+  // swap) instead of OS-default Alert dialogs — keeps success affordances
+  // consistent with the rest of the Wells UI.
+  title?: string;
+  iconName?: IconName;
 }
 
 // Slide-down banner shown when a new incoming tx is detected while the
@@ -26,7 +32,7 @@ interface IncomingToastProps {
 // height combination.
 const HIDDEN_TRANSLATE_Y = -240;
 
-export function IncomingToast({ message, visible, onDismiss, onPress }: IncomingToastProps) {
+export function IncomingToast({ message, visible, onDismiss, onPress, title = 'Incoming transaction', iconName = 'arrowDown' }: IncomingToastProps) {
   const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(HIDDEN_TRANSLATE_Y)).current;
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -67,10 +73,10 @@ export function IncomingToast({ message, visible, onDismiss, onPress }: Incoming
         style={styles.toast}
       >
         <View style={styles.iconBubble}>
-          <Icon name="arrowDown" size={16} color={colors.successText} strokeWidth={2.5} />
+          <Icon name={iconName} size={16} color={colors.successText} strokeWidth={2.5} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Incoming transaction</Text>
+          <Text style={styles.title}>{title}</Text>
           <Text style={styles.body} numberOfLines={2}>
             {message}
           </Text>
