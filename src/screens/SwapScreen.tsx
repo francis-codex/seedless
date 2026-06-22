@@ -458,6 +458,23 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
   const executeSwap = useCallback(async () => {
     if ((!quote && !bagsQuote) || !smartWalletPubkey) return;
 
+    // Native-SOL inputs: enforce headroom for tx fee + (possible) new ATA
+    // rent + smart-wallet rent-exempt floor. Without this the user can type
+    // their full SOL balance and the chain rejects with "Attempt to debit
+    // an account but found no record of a prior credit" because the wallet
+    // PDA would drop below rent-exempt after the swap.
+    if (inputRow.isNative) {
+      const solBal = pickerBalances[inputMint] ?? 0;
+      const parsed = parseFloat(amount) || 0;
+      if (parsed + MIN_SOL_FOR_TX > solBal) {
+        Alert.alert(
+          'Leave a little SOL for fees',
+          `Swapping this much SOL leaves nothing for the network fee + token-account rent. Try ${Math.max(0, solBal - MIN_SOL_FOR_TX).toFixed(4)} SOL or less.`,
+        );
+        return;
+      }
+    }
+
     setIsSwapping(true);
 
     try {
@@ -587,6 +604,8 @@ export function SwapScreen({ onBack }: SwapScreenProps) {
     signAndSendWithSession,
     authorizeAndExecute,
     swapSource,
+    inputRow.isNative,
+    pickerBalances,
   ]);
 
   return (

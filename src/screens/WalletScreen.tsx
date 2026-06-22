@@ -19,7 +19,6 @@ import {
 const BRAND_LOGO = require('../../assets/icon.png');
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
-import * as LocalAuthentication from 'expo-local-authentication';
 import QRCode from 'react-native-qrcode-svg';
 import { useWallet } from '@lazorkit/wallet-mobile-adapter';
 import { Connection, PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
@@ -68,12 +67,20 @@ interface WalletScreenProps {
   onBurner?: () => void;
   onIka?: () => void;
   onHistory?: () => void;
+  // Bumped by AppContent when the incoming-tx poll detects a receive.
+  // We refetch balances so the cold-wallet empty state flips to the warm
+  // hero/action row immediately, without waiting for a manual pull-to-refresh.
+  incomingNonce?: number;
+  // Fired when the user pulls to refresh, so AppContent's tx poll runs in
+  // the same beat as the balance fetch. Keeps the toast from lagging the
+  // balance update by up to one poll interval.
+  onUserRefresh?: () => void;
 }
 
 // Shared singleton connections — see src/utils/connection.ts
 import { connection, fallbackConnection } from '../utils/connection';
 
-export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka, onHistory }: WalletScreenProps) {
+export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka, onHistory, incomingNonce, onUserRefresh }: WalletScreenProps) {
   const {
     smartWalletPubkey,
     connect,
@@ -175,6 +182,12 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
   const [seedBalance, setSeedBalance] = useState<number>(0);
   const [prices, setPrices] = useState<{ sol: number; usdc: number; seed: number }>({ sol: 0, usdc: 1, seed: 0 });
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+  // Separate from isLoadingBalance: only true during a user-initiated pull-to-
+  // refresh. Driving RefreshControl off isLoadingBalance was making the
+  // ScrollView bounce on mount because the auto-fetch flipped that flag,
+  // exposing the spinner and shifting content down ~50pt, then snapping back
+  // when the fetch resolved.
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [balanceError, setBalanceError] = useState<string | null>(null);
 
   // Guards to prevent infinite fetch loop
@@ -203,32 +216,8 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
   // Privacy state - hides balances from shoulder surfers
   const [isPrivateMode, setIsPrivateMode] = useState(true); // Default to hidden
 
-  // Toggle privacy mode with biometric auth to reveal
-  const togglePrivacyMode = async () => {
-    if (isPrivateMode) {
-      // Revealing balances - require biometric auth
-      const hasHardware = await LocalAuthentication.hasHardwareAsync();
-      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-
-      if (!hasHardware || !isEnrolled) {
-        // No biometrics available, just toggle
-        setIsPrivateMode(false);
-        return;
-      }
-
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Authenticate to reveal balances',
-        fallbackLabel: 'Use passcode',
-        cancelLabel: 'Cancel',
-      });
-
-      if (result.success) {
-        setIsPrivateMode(false);
-      }
-    } else {
-      // Hiding balances - no auth needed
-      setIsPrivateMode(true);
-    }
+  const togglePrivacyMode = () => {
+    setIsPrivateMode((v) => !v);
   };
 
   // Fetch wallet balances - with strict guards to prevent loops
@@ -241,83 +230,112 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
     setIsLoadingBalance(true);
     setBalanceError(null);
 
-    // Fetch SOL balance — try Helius first, fallback to public RPC
-    try {
-      const solLamports = await connection.getBalance(walletPubkey);
-      setSolBalance(solLamports / LAMPORTS_PER_SOL);
-    } catch {
+    // Run all five fetches in parallel — sequential await was making this a
+    // ~10-20s wait on slow networks. Each has its own try/catch so one slow
+    // endpoint doesn't poison the others.
+    const withFetchTimeout = (url: string, ms = 8000): Promise<Response> => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), ms);
+      return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(t));
+    };
+
+    const solTask = (async () => {
       try {
-        const solLamports = await fallbackConnection.getBalance(walletPubkey);
+        const solLamports = await connection.getBalance(walletPubkey);
         setSolBalance(solLamports / LAMPORTS_PER_SOL);
-      } catch (error: any) {
-        if (!hasFetchedRef.current) {
-          console.error('Failed to fetch SOL balance:', error);
+      } catch {
+        try {
+          const solLamports = await fallbackConnection.getBalance(walletPubkey);
+          setSolBalance(solLamports / LAMPORTS_PER_SOL);
+        } catch {
+          setBalanceError('Failed to load balance - tap Refresh');
         }
-        setBalanceError('Failed to load balance - tap Refresh');
       }
-    }
+    })();
 
-    // Fetch USDC balance independently
-    try {
-      const usdcMint = new PublicKey(USDC_MINT);
-      const ata = await getAssociatedTokenAddress(usdcMint, walletPubkey, true);
-      const tokenAccount = await getAccount(connection, ata);
-      setUsdcBalance(Number(tokenAccount.amount) / 1_000_000);
-    } catch {
-      setUsdcBalance(0);
-    }
-
-    // Fetch SEED balance
-    try {
-      const seedMint = new PublicKey(SEED_MINT);
-      const ata = await getAssociatedTokenAddress(seedMint, walletPubkey, true);
-      const tokenAccount = await getAccount(connection, ata);
-      setSeedBalance(Number(tokenAccount.amount) / Math.pow(10, SEED_DECIMALS));
-    } catch {
-      setSeedBalance(0);
-    }
-
-    // Fetch USD prices from Jupiter Lite API (no auth needed)
-    try {
-      const ids = [SOL_MINT, USDC_MINT, SEED_MINT].join(',');
-      const res = await fetch(`https://lite-api.jup.ag/price/v3?ids=${ids}`);
-      if (res.ok) {
-        const data = await res.json();
-        setPrices({
-          sol: data?.[SOL_MINT]?.usdPrice ?? 0,
-          usdc: data?.[USDC_MINT]?.usdPrice ?? 1,
-          seed: data?.[SEED_MINT]?.usdPrice ?? 0,
-        });
+    const usdcTask = (async () => {
+      try {
+        const ata = await getAssociatedTokenAddress(new PublicKey(USDC_MINT), walletPubkey, true);
+        const tokenAccount = await getAccount(connection, ata);
+        setUsdcBalance(Number(tokenAccount.amount) / 1_000_000);
+      } catch {
+        setUsdcBalance(0);
       }
-    } catch {
-      // keep last known prices
-    }
+    })();
 
-    // Fetch 24h change for SOL + USDC from CoinGecko free tier (SEED isn't listed)
-    try {
-      const cg = await fetch(
-        'https://api.coingecko.com/api/v3/simple/price?ids=solana,usd-coin&vs_currencies=usd&include_24hr_change=true',
-      );
-      if (cg.ok) {
-        const data = await cg.json();
-        setPriceChange24h({
-          sol: typeof data?.solana?.usd_24h_change === 'number' ? data.solana.usd_24h_change : null,
-          usdc: typeof data?.['usd-coin']?.usd_24h_change === 'number' ? data['usd-coin'].usd_24h_change : null,
-        });
+    const seedTask = (async () => {
+      try {
+        const ata = await getAssociatedTokenAddress(new PublicKey(SEED_MINT), walletPubkey, true);
+        const tokenAccount = await getAccount(connection, ata);
+        setSeedBalance(Number(tokenAccount.amount) / Math.pow(10, SEED_DECIMALS));
+      } catch {
+        setSeedBalance(0);
       }
-    } catch {
-      // keep last known change
-    }
+    })();
+
+    // Jupiter is the only source for SEED's USD price (not on CoinGecko).
+    // We deliberately do NOT use Jupiter for SOL/USDC anymore — the lite v3
+    // endpoint has been returning empty/zero for SOL on this build, which
+    // collapsed the entire balance hero to $0.00. CoinGecko is the source of
+    // truth for SOL+USDC; Jupiter only fills SEED.
+    const jupiterPriceTask = (async () => {
+      try {
+        const res = await withFetchTimeout(`https://lite-api.jup.ag/price/v3?ids=${SEED_MINT}`);
+        if (res.ok) {
+          const data = await res.json();
+          const seedPrice = data?.[SEED_MINT]?.usdPrice;
+          if (typeof seedPrice === 'number') {
+            setPrices((prev) => ({ ...prev, seed: seedPrice }));
+          }
+        }
+      } catch {
+        // keep last known seed price
+      }
+    })();
+
+    const coingeckoTask = (async () => {
+      try {
+        const cg = await withFetchTimeout(
+          'https://api.coingecko.com/api/v3/simple/price?ids=solana,usd-coin&vs_currencies=usd&include_24hr_change=true',
+        );
+        if (cg.ok) {
+          const data = await cg.json();
+          const solPrice = typeof data?.solana?.usd === 'number' ? data.solana.usd : null;
+          const usdcPrice = typeof data?.['usd-coin']?.usd === 'number' ? data['usd-coin'].usd : null;
+          setPrices((prev) => ({
+            ...prev,
+            sol: solPrice ?? prev.sol,
+            usdc: usdcPrice ?? prev.usdc,
+          }));
+          setPriceChange24h({
+            sol: typeof data?.solana?.usd_24h_change === 'number' ? data.solana.usd_24h_change : null,
+            usdc: typeof data?.['usd-coin']?.usd_24h_change === 'number' ? data['usd-coin'].usd_24h_change : null,
+          });
+        }
+      } catch {
+        // keep last known change + price
+      }
+    })();
+
+    await Promise.allSettled([solTask, usdcTask, seedTask, jupiterPriceTask, coingeckoTask]);
 
     hasFetchedRef.current = true;
     setIsLoadingBalance(false);
     isFetchingRef.current = false;
   };
 
-  // Manual refresh handler
-  const handleRefresh = () => {
-    if (smartWalletPubkey && !isFetchingRef.current) {
-      doFetchBalances(smartWalletPubkey);
+  // Manual refresh handler — drives the pull-to-refresh spinner. Awaits the
+  // underlying fetch so the spinner stays until balances actually land,
+  // instead of flashing off the moment we kick the request. Also kicks
+  // AppContent's incoming-tx poll so the toast doesn't lag the balance.
+  const handleRefresh = async () => {
+    if (!smartWalletPubkey || isFetchingRef.current) return;
+    setIsRefreshing(true);
+    if (onUserRefresh) onUserRefresh();
+    try {
+      await doFetchBalances(smartWalletPubkey);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -334,6 +352,18 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
       doFetchBalances(smartWalletPubkey);
     }
   }, [smartWalletPubkey]);
+
+  // Refetch when the incoming-tx poll fires. Skip the initial 0 so we don't
+  // double-fetch on mount. RPC sometimes lags 1-2s behind the signature
+  // landing, so retry once after a short delay if balances came back empty.
+  useEffect(() => {
+    if (!incomingNonce || !smartWalletPubkey) return;
+    doFetchBalances(smartWalletPubkey);
+    const retry = setTimeout(() => {
+      if (smartWalletPubkey) doFetchBalances(smartWalletPubkey);
+    }, 2500);
+    return () => clearTimeout(retry);
+  }, [incomingNonce, smartWalletPubkey]);
 
   // Load an existing session (if any) when the wallet changes
   useEffect(() => {
@@ -939,7 +969,9 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
         symbol: 'SEED',
         name: 'Seedless',
         balance: `${seedBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })} SEED`,
-        usdValue: `$${(seedBalance * prices.seed).toFixed(2)}`,
+        // Jupiter Lite price feed doesn't always index SEED (low liquidity).
+        // Show "—" when the feed comes back empty rather than fabricate $0.00.
+        usdValue: prices.seed > 0 ? `$${(seedBalance * prices.seed).toFixed(2)}` : '—',
         price: prices.seed > 0 ? fmtPrice(prices.seed) : '—',
         changePct: null,
       });
@@ -1001,7 +1033,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -1014,7 +1046,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             refreshControl={
-              <RefreshControl refreshing={isLoadingBalance} onRefresh={handleRefresh} tintColor={colors.text} />
+              <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.text} />
             }
           >
             <WalletHeader
@@ -1500,14 +1532,18 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
                     activeOpacity={0.7}
                     style={styles.maxBtn}
                     onPress={() => {
-                      // Max means max — full balance, no rent buffer, no
-                      // confirmation. Kora sponsors the gas, so a SOL drain
-                      // doesn't need a fee reserve either. If the user wants
-                      // to leave a buffer they can type the amount manually.
                       const bal = balanceForToken(selectedToken);
                       if (bal <= 0) return;
                       if (selectedToken.isNative) {
-                        setAmount(bal.toFixed(9));
+                        // Smart wallet PDA holds state — must stay rent-exempt
+                        // post-debit or the runtime rejects with "Attempt to
+                        // debit an account but found no record of a prior
+                        // credit". 0.002 SOL covers rent-exempt for the PDA
+                        // with margin. Kora handles the network fee.
+                        const RENT_RESERVE_SOL = 0.002;
+                        const sendable = Math.max(0, bal - RENT_RESERVE_SOL);
+                        if (sendable <= 0) return;
+                        setAmount(sendable.toFixed(9));
                       } else {
                         const digits = selectedToken.decimals === 6 ? 2 : 4;
                         const truncated = Math.floor(bal * Math.pow(10, digits)) / Math.pow(10, digits);
