@@ -408,7 +408,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
       setActiveSession(fresh);
       Alert.alert('Fast Send enabled', 'Next ~30 minutes of sends won\'t need Face ID.');
     } catch (error: any) {
-      console.error('Session create failed:', error);
+      if (__DEV__) console.error('Session create failed:', error);
       const msg: string = error?.message || '';
       const friendly = msg.includes('0x2')
         ? 'Fast Send needs a wallet created under the v2 program. Create a fresh wallet to try it.'
@@ -430,7 +430,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
       } catch (err) {
         // Revoke requires passkey; if user cancels, still clear local state so
         // we don't try to reuse a session we've marked dead.
-        console.warn('revokeSession failed, clearing local state', err);
+        if (__DEV__) console.warn('revokeSession failed, clearing local state', err);
       }
       await clearStoredSession(walletId);
       setActiveSession(null);
@@ -794,7 +794,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
             return;
           }
           // Unknown private-send error → fall through and try public.
-          console.warn('[private-send] failed, attempting public fallback:', err?.message ?? err);
+          if (__DEV__) console.warn('[private-send] failed, attempting public fallback:', err?.message ?? err);
         }
       }
 
@@ -885,7 +885,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
       // Refresh balances after successful send (delay for RPC to reflect changes)
       setTimeout(() => handleRefresh(), 2000);
     } catch (error: any) {
-      console.error('Transfer failed:', error);
+      if (__DEV__) console.error('Transfer failed:', error);
       const msg = error.message || 'Transaction failed';
       // If the session looked valid client-side but the chain rejected it
       // (expired, revoked, limit hit), drop it so the next send falls back

@@ -51,7 +51,13 @@ async function loadOrCreateRoot(): Promise<Uint8Array> {
   }
   const root = new Uint8Array(32);
   crypto.getRandomValues(root);
-  await SecureStore.setItemAsync(WRAP_KEY_STORAGE, Buffer.from(root).toString('base64'));
+  // Wrap key gates encrypted Ika user-share material — same sensitivity
+  // as other key bytes in the app. Tighten to WHEN_UNLOCKED_THIS_DEVICE_ONLY
+  // so it isn't readable while the device is locked and never iCloud-
+  // migrated.
+  await SecureStore.setItemAsync(WRAP_KEY_STORAGE, Buffer.from(root).toString('base64'), {
+    keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+  });
   return root;
 }
 

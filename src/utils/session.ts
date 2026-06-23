@@ -74,11 +74,18 @@ export async function storeSession(
     expiresAtSlot: bigint,
 ): Promise<void> {
     const secretKeyBase64 = Buffer.from(sessionKeypair.secretKey).toString('base64');
-    await SecureStore.setItemAsync(scopeKey(SESSION_SK_KEY, walletId), secretKeyBase64, {
-        keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-    });
-    await SecureStore.setItemAsync(scopeKey(SESSION_PDA_KEY, walletId), sessionPda.toBase58());
-    await SecureStore.setItemAsync(scopeKey(SESSION_EXPIRES_KEY, walletId), expiresAtSlot.toString());
+    // Parallel writes so a crash mid-write leaves either everything or
+    // nothing — never a partial record where the secret persists without
+    // its matching pda/expiry. Strict access scope already applied to the
+    // secret-key entry; the pda + expires entries are non-sensitive
+    // derivatives so they keep the default scope.
+    await Promise.all([
+        SecureStore.setItemAsync(scopeKey(SESSION_SK_KEY, walletId), secretKeyBase64, {
+            keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+        }),
+        SecureStore.setItemAsync(scopeKey(SESSION_PDA_KEY, walletId), sessionPda.toBase58()),
+        SecureStore.setItemAsync(scopeKey(SESSION_EXPIRES_KEY, walletId), expiresAtSlot.toString()),
+    ]);
 }
 
 export async function getActiveSession(walletId?: string): Promise<ActiveSession | null> {

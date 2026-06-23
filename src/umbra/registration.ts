@@ -59,7 +59,12 @@ async function loadOrCreateSignerBytes(): Promise<{ bytes: Uint8Array; reused: b
   const bytes = new Uint8Array(64);
   bytes.set(secret, 0);
   bytes.set(pub, 32);
-  await SecureStore.setItemAsync(SIGNER_STORAGE_KEY, Buffer.from(bytes).toString('base64'));
+  // Strictest access option for key material — only readable while the
+  // device is actively unlocked, never migrated via iCloud Keychain.
+  // Matches the scope already used for the LazorKit session + burner keys.
+  await SecureStore.setItemAsync(SIGNER_STORAGE_KEY, Buffer.from(bytes).toString('base64'), {
+    keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+  });
   return { bytes, reused: false };
 }
 
