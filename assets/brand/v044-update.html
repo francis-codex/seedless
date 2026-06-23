@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>seedless v0.4.4-beta</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1280px;
+    height: 720px;
+    background: #ffffff;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .frame {
+    width: 1280px;
+    height: 720px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .top-mark {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 56px;
+  }
+
+  .seedless-logo {
+    width: 92px;
+    height: 92px;
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.12);
+  }
+
+  .seedless-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .brand {
+    font-size: 44px;
+    font-weight: 800;
+    color: #0a0a0a;
+    letter-spacing: -0.02em;
+  }
+
+  .headline {
+    font-size: 136px;
+    font-weight: 900;
+    color: #0a0a0a;
+    letter-spacing: -0.05em;
+    line-height: 0.92;
+    text-align: center;
+  }
+
+  .version-pill {
+    margin-top: 48px;
+    padding: 14px 30px;
+    border: 2px solid #0a0a0a;
+    border-radius: 999px;
+    font-size: 22px;
+    font-weight: 800;
+    color: #0a0a0a;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="top-mark">
+      <div class="seedless-logo"><img src="seedless-icon.png" alt="seedless" /></div>
+      <div class="brand">seedless</div>
+    </div>
+
+    <div class="headline">we weren't quiet,<br/>we were building</div>
+
+    <div class="version-pill">v0.4.4 · beta</div>
+  </div>
+</body>
+</html>

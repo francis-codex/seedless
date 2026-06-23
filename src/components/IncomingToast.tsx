@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { memo, useEffect, useRef } from 'react';
 import { Animated, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radii, spacing, typography } from '../theme';
@@ -32,7 +32,7 @@ interface IncomingToastProps {
 // height combination.
 const HIDDEN_TRANSLATE_Y = -240;
 
-export function IncomingToast({ message, visible, onDismiss, onPress, title = 'Incoming transaction', iconName = 'arrowDown' }: IncomingToastProps) {
+function IncomingToastInner({ message, visible, onDismiss, onPress, title = 'Incoming transaction', iconName = 'arrowDown' }: IncomingToastProps) {
   const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(HIDDEN_TRANSLATE_Y)).current;
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -128,3 +128,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
+
+// Memoized so AppContent re-renders (toast queue, lock state changes, etc)
+// don't reprocess the toast subtree when the props are identical.
+export const IncomingToast = memo(IncomingToastInner);

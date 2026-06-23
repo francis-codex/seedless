@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { colors, spacing, typography } from '../../theme';
@@ -26,7 +26,7 @@ function VerifiedBadge({ size = 14 }: { size?: number }) {
   );
 }
 
-export function TokenRow({ symbol, name, balance, usdValue, price, changePct, onPress }: TokenRowProps) {
+function TokenRowInner({ symbol, name, balance, usdValue, price, changePct, onPress }: TokenRowProps) {
   const hasChange = changePct != null && !isNaN(changePct);
   const changeColor = hasChange ? (changePct! >= 0 ? colors.successText : colors.dangerText) : colors.textMuted;
   const changeLabel = hasChange ? `${changePct! >= 0 ? '+' : ''}${changePct!.toFixed(2)}%` : null;
@@ -106,3 +106,7 @@ const styles = StyleSheet.create({
     fontWeight: '500' as const,
   },
 });
+
+// Memoized so re-renders driven by sibling token rows (one balance
+// updating, another not) only re-paint the rows that actually changed.
+export const TokenRow = memo(TokenRowInner);

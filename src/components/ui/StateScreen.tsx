@@ -6,7 +6,7 @@
 //   <StateScreen variant="success" title="Sent" subtitle="0.5 SOL → ..." actionLabel="Done" onAction={...} />
 //   <StateScreen variant="error" title="Transaction failed" subtitle="Not enough SOL" actionLabel="Try again" onAction={...} />
 
-import React from 'react';
+import React, { memo } from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
@@ -35,7 +35,7 @@ export interface StateScreenProps {
   onSecondaryAction?: () => void;
 }
 
-export function StateScreen({
+function StateScreenInner({
   variant,
   title,
   subtitle,
@@ -157,3 +157,5 @@ const styles = StyleSheet.create({
     fontWeight: '500' as const,
   },
 });
+
+export const StateScreen = memo(StateScreenInner);
