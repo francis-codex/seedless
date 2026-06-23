@@ -70,7 +70,11 @@ export async function createDWallet(
       createdAt: Date.now(),
       network: network ? 'testnet' : 'local',
     };
-    await SecureStore.setItemAsync(storageKey(chain), JSON.stringify(record));
+    // dWallet record carries encrypted user-share material — strictest
+    // SecureStore scope, matches session/burner/stealth key handling.
+    await SecureStore.setItemAsync(storageKey(chain), JSON.stringify(record), {
+      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    });
 
     onProgress?.({ stage: 'dkg-success', dWallet: record });
     return record;

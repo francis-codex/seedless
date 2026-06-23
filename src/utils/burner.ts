@@ -360,7 +360,7 @@ export async function destroyBurner(
                 sweepSignature = await connection.sendRawTransaction(transaction.serialize());
                 await connection.confirmTransaction(sweepSignature, 'confirmed');
             } catch (error) {
-                console.error('Failed to sweep:', error);
+                if (__DEV__) console.error('Failed to sweep:', error);
             }
         }
     }

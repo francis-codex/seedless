@@ -76,6 +76,22 @@ import '@formatjs/intl-pluralrules/locale-data/en';
   };
 }
 
+// Production log scrub. Hermes makes console.* mostly no-op when no
+// debugger is attached, but the args still serialize before dispatch —
+// LazorKit / Umbra / web3.js error objects can carry internal state that
+// gets walked even in release. Replace with no-ops in production so
+// nothing tied to signing or key handling can leak via a future
+// integrated crash reporter or redirected stderr. __DEV__ paths
+// (Metro, Expo Go, debug APK) are untouched.
+if (!__DEV__) {
+  const noop = () => {};
+  console.log = noop;
+  console.warn = noop;
+  console.error = noop;
+  console.info = noop;
+  console.debug = noop;
+}
+
 import { registerRootComponent } from 'expo';
 
 import App from './App';

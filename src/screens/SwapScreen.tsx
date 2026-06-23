@@ -438,7 +438,7 @@ export function SwapScreen({ onBack, onShowToast, onPortalFlow }: SwapScreenProp
         setQuote(result.quote);
       }
     } catch (error: any) {
-      console.error('Quote failed:', error);
+      if (__DEV__) console.error('Quote failed:', error);
       const raw = String(error?.message ?? error ?? '');
       let friendly = 'Could not get a quote — try a different amount or pair.';
       if (raw.includes('NO_ROUTES_FOUND') || raw.toLowerCase().includes('no routes')) {
@@ -584,7 +584,7 @@ export function SwapScreen({ onBack, onShowToast, onPortalFlow }: SwapScreenProp
       setQuote(null);
       setBagsQuote(null);
     } catch (error: any) {
-      console.error('Swap failed:', error);
+      if (__DEV__) console.error('Swap failed:', error);
       const raw = String(error?.message ?? error ?? '');
       let friendly = error?.message || 'Transaction failed';
       if (raw.includes('Program failed to complete') || raw.includes('exceeded CUs') || raw.includes('exceeded maximum number')) {
