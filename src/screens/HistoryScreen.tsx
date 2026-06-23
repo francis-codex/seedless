@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { memo, useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -60,14 +60,14 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     load();
   }, [load]);
 
-  const openExplorer = async (sig: string) => {
+  const openExplorer = useCallback(async (sig: string) => {
     const url = getTxExplorerUrl(sig);
     try {
       await Linking.openURL(url);
     } catch {
       Alert.alert('Could not open explorer', url);
     }
-  };
+  }, []);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
@@ -101,32 +101,12 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
         ) : (
           <View style={styles.card}>
             {records.map((r, i) => (
-              <TouchableOpacity
+              <HistoryRow
                 key={r.signature}
-                activeOpacity={0.7}
-                onPress={() => openExplorer(r.signature)}
-                style={[styles.row, i === records.length - 1 && styles.rowLast]}
-              >
-                <View style={[styles.kindBubble, kindStyles[r.kind].bubble]}>
-                  <Icon
-                    name={kindStyles[r.kind].icon}
-                    size={16}
-                    color={kindStyles[r.kind].color}
-                    strokeWidth={2}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.rowLabel}>{kindLabel(r)}</Text>
-                  <Text style={styles.rowSub}>
-                    {r.blockTimeMs ? formatRelative(r.blockTimeMs) : 'pending'}
-                    {r.counterparty
-                      ? ` · ${r.counterparty.slice(0, 4)}…${r.counterparty.slice(-4)}`
-                      : ''}
-                    {r.status === 'failed' ? ' · failed' : ''}
-                  </Text>
-                </View>
-                <Text style={[styles.amount, amountTone(r)]}>{formatAmount(r)}</Text>
-              </TouchableOpacity>
+                record={r}
+                isLast={i === records.length - 1}
+                onOpen={openExplorer}
+              />
             ))}
           </View>
         )}
@@ -159,6 +139,46 @@ function kindLabel(r: TxRecord): string {
   if (r.kind === 'swap') return 'Swap';
   return 'Transaction';
 }
+
+// Memoized row. Extracted from inline records.map so a list refresh only
+// re-renders the rows whose underlying record changed (in practice: the
+// new head + any updated status). The onOpen callback is wrapped in
+// useCallback by the parent so the row's memo doesn't churn on parent
+// re-renders.
+interface HistoryRowProps {
+  record: TxRecord;
+  isLast: boolean;
+  onOpen: (sig: string) => void;
+}
+const HistoryRow = memo(function HistoryRow({ record: r, isLast, onOpen }: HistoryRowProps) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.7}
+      onPress={() => onOpen(r.signature)}
+      style={[styles.row, isLast && styles.rowLast]}
+    >
+      <View style={[styles.kindBubble, kindStyles[r.kind].bubble]}>
+        <Icon
+          name={kindStyles[r.kind].icon}
+          size={16}
+          color={kindStyles[r.kind].color}
+          strokeWidth={2}
+        />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowLabel}>{kindLabel(r)}</Text>
+        <Text style={styles.rowSub}>
+          {r.blockTimeMs ? formatRelative(r.blockTimeMs) : 'pending'}
+          {r.counterparty
+            ? ` · ${r.counterparty.slice(0, 4)}…${r.counterparty.slice(-4)}`
+            : ''}
+          {r.status === 'failed' ? ' · failed' : ''}
+        </Text>
+      </View>
+      <Text style={[styles.amount, amountTone(r)]}>{formatAmount(r)}</Text>
+    </TouchableOpacity>
+  );
+});
 
 function formatAmount(r: TxRecord): string {
   if (r.kind === 'swap') {

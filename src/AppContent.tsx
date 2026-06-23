@@ -81,6 +81,34 @@ export function AppContent() {
   const showToast = useCallback((title: string, message: string, iconName: 'check' | 'swap' = 'check') => {
     setToast({ visible: true, message, title, iconName });
   }, []);
+
+  // Memoized navigation callbacks. Inline arrow functions in JSX props
+  // give every WalletScreen render a fresh prop identity, which torpedoes
+  // any downstream React.memo / useCallback. Stable refs here mean the
+  // wallet tree re-renders only when its own state changes.
+  const goWallet = useCallback(() => setCurrentScreen('wallet'), []);
+  const goSwap = useCallback(() => setCurrentScreen('swap'), []);
+  const goStealth = useCallback(() => setCurrentScreen('stealth'), []);
+  const goBurner = useCallback(() => setCurrentScreen('burner'), []);
+  const goHistory = useCallback(() => setCurrentScreen('history'), []);
+  const goSettings = useCallback(() => setCurrentScreen('settings'), []);
+  const goAddressBook = useCallback(() => setCurrentScreen('addressBook'), []);
+  const handleUserRefresh = useCallback(() => {
+    if (tickRef.current) tickRef.current();
+  }, []);
+  const handleToastDismiss = useCallback(() => {
+    setToast((t) => ({ ...t, visible: false }));
+  }, []);
+  const handleToastPress = goHistory;
+  const handleLockUnlock = useCallback(async () => {
+    await clearLockArm();
+    setLocked(false);
+  }, []);
+  const handleBottomNavChange = useCallback((t: NavTab) => {
+    if (t === 'swap') setCurrentScreen('swap');
+    else if (t === 'settings') setCurrentScreen('settings');
+    else setCurrentScreen('wallet');
+  }, []);
   // Bump each time an incoming receive is detected so WalletScreen can
   // refetch balances and flip out of the cold-wallet empty state.
   const [incomingNonce, setIncomingNonce] = useState(0);
@@ -88,6 +116,24 @@ export function AppContent() {
   // to-refresh. Without this, toast lagged balance update by up to 20s
   // (poll interval) — user saw balance change, toast fired much later.
   const tickRef = useRef<(() => Promise<void>) | null>(null);
+  // Tracks the most recent time a screen kicked off a portal/passkey flow
+  // (LazorKit's portal.lazor.sh opens in an external browser/webview, which
+  // looks like the app backgrounding). The lock effect uses this to skip
+  // arm + challenge during that window so testers don't see a second
+  // biometric prompt on top of the LazorKit one. Cleared after 60s.
+  const portalFlowStartedAt = useRef<number | null>(null);
+  const markPortalFlow = useCallback(() => {
+    portalFlowStartedAt.current = Date.now();
+  }, []);
+  const isInPortalFlow = useCallback(() => {
+    const t = portalFlowStartedAt.current;
+    if (t == null) return false;
+    if (Date.now() - t > 60_000) {
+      portalFlowStartedAt.current = null;
+      return false;
+    }
+    return true;
+  }, []);
 
   // Android back button — go back to wallet instead of exiting app
   useEffect(() => {
@@ -120,6 +166,11 @@ export function AppContent() {
     })();
 
     const handleChange = async (state: AppStateStatus) => {
+      // Skip lock arm + challenge while a portal/passkey flow is in
+      // progress — the LazorKit redirect looks like backgrounding and
+      // would otherwise drop a second biometric on top of the passkey
+      // prompt (tester report Jun 23).
+      if (isInPortalFlow()) return;
       if (state === 'background' || state === 'inactive') {
         const enabled = await isLockEnabled();
         if (enabled) await armLock();
@@ -233,51 +284,40 @@ export function AppContent() {
         <View style={styles.screenArea}>
           <View style={{ display: effectiveScreen === 'wallet' ? 'flex' : 'none', flex: 1 }}>
             <WalletScreen
-              onDisconnect={() => setCurrentScreen('wallet')}
-              onSwap={() => setCurrentScreen('swap')}
-              onStealth={() => setCurrentScreen('stealth')}
-              onBurner={() => setCurrentScreen('burner')}
-              onHistory={() => setCurrentScreen('history')}
+              onDisconnect={goWallet}
+              onSwap={goSwap}
+              onStealth={goStealth}
+              onBurner={goBurner}
+              onHistory={goHistory}
               incomingNonce={incomingNonce}
-              onUserRefresh={() => {
-                if (tickRef.current) tickRef.current();
-              }}
+              onUserRefresh={handleUserRefresh}
               onShowToast={showToast}
+              onPortalFlow={markPortalFlow}
             />
           </View>
-          {effectiveScreen === 'swap' && <View style={styles.overlay}><SwapScreen onBack={() => setCurrentScreen('wallet')} onShowToast={showToast} /></View>}
-          {effectiveScreen === 'stealth' && <View style={styles.overlay}><StealthScreen onBack={() => setCurrentScreen('wallet')} /></View>}
-          {effectiveScreen === 'burner' && <View style={styles.overlay}><BurnerScreen onBack={() => setCurrentScreen('wallet')} /></View>}
-          {effectiveScreen === 'settings' && <View style={styles.overlay}><SettingsScreen onBack={() => setCurrentScreen('wallet')} onOpenAddressBook={() => setCurrentScreen('addressBook')} /></View>}
-          {effectiveScreen === 'addressBook' && <View style={styles.overlay}><AddressBookScreen onBack={() => setCurrentScreen('settings')} /></View>}
-          {effectiveScreen === 'history' && <View style={styles.overlay}><HistoryScreen onBack={() => setCurrentScreen('wallet')} /></View>}
+          {effectiveScreen === 'swap' && <View style={styles.overlay}><SwapScreen onBack={goWallet} onShowToast={showToast} onPortalFlow={markPortalFlow} /></View>}
+          {effectiveScreen === 'stealth' && <View style={styles.overlay}><StealthScreen onBack={goWallet} /></View>}
+          {effectiveScreen === 'burner' && <View style={styles.overlay}><BurnerScreen onBack={goWallet} /></View>}
+          {effectiveScreen === 'settings' && <View style={styles.overlay}><SettingsScreen onBack={goWallet} onOpenAddressBook={goAddressBook} /></View>}
+          {effectiveScreen === 'addressBook' && <View style={styles.overlay}><AddressBookScreen onBack={goSettings} /></View>}
+          {effectiveScreen === 'history' && <View style={styles.overlay}><HistoryScreen onBack={goWallet} /></View>}
         </View>
         <IncomingToast
           visible={toast.visible}
           message={toast.message}
           title={toast.title}
           iconName={toast.iconName}
-          onDismiss={() => setToast((t) => ({ ...t, visible: false }))}
-          onPress={() => setCurrentScreen('history')}
+          onDismiss={handleToastDismiss}
+          onPress={handleToastPress}
         />
         {locked && (
           <View style={styles.lockOverlay}>
-            <LockOverlay onUnlock={async () => {
-              // Only NOW do we clear the armed key — successful unlock.
-              // Cancel + force-quit path leaves it set so the next launch
-              // re-challenges.
-              await clearLockArm();
-              setLocked(false);
-            }} />
+            <LockOverlay onUnlock={handleLockUnlock} />
           </View>
         )}
         <BottomNav
           active={navActive}
-          onChange={(t) => {
-            if (t === 'swap') setCurrentScreen('swap');
-            else if (t === 'settings') setCurrentScreen('settings');
-            else setCurrentScreen('wallet');
-          }}
+          onChange={handleBottomNavChange}
         />
       </View>
     );

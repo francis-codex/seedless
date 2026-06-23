@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { memo, useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radii, spacing, typography } from '../theme';
@@ -13,7 +13,7 @@ interface LockOverlayProps {
 
 // Full-screen blocker shown when the wallet is locked. Triggers a biometric
 // prompt automatically on mount and lets the user re-trigger if they cancel.
-export function LockOverlay({ onUnlock }: LockOverlayProps) {
+function LockOverlayInner({ onUnlock }: LockOverlayProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -111,3 +111,5 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
 });
+
+export const LockOverlay = memo(LockOverlayInner);

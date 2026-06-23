@@ -79,12 +79,17 @@ interface WalletScreenProps {
   // of OS Alert dialogs for send/swap confirmations so success affordances
   // match the Wells UI instead of looking native-default.
   onShowToast?: (title: string, message: string, iconName?: 'check' | 'swap') => void;
+  // Call right before opening the LazorKit portal / passkey flow. AppContent
+  // uses it to suppress the wallet-lock arm + challenge during the portal
+  // roundtrip (otherwise testers see a wallet-biometric prompt on top of
+  // the LazorKit one — fix Jun 23).
+  onPortalFlow?: () => void;
 }
 
 // Shared singleton connections — see src/utils/connection.ts
 import { connection, fallbackConnection } from '../utils/connection';
 
-export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka, onHistory, incomingNonce, onUserRefresh, onShowToast }: WalletScreenProps) {
+export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka, onHistory, incomingNonce, onUserRefresh, onShowToast, onPortalFlow }: WalletScreenProps) {
   const {
     smartWalletPubkey,
     connect,
@@ -392,6 +397,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
       const expiresAtSlot = await computeExpiresAtSlot();
       const redirectUrl = Linking.createURL('sign-callback');
 
+      if (onPortalFlow) onPortalFlow();
       const result = await createSession(
         { sessionKey: sessionKeypair.publicKey, expiresAtSlot },
         { redirectUrl },
@@ -411,13 +417,14 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
     } finally {
       setIsSessionBusy(false);
     }
-  }, [walletId, createSession]);
+  }, [walletId, createSession, onPortalFlow]);
 
   const handleEndSession = useCallback(async () => {
     if (!walletId || !activeSession) return;
     setIsSessionBusy(true);
     try {
       const redirectUrl = Linking.createURL('sign-callback');
+      if (onPortalFlow) onPortalFlow();
       try {
         await revokeSession({ sessionPda: activeSession.sessionPda }, { redirectUrl });
       } catch (err) {
@@ -430,7 +437,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
     } finally {
       setIsSessionBusy(false);
     }
-  }, [walletId, activeSession, revokeSession]);
+  }, [walletId, activeSession, revokeSession, onPortalFlow]);
 
   const fullAddress = useMemo(() => smartWalletPubkey?.toString() || '', [smartWalletPubkey]);
   const shortAddress = useMemo(() =>
@@ -839,7 +846,10 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
         });
       } else if (selectedToken.isNative) {
         // Slow path for SOL: keep the v2 convenience method so the existing
-        // production flow doesn't regress for the most common case.
+        // production flow doesn't regress for the most common case. Mark
+        // the portal flow so the wallet-lock doesn't double-prompt during
+        // the redirect roundtrip.
+        if (onPortalFlow) onPortalFlow();
         signature = await transferSol(
           {
             recipient: recipientPubkey,
@@ -850,6 +860,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
         );
       } else {
         // Slow path for SPL: passkey-prompted, generic instructions.
+        if (onPortalFlow) onPortalFlow();
         signature = await signAndSendTransaction(
           {
             instructions,
@@ -913,7 +924,7 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
   }, [
     smartWalletPubkey, walletId, recipient, amount, selectedToken, solBalance,
     activeSession, signAndSendWithSession, signAndSendTransaction, transferSol,
-    balanceForToken, sendPrivately, handlePrivateSend, onShowToast,
+    balanceForToken, sendPrivately, handlePrivateSend, onShowToast, onPortalFlow,
   ]);
 
   // ============================================================
@@ -1429,8 +1440,8 @@ export function WalletScreen({ onDisconnect, onSwap, onStealth, onBurner, onIka,
                           : 'Fast Send off'}
                       </Text>
                       {!activeSession ? (
-                        <Text style={styles.fastSendSubtitle}>
-                          Skip the passkey prompt for the next 15 minutes
+                        <Text style={styles.fastSendSubtitle} numberOfLines={1}>
+                          No passkey prompts for 15 min
                         </Text>
                       ) : null}
                     </View>
@@ -2376,9 +2387,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   fastSendLeft: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    // Leave room for the Enable/End button on the right — without this, the
+    // subtitle text expanded the row and pushed the button off-screen.
+    paddingRight: spacing.sm,
   },
   fastDot: {
     width: 8,
@@ -2389,9 +2404,9 @@ const styles = StyleSheet.create({
     ...typography.body,
   },
   fastSendSubtitle: {
-    ...typography.caption,
-    color: colors.textMuted,
-    marginTop: 2,
+    fontSize: 12,
+    color: colors.textSubtle,
+    marginTop: 1,
   },
   fastSendBtn: {
     paddingHorizontal: spacing.lg,

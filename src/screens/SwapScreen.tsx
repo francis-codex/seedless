@@ -32,6 +32,7 @@ import { detectWalletTokens, type DetectedToken } from '../utils/detectTokens';
 interface SwapScreenProps {
   onBack: () => void;
   onShowToast?: (title: string, message: string, iconName?: 'check' | 'swap') => void;
+  onPortalFlow?: () => void;
 }
 
 // Shared singleton connections — see src/utils/connection.ts
@@ -137,7 +138,7 @@ const detectedToRow = (d: DetectedToken): PickerRow => ({
 // since state is only set from rendered rows.
 const FALLBACK_ROW: PickerRow = tokenToRow(SUPPORTED_TOKENS[0]);
 
-export function SwapScreen({ onBack, onShowToast }: SwapScreenProps) {
+export function SwapScreen({ onBack, onShowToast, onPortalFlow }: SwapScreenProps) {
   const { smartWalletPubkey, signAndSendTransaction, signAndSendWithSession, authorizeAndExecute } = useWallet();
 
   // Form state. Mint strings are the source of truth; everything else
@@ -546,8 +547,10 @@ export function SwapScreen({ onBack, onShowToast }: SwapScreenProps) {
       }
 
       // Passkey-prompted path: either no session, or the session fell
-      // through on a scope error above.
+      // through on a scope error above. Mark the portal flow so the
+      // wallet-lock doesn't double-prompt during the LazorKit redirect.
       if (!signature) {
+        if (onPortalFlow) onPortalFlow();
         if (shouldUseDeferredExec(instructions)) {
           signature = await authorizeAndExecute(
             {
@@ -615,6 +618,7 @@ export function SwapScreen({ onBack, onShowToast }: SwapScreenProps) {
     inputRow.isNative,
     pickerBalances,
     onShowToast,
+    onPortalFlow,
   ]);
 
   return (

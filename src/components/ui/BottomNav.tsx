@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet, Image, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing } from '../../theme';
@@ -19,7 +19,7 @@ const TABS: { key: NavTab; icon: IconName }[] = [
   { key: 'settings', icon: 'settings' },
 ];
 
-export function BottomNav({ active, onChange }: BottomNavProps) {
+function BottomNavInner({ active, onChange }: BottomNavProps) {
   const insets = useSafeAreaInsets();
   // Android nav bar (gesture or 3-button) was overlapping the floating pill.
   // Honor the bottom inset but keep a floor so iOS without home-indicator
@@ -99,3 +99,5 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
 });
+
+export const BottomNav = memo(BottomNavInner);

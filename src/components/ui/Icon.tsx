@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import Svg, { Path, Circle, Rect, Line, G } from 'react-native-svg';
 import { colors } from '../../theme';
 
@@ -36,7 +36,7 @@ interface IconProps {
   strokeWidth?: number;
 }
 
-export function Icon({ name, size = 24, color = colors.text, strokeWidth = 2 }: IconProps) {
+function IconInner({ name, size = 24, color = colors.text, strokeWidth = 2 }: IconProps) {
   const props = {
     width: size,
     height: size,
@@ -228,3 +228,8 @@ export function Icon({ name, size = 24, color = colors.text, strokeWidth = 2 }: 
       return null;
   }
 }
+
+// All Icon props are primitives — memoizing here means every parent
+// re-render (balance refresh, poll tick, etc.) skips re-rendering icons
+// whose props didn't actually change.
+export const Icon = memo(IconInner);
