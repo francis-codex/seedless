@@ -4,8 +4,8 @@ import {
   getPollingComputationMonitor,
   getPollingTransactionForwarder,
 } from '@umbra-privacy/sdk';
-import type { IUmbraSigner } from '@umbra-privacy/sdk/interfaces';
-import type { GetUmbraClientArgs, GetUmbraClientDeps } from '@umbra-privacy/sdk';
+import type { IUmbraSigner } from '@umbra-privacy/sdk';
+import type { GetUmbraClientArgs, GetUmbraClientDeps } from '@umbra-privacy/sdk/client';
 import {
   SOLANA_RPC_URL,
   SOLANA_WSS_URL,
