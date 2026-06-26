@@ -1,9 +1,10 @@
 // ETA → ATA: unshield encrypted balance back to a public token account.
 // Plan reference: docs/umbra-integration-plan.md §6.4
 
-import { getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction } from '@umbra-privacy/sdk';
-import { createU64 } from '@umbra-privacy/sdk/utils';
-import type { IUmbraClient, WithdrawResult } from '@umbra-privacy/sdk/interfaces';
+import { getETAIntoATAWithdrawerFunction } from '@umbra-privacy/sdk/withdrawal';
+import { createU64 } from '@umbra-privacy/sdk/types';
+import type { WithdrawResult } from '@umbra-privacy/sdk/shared';
+import type { IUmbraClient } from '@umbra-privacy/sdk';
 
 export interface WithdrawArgs {
   client: IUmbraClient;
@@ -28,21 +29,24 @@ export async function withdrawToPublicBalance(
   const { client, destinationAta, mint, amount } = args;
 
   onProgress?.({ stage: 'building' });
-  const withdraw = getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction({ client });
+  const withdraw = getETAIntoATAWithdrawerFunction({ client });
 
-  const u64Amount = createU64(amount, 'withdrawAmount');
+  const u64Amount = createU64({ value: amount, name: 'withdrawAmount' });
 
   onProgress?.({ stage: 'queue-pre' });
   const result = await withdraw(destinationAta as any, mint as any, u64Amount);
 
   onProgress?.({ stage: 'queue-post', signature: result.queueSignature });
 
-  if (result.callbackSignature) {
+  // v5: callback info is now a single optional CallbackOutcome; signature only
+  // exists on the "finalized" status.
+  const cb = result.callback;
+  if (cb) {
     onProgress?.({
       stage: 'callback-post',
-      signature: result.callbackSignature,
-      status: result.callbackStatus ?? 'unknown',
-      elapsedMs: result.callbackElapsedMs,
+      signature: cb.status === 'finalized' ? (cb.signature ?? '') : '',
+      status: cb.status,
+      elapsedMs: cb.elapsedMs,
     });
   }
 

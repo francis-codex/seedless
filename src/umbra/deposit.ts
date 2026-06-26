@@ -5,16 +5,16 @@
 // Pass mint = SOL_MINT (So11111111111111111111111111111111111111112) — the SDK
 // auto-wraps native devnet SOL behind the scenes.
 
-import { getPublicBalanceToEncryptedBalanceDirectDepositorFunction } from '@umbra-privacy/sdk';
-import { createOptionalData32, createU64 } from '@umbra-privacy/sdk/utils';
-import type { DepositResult, IUmbraClient } from '@umbra-privacy/sdk/interfaces';
+import { getATAIntoETADirectDepositorFunction } from '@umbra-privacy/sdk/deposit';
+import { createU64 } from '@umbra-privacy/sdk/types';
+import type { DepositResult } from '@umbra-privacy/sdk/shared';
+import type { IUmbraClient } from '@umbra-privacy/sdk';
 
 export interface DepositArgs {
   client: IUmbraClient;
   destinationAddress: string;
   mint: string;
   amount: bigint;
-  optionalData?: Uint8Array;
 }
 
 export type DepositProgress =
@@ -31,30 +31,28 @@ export async function depositToEncryptedBalance(
   args: DepositArgs,
   onProgress?: DepositProgressCallback,
 ): Promise<DepositResult> {
-  const { client, destinationAddress, mint, amount, optionalData } = args;
+  const { client, destinationAddress, mint, amount } = args;
 
   onProgress?.({ stage: 'building' });
-  const deposit = getPublicBalanceToEncryptedBalanceDirectDepositorFunction({ client });
+  const deposit = getATAIntoETADirectDepositorFunction({ client });
 
-  const u64Amount = createU64(amount, 'depositAmount');
-  const opt = optionalData ? createOptionalData32(optionalData) : undefined;
+  const u64Amount = createU64({ value: amount, name: 'depositAmount' });
 
   onProgress?.({ stage: 'queue-pre' });
-  const result = await deposit(
-    destinationAddress as any,
-    mint as any,
-    u64Amount,
-    opt ? { optionalData: opt } : undefined,
-  );
+  const result = await deposit(destinationAddress as any, mint as any, u64Amount);
 
   onProgress?.({ stage: 'queue-post', signature: result.queueSignature });
 
-  if (result.callbackSignature) {
+  // v5: the flat callbackSignature/callbackStatus/callbackElapsedMs fields were
+  // collapsed into a single optional CallbackOutcome (status + optional
+  // signature + elapsedMs). signature is only present on the "finalized" status.
+  const cb = result.callback;
+  if (cb) {
     onProgress?.({
       stage: 'callback-post',
-      signature: result.callbackSignature,
-      status: result.callbackStatus ?? 'unknown',
-      elapsedMs: result.callbackElapsedMs,
+      signature: cb.status === 'finalized' ? (cb.signature ?? '') : '',
+      status: cb.status,
+      elapsedMs: cb.elapsedMs,
     });
   }
 
