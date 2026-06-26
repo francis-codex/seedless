@@ -85,3 +85,9 @@ resumes/
 # Partner pricing / commercial sheets — keep local
 /SolanaFloor campaign pricing sheet.pdf
 *campaign pricing*.pdf
+
+# Corporate/legal docs — never commit
+seedless-labs-limited-ng/
+
+# Reviewer PII exports (wallets + handles)
+Submit your #GoSeedless review_Submissions_*.csv
