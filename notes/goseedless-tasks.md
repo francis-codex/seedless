@@ -30,14 +30,16 @@ In the **Tools** tab, pick one:
 
 ## When you're done — post on X
 
-Your post must include:
+Your post MUST include all of these or it won't qualify:
 
-- A screenshot of you actually using the app
-- Honest feedback (what worked, what didn't, what would make you tell a friend)
+- **At least one in-app screenshot** showing you actually used the app (wallet screen, send, swap, history, anything that proves real use). No app screenshot = no payout.
+- Honest feedback — what worked, what didn't, what would make you tell a friend
 - Tag **@francis_codex** and **@seedless_wallet**
 - Hashtag **#GoSeedless**
 
 Then submit your X post link + USDC wallet address at the form link in the group.
+
+We'll be reading every post and skipping any that don't show real testing.
 
 ---
 
