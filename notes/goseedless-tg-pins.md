@@ -9,12 +9,12 @@ Two pins, real URLs filled in. Beta pin trimmed for fast scan.
 ```
 #GoSeedless is live. Everything you need:
 
-1. APK → https://expo.dev/artifacts/eas/y9rXiKgyv9DfqExduamfuV5kvVT5Tky6rv0R9sL_e6s.apk
+1. APK → https://expo.dev/artifacts/eas/J3SZ86bvVz4dKV7CDDXevFvjqGjO73MywytWPtfi0X0.apk
 2. Install guide → https://docs.google.com/document/d/1FnpM-LZV2fOEsAcKfFjtMyL7-D3YPHb0loFBbW-gxWY/
 3. The 5 tasks → https://docs.google.com/document/d/1v_B8BsbIgfLxiLqznt5pztaJ9EUauyVtMpQxK26fB-Q/
 4. Submit your review → https://tally.so/r/VLqdJE
 
-When done: post on X with screenshot + honest feedback, tag @francis_codex + @seedless_wallet, hashtag #GoSeedless. Then drop your X link + USDC wallet in the form.
+When done: post on X with at least 1 in-app screenshot (proves you actually tested it) + honest feedback. Tag @francis_codex + @seedless_wallet. Hashtag #GoSeedless. Then drop your X link + USDC wallet in the form. No screenshot = no payout.
 
 Prize: 25 random winners get $5 USDC. Top 3 reports get $15.
 
@@ -48,7 +48,7 @@ Form closes Saturday Jun 27 at 12:00 WAT. Winners announced Sunday Jun 28.
 
 | asset | url |
 |---|---|
-| APK | https://expo.dev/artifacts/eas/y9rXiKgyv9DfqExduamfuV5kvVT5Tky6rv0R9sL_e6s.apk |
+| APK | https://expo.dev/artifacts/eas/J3SZ86bvVz4dKV7CDDXevFvjqGjO73MywytWPtfi0X0.apk |
 | Install guide | https://docs.google.com/document/d/1FnpM-LZV2fOEsAcKfFjtMyL7-D3YPHb0loFBbW-gxWY/ |
 | Tasks doc | https://docs.google.com/document/d/1v_B8BsbIgfLxiLqznt5pztaJ9EUauyVtMpQxK26fB-Q/ |
 | Tally form | https://tally.so/r/VLqdJE |
