@@ -10,11 +10,9 @@
 import { Buffer } from 'buffer';
 import * as SecureStore from 'expo-secure-store';
 import { getPublicKeyAsync } from '@noble/ed25519';
-import {
-  createSignerFromPrivateKeyBytes,
-  getUserRegistrationFunction,
-} from '@umbra-privacy/sdk';
-import type { IUmbraSigner } from '@umbra-privacy/sdk/interfaces';
+import { createSignerFromPrivateKeyBytes } from '@umbra-privacy/sdk';
+import { getUserRegistrationFunction } from '@umbra-privacy/sdk/registration';
+import type { IUmbraSigner } from '@umbra-privacy/sdk';
 
 import { buildUmbraClient } from './client';
 import { createUserRegistrationProver } from './zk/provers/register';
@@ -72,17 +70,6 @@ export async function resetThrowawaySigner() {
   await SecureStore.deleteItemAsync(SIGNER_STORAGE_KEY);
 }
 
-function stepCallbacks(step: RegistrationStep, onProgress?: ProgressCallback) {
-  return {
-    pre: async () => {
-      onProgress?.({ stage: 'step-pre', step });
-    },
-    post: async (_tx: unknown, signature: string) => {
-      onProgress?.({ stage: 'step-post', step, signature });
-    },
-  };
-}
-
 export async function runHelloWorldRegistration(onProgress?: ProgressCallback) {
   const { bytes, reused } = await loadOrCreateSignerBytes();
   const signer: IUmbraSigner = await createSignerFromPrivateKeyBytes(bytes);
@@ -97,15 +84,11 @@ export async function runHelloWorldRegistration(onProgress?: ProgressCallback) {
   const register = getUserRegistrationFunction({ client }, { zkProver });
 
   onProgress?.({ stage: 'registering' });
-  const signatures = await register({
-    confidential: true,
-    anonymous: true,
-    callbacks: {
-      userAccountInitialisation: stepCallbacks('userAccountInitialisation', onProgress),
-      registerX25519PublicKey: stepCallbacks('registerX25519PublicKey', onProgress),
-      registerUserForAnonymousUsage: stepCallbacks('registerUserForAnonymousUsage', onProgress),
-    },
-  });
+  // v5 replaced the flat `callbacks` step-map with a RegistrationHooks lifecycle
+  // object (onValidationStart, initUserAccount, registerX25519PublicKey, ...).
+  // The old per-step signature reporting was a debug nicety; the setup UX only
+  // needs the coarse registering→success stages, so we pass just the mode flags.
+  const signatures = await register({ confidential: true, anonymous: true });
 
   onProgress?.({ stage: 'success', signatures });
   return { signer, client, signatures };
