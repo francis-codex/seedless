@@ -3,8 +3,8 @@
 // Uses the SDK's queryEncryptedBalance function against the stored signer.
 // Returns 0 when the signer is unregistered or the mint has no balance.
 
-import { getEncryptedBalanceQuerierFunction } from '@umbra-privacy/sdk';
-import type { IUmbraClient } from '@umbra-privacy/sdk/interfaces';
+import { getEncryptedBalanceQuerierFunction } from '@umbra-privacy/sdk/query';
+import type { IUmbraClient } from '@umbra-privacy/sdk';
 
 export interface PrivateBalanceResult {
   lamports: bigint;
