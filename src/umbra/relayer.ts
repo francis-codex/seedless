@@ -12,13 +12,13 @@
 // constants/index.ts).
 
 import { getUmbraRelayer } from '@umbra-privacy/sdk';
-import type { IUmbraRelayer } from '@umbra-privacy/sdk/interfaces';
+import type { UmbraRelayer } from '@umbra-privacy/sdk/relayer';
 
 import { UMBRA_RELAYER_URL } from '../constants';
 
-let cached: IUmbraRelayer | null = null;
+let cached: UmbraRelayer | null = null;
 
-export function getRelayer(): IUmbraRelayer {
+export function getRelayer(): UmbraRelayer {
   if (cached) return cached;
   cached = getUmbraRelayer({ apiEndpoint: UMBRA_RELAYER_URL });
   return cached;
