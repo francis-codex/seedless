@@ -16,12 +16,10 @@
 // pass SOL_MINT.
 
 import { Buffer } from 'buffer';
-import { keccak_512 } from '@noble/hashes/sha3';
-import {
-  createSignerFromPrivateKeyBytes,
-  getUserRegistrationFunction,
-} from '@umbra-privacy/sdk';
-import type { IUmbraSigner } from '@umbra-privacy/sdk/interfaces';
+import { keccak_512 } from '@noble/hashes/sha3.js';
+import { createSignerFromPrivateKeyBytes } from '@umbra-privacy/sdk';
+import { getUserRegistrationFunction } from '@umbra-privacy/sdk/registration';
+import type { IUmbraSigner } from '@umbra-privacy/sdk';
 import { assertMasterSeed, type MasterSeed } from '@umbra-privacy/sdk/types';
 
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
@@ -135,30 +133,11 @@ async function ensureBurnerRegistered(
   // CreateDepositIntoMixerTreeFromPublicBalance requires the user-commitment
   // (anonymous-usage) step to also be registered. Skipping it leaves the
   // account with isUserCommitmentRegistered: false → simulation fails.
-  const signatures = await register({
-    confidential: true,
-    anonymous: true,
-    callbacks: {
-      userAccountInitialisation: {
-        pre: async () => onProgress?.({ stage: 'register-step', detail: 'Setting up your private account (1/3)' }),
-        post: async (_tx, signature) => onProgress?.({
-          stage: 'register-step', detail: 'Account ready (1/3)', signature,
-        }),
-      },
-      registerX25519PublicKey: {
-        pre: async () => onProgress?.({ stage: 'register-step', detail: 'Publishing your viewing key (2/3)' }),
-        post: async (_tx, signature) => onProgress?.({
-          stage: 'register-step', detail: 'Viewing key live (2/3)', signature,
-        }),
-      },
-      registerUserForAnonymousUsage: {
-        pre: async () => onProgress?.({ stage: 'register-step', detail: 'Joining the privacy pool (3/3)' }),
-        post: async (_tx, signature) => onProgress?.({
-          stage: 'register-step', detail: 'Joined the privacy pool (3/3)', signature,
-        }),
-      },
-    },
-  });
+  // v5 replaced the flat `callbacks` step-map with a RegistrationHooks lifecycle
+  // object; the per-step progress detail was a UX nicety, so we register with
+  // just the mode flags and report the coarse register stage upstream.
+  onProgress?.({ stage: 'register-step', detail: 'Registering your private account' });
+  const signatures = await register({ confidential: true, anonymous: true });
   return [...signatures];
 }
 

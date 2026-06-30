@@ -21,7 +21,7 @@ import { Buffer } from 'buffer';
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, Transaction } from '@solana/web3.js';
 import { createCloseAccountInstruction, getAssociatedTokenAddress } from '@solana/spl-token';
 import * as SecureStore from 'expo-secure-store';
-import type { IUmbraClient, IUmbraSigner } from '@umbra-privacy/sdk/interfaces';
+import type { IUmbraClient, IUmbraSigner } from '@umbra-privacy/sdk';
 
 import { SOL_MINT, SOLANA_RPC_URL } from '../constants';
 import { SUPPORTED_TOKENS } from '../tokens/registry';

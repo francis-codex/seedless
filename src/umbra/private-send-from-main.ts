@@ -13,7 +13,7 @@
 // either abort or route the send through the normal public flow.
 
 import { LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
-import type { IUmbraClient } from '@umbra-privacy/sdk/interfaces';
+import type { IUmbraClient } from '@umbra-privacy/sdk';
 
 import { SOL_MINT } from '../constants';
 import { checkRecipientUmbraStatus, createReceiverClaimableFromPublicBalance } from './utxo';
