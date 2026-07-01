@@ -101,6 +101,17 @@ export function HomeScreen({ onConnected }: HomeScreenProps) {
             friendly = 'Passkey error. Please set up fingerprint or Face ID in your device settings first.';
           } else if (msg.includes('ConstraintSeeds') || msg.includes('0x7d6')) {
             friendly = 'Wallet creation failed. Please try again with a different account name.';
+          } else if (
+            msg.includes('Invalid wallet info') ||
+            msg.toLowerCase().includes('missing credential') ||
+            msg.toLowerCase().includes('cancel')
+          ) {
+            // Portal "I already have a Solana wallet" path with no existing
+            // Lazor passkey on-device returns success!=true → adapter throws
+            // "Invalid wallet info from redirect". Guide first-timers to "new"
+            // and kill the "import my Phantom" mental model (we're passkey-only).
+            friendly =
+              'No Seedless passkey on this device yet. On the next screen tap "I\'m new to Solana" — Seedless creates a passkey wallet for you. It doesn\'t import seed-phrase wallets.';
           }
           Alert.alert('Connection Failed', friendly);
         },
@@ -113,6 +124,13 @@ export function HomeScreen({ onConnected }: HomeScreenProps) {
         friendly = 'Passkey error. Please make sure biometrics (fingerprint or Face ID) are set up on your device, then try again.';
       } else if (msg.includes('ConstraintSeeds') || msg.includes('0x7d6')) {
         friendly = 'Wallet creation failed. Please try again with a different account name.';
+      } else if (
+        msg.includes('Invalid wallet info') ||
+        msg.toLowerCase().includes('missing credential') ||
+        msg.toLowerCase().includes('cancel')
+      ) {
+        friendly =
+          'No Seedless passkey on this device yet. On the next screen tap "I\'m new to Solana" — Seedless creates a passkey wallet for you. It doesn\'t import seed-phrase wallets.';
       }
       Alert.alert('Connection Failed', friendly);
     }
@@ -153,7 +171,8 @@ export function HomeScreen({ onConnected }: HomeScreenProps) {
           fullWidth
         />
         <Text style={styles.forwardNote}>
-          You'll be sent to portal.lazor.sh to sign in with your passkey
+          New here? On the next screen choose "I'm new to Solana" — Seedless
+          creates a passkey wallet for you (no seed phrase to import).
         </Text>
         <Text style={styles.poweredBy}>
           Seedless Labs, Inc. · v{APP_VERSION}
