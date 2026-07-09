@@ -91,3 +91,9 @@ seedless-labs-limited-ng/
 
 # Reviewer PII exports (wallets + handles)
 Submit your #GoSeedless review_Submissions_*.csv
+
+# Personal school/workshop scratch under notes/ — keep local, never commit to the app repo
+/notes/ch*-datapack.md
+/notes/ch*-fable-prompt.md
+/notes/icm-*.md
+/notes/icm-*.html
