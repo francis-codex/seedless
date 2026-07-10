@@ -38,8 +38,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
-SURVIVAL_PLAN.md
-docs/adam-call-notes.md
 
 # Umbra ZK assets — fetched from https://zk.api.umbraprivacy.com (see assets/zk/README.md)
 assets/zk/*.zkey
@@ -48,52 +46,25 @@ assets/zk/*.zkey
 .claude/
 claude-session.jsonl
 
-# Internal — keep out of public repo
+# Internal / legal docs — never commit to public repo
 /Atlas documents - (Seedless Labs_ Inc.)/
-/Code/
-/UDOKA_ONBOARDING.html
-/UDOKA_ONBOARDING.pdf
-/Udoka_Resume.pdf
-/francis-ohilebo-backend-cv.pdf
-/expo-recovery-codes.txt
-/assets/wells-ui/
-
-# Personal drafts and reference material — not part of the codebase
-/lifi-interview-prep.md
-/solana_wallet_full_strategy.md
-/ika-whitepaper.pdf
+seedless-labs-limited-ng/
 
 # Personal financial receipts (Claude API + grant submissions) — never commit
 /grant-receipts/
 
-# D&B / DUNS / KYC questionnaires with PII — never commit
-/DB DUNS Questionnaire.docx
+# Local-only docs / drafts / commercial sheets (some contain PII) — never commit
 *.docx
-
-# Large local-only media
-/seedless demo.mp4
-*.mp4
-/frontier-ika-bounty/
-lifi-interview-prep-may20.md
-lifi-interview-prep-may20.pdf
-resumes/
-
-# Waitlist + signup exports (contain PII) — never commit
+*campaign pricing*.pdf
 /notes/Seedless Mainnet-beta_Submissions_*.csv
 /notes/*signups*.csv
 
-# Partner pricing / commercial sheets — keep local
-/SolanaFloor campaign pricing sheet.pdf
-*campaign pricing*.pdf
+# Local resumes/CVs — keep local
+resumes/
 
-# Corporate/legal docs — never commit
-seedless-labs-limited-ng/
+# Large local-only media
+*.mp4
 
-# Reviewer PII exports (wallets + handles)
-Submit your #GoSeedless review_Submissions_*.csv
-
-# Personal school/workshop scratch under notes/ — keep local, never commit to the app repo
+# Personal school scratch under notes/ — keep local, never commit to the app repo
 /notes/ch*-datapack.md
 /notes/ch*-fable-prompt.md
-/notes/icm-*.md
-/notes/icm-*.html
