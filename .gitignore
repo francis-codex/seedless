@@ -74,3 +74,6 @@ project final/
 /notes/*.pdf
 /notes/*mNDA*
 /notes/Consolidated_References_DRAFT.md
+
+# Personal / travel documents — never in a public repo
+/Breakpoint*.pdf
