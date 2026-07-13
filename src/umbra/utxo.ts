@@ -14,17 +14,13 @@
 // - Direct claim-to-public-ATA helper is missing in the SDK (Cal: "I'll add
 //   it ASAP"). Workaround when wired: claim into ETA, then withdraw to ATA.
 
-import {
-  getClaimableUtxoScannerFunction,
-  getPublicBalanceToReceiverClaimableUtxoCreatorFunction,
-  getUserAccountQuerierFunction,
-} from '@umbra-privacy/sdk';
-import { createU32, createU64 } from '@umbra-privacy/sdk/utils';
-import type {
-  CreateUtxoFromPublicBalanceResult,
-  IUmbraClient,
-  ScannedUtxoResult,
-} from '@umbra-privacy/sdk/interfaces';
+import { getATAIntoReceiverBurnableStealthPoolNoteCreatorFunction } from '@umbra-privacy/sdk/deposit';
+import { getBurnableStealthPoolNoteScannerFunction } from '@umbra-privacy/sdk/burn';
+import { getUserAccountQuerierFunction } from '@umbra-privacy/sdk/query';
+import { createU64 } from '@umbra-privacy/sdk/types';
+import type { CreateUtxoFromPublicBalanceResult } from '@umbra-privacy/sdk/shared';
+import type { ScannedStealthPoolNoteResult } from '@umbra-privacy/sdk/burn';
+import type { IUmbraClient } from '@umbra-privacy/sdk';
 
 import { createCreateUtxoFromPublicBalanceWithReceiverUnlockerZkProver } from './zk/provers';
 
@@ -48,11 +44,14 @@ export async function createReceiverClaimableFromPublicBalance(
   const zkProver = createCreateUtxoFromPublicBalanceWithReceiverUnlockerZkProver();
   onProgress?.({ stage: 'prover-ready' });
 
-  const create = getPublicBalanceToReceiverClaimableUtxoCreatorFunction({ client }, { zkProver });
+  const create = getATAIntoReceiverBurnableStealthPoolNoteCreatorFunction(
+    { client },
+    { zkProver: zkProver as any },
+  );
 
   onProgress?.({ stage: 'creating' });
   const result = await create({
-    amount: createU64(amount, 'utxoAmount'),
+    amount: createU64({ value: amount, name: 'utxoAmount' }),
     destinationAddress: destinationAddress as any,
     mint: mint as any,
   });
@@ -61,34 +60,23 @@ export async function createReceiverClaimableFromPublicBalance(
   return result;
 }
 
-export interface ScanArgs {
-  client: IUmbraClient;
-  treeIndex: number | bigint;
-  startInsertionIndex?: number | bigint;
-  endInsertionIndex?: number | bigint;
+// v5: the scanner is store-backed and zero-arg. scan() decrypts every visible
+// note across all trees in a single call, persists the decrypted notes into
+// client.utxoDataStore, and returns the four buckets plus scannedTrees. The old
+// per-tree index looping (getClaimableUtxoScannerFunction with tree/insertion
+// args) is gone — confirmed by Adithya (Umbra eng, Jul 7).
+export async function scanClaimableUtxos(
+  client: IUmbraClient,
+): Promise<ScannedStealthPoolNoteResult> {
+  const scan = getBurnableStealthPoolNoteScannerFunction({ client });
+  return scan();
 }
 
-// U32 in the SDK is a branded bigint — assertU32 throws on non-bigint inputs.
-const toU32 = (v: number | bigint) => createU32(typeof v === 'bigint' ? v : BigInt(v));
-
-export async function scanClaimableUtxos(args: ScanArgs): Promise<ScannedUtxoResult> {
-  const { client, treeIndex, startInsertionIndex = 0, endInsertionIndex } = args;
-  const scan = getClaimableUtxoScannerFunction({ client });
-  return scan(
-    toU32(treeIndex),
-    toU32(startInsertionIndex),
-    endInsertionIndex !== undefined ? toU32(endInsertionIndex) : undefined,
-  );
-}
-
-// Devnet's mixer tree 0 has been around for weeks and may be full or
-// past-cursor relative to a freshly created UTXO. The SDK doesn't expose a
-// "current tree index" querier yet, so iterate a small range and merge.
-// 8 trees × 2^20 leaves is plenty of headroom for the demo window.
-// SDK v4 returns: { selfBurnable, received, publicSelfBurnable, publicReceived }.
-// Pre-v4 used { ephemeral, receiver, publicEphemeral, publicReceiver }.
-// We were reading the old field names → every scan looked empty even though
-// the SDK was decrypting UTXOs successfully.
+// Back-compat wrapper: keeps the exact shape the private-mode hook consumes,
+// now backed by the single v5 zero-arg scan. `maxTreeIndex` is ignored (the
+// scanner sweeps all trees itself) but retained so existing callers don't need
+// to change. Buckets are unchanged: selfBurnable / received / publicSelfBurnable
+// / publicReceived.
 export async function scanClaimableUtxosAcrossTrees(args: {
   client: IUmbraClient;
   maxTreeIndex?: number;
@@ -100,65 +88,25 @@ export async function scanClaimableUtxosAcrossTrees(args: {
   treesScanned: number;
   perTree: Array<{ treeIndex: number; counts: string }>;
 }> {
-  const { client, maxTreeIndex = 7 } = args;
-  const indices = Array.from({ length: maxTreeIndex + 1 }, (_, i) => i);
-
-  // Parallel sweep. The previous serial loop paid 8× the round-trip latency
-  // for what is effectively 8 independent reads. Errors on empty/non-existent
-  // trees are demoted to zero-count entries instead of breaking the sweep —
-  // a single missing tree shouldn't blind us to populated higher trees.
-  const settled = await Promise.all(
-    indices.map(async (t) => {
-      try {
-        const r = (await scanClaimableUtxos({ client, treeIndex: t })) as any;
-        return {
-          treeIndex: t,
-          selfBurnable: (r.selfBurnable ?? []) as any[],
-          received: (r.received ?? []) as any[],
-          publicSelfBurnable: (r.publicSelfBurnable ?? []) as any[],
-          publicReceived: (r.publicReceived ?? []) as any[],
-          ok: true as const,
-        };
-      } catch (err: any) {
-        const msg = String(err?.message ?? err).toLowerCase();
-        const expected = msg.includes('not found') || msg.includes('out of range') || msg.includes('does not exist');
-        if (!expected) console.warn(`[umbra] scan tree ${t} failed:`, err?.message ?? err);
-        return {
-          treeIndex: t,
-          selfBurnable: [] as any[],
-          received: [] as any[],
-          publicSelfBurnable: [] as any[],
-          publicReceived: [] as any[],
-          ok: false as const,
-        };
-      }
-    }),
-  );
-
-  const selfBurnable: any[] = [];
-  const received: any[] = [];
-  const publicSelfBurnable: any[] = [];
-  const publicReceived: any[] = [];
-  const perTree: Array<{ treeIndex: number; counts: string }> = [];
-
-  for (const s of settled) {
-    perTree.push({
-      treeIndex: s.treeIndex,
-      counts: `${s.selfBurnable.length}sb/${s.received.length}r/${s.publicSelfBurnable.length}psb/${s.publicReceived.length}pr`,
-    });
-    selfBurnable.push(...s.selfBurnable);
-    received.push(...s.received);
-    publicSelfBurnable.push(...s.publicSelfBurnable);
-    publicReceived.push(...s.publicReceived);
-  }
-
+  const { client } = args;
+  const r = (await scanClaimableUtxos(client)) as any;
+  const selfBurnable = (r.selfBurnable ?? []) as any[];
+  const received = (r.received ?? []) as any[];
+  const publicSelfBurnable = (r.publicSelfBurnable ?? []) as any[];
+  const publicReceived = (r.publicReceived ?? []) as any[];
+  const scannedTrees = Array.isArray(r.scannedTrees) ? r.scannedTrees : [];
   return {
     selfBurnable,
     received,
     publicSelfBurnable,
     publicReceived,
-    treesScanned: perTree.length,
-    perTree,
+    treesScanned: scannedTrees.length,
+    perTree: [
+      {
+        treeIndex: 0,
+        counts: `${selfBurnable.length}sb/${received.length}r/${publicSelfBurnable.length}psb/${publicReceived.length}pr`,
+      },
+    ],
   };
 }
 

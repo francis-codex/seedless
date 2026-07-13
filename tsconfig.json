@@ -3,5 +3,5 @@
   "compilerOptions": {
     "strict": true
   },
-  "exclude": ["src/_archive/**/*", "Code/**/*", "node_modules"]
+  "exclude": ["src/_archive/**/*", "src/**/_archive/**/*", "Code/**/*", "node_modules"]
 }

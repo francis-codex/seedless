@@ -8,8 +8,8 @@ import 'react-native-url-polyfill/auto';
 // subtle.digest('SHA-256'), and noble ed25519's sha512Async calls
 // subtle.digest('SHA-512'). Polyfill subtle.digest with @noble/hashes BEFORE
 // any other module touches it.
-import { sha256, sha384, sha512 } from '@noble/hashes/sha2';
-import { sha1 } from '@noble/hashes/legacy';
+import { sha256, sha384, sha512 } from '@noble/hashes/sha2.js';
+import { sha1 } from '@noble/hashes/legacy.js';
 {
   const cryptoObj: any = (globalThis as any).crypto ||= {};
   const subtleObj: any = cryptoObj.subtle ||= {};
