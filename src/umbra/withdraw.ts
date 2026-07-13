@@ -26,7 +26,11 @@ export async function withdrawToPublicBalance(
   args: WithdrawArgs,
   onProgress?: WithdrawProgressCallback,
 ): Promise<WithdrawResult> {
-  const { client, destinationAta, mint, amount } = args;
+  // v5: the withdrawer signature dropped its leading destinationAta param —
+  // it now resolves the caller's canonical ATA internally as
+  // (mint, amount, options?). destinationAta stays on WithdrawArgs for caller
+  // compatibility but is no longer forwarded.
+  const { client, mint, amount } = args;
 
   onProgress?.({ stage: 'building' });
   const withdraw = getETAIntoATAWithdrawerFunction({ client });
@@ -34,7 +38,7 @@ export async function withdrawToPublicBalance(
   const u64Amount = createU64({ value: amount, name: 'withdrawAmount' });
 
   onProgress?.({ stage: 'queue-pre' });
-  const result = await withdraw(destinationAta as any, mint as any, u64Amount);
+  const result = await withdraw(mint as any, u64Amount);
 
   onProgress?.({ stage: 'queue-post', signature: result.queueSignature });
 

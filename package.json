@@ -1,6 +1,6 @@
 {
   "name": "seedless-wallet",
-  "version": "0.4.4-beta",
+  "version": "0.4.5-beta",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -21,8 +21,8 @@
     "@solana/webcrypto-ed25519-polyfill": "^6.8.0",
     "@tanstack/react-query": "^5.99.2",
     "@umbra-privacy/rn-zk-prover": "file:./vendor/umbra-privacy-rn-zk-prover-3.0.1.tgz",
-    "@umbra-privacy/sdk": "5.0.0-rc.4",
-    "@umbra-privacy/umbra-codama": "3.0.0-rc.4",
+    "@umbra-privacy/sdk": "5.0.0-rc.9",
+    "@umbra-privacy/umbra-codama": "3.0.0-rc.6",
     "buffer": "^6.0.3",
     "ethers": "^6.16.0",
     "expo": "~54.0.34",
@@ -53,7 +53,8 @@
     "typescript": "~5.9.2"
   },
   "overrides": {
-    "expo-web-browser": "~15.0.11"
+    "expo-web-browser": "~15.0.11",
+    "@umbra-privacy/umbra-codama": "3.0.0-rc.6"
   },
   "private": true
 }
