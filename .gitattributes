@@ -1,0 +1,19 @@
+* text=auto eol=lf
+
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.js   text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.pdf  binary
+*.tgz  binary
+*.keystore binary
+
+package-lock.json linguist-generated=true
+vendor/** linguist-vendored=true
