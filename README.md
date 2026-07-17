@@ -37,6 +37,29 @@ Then re-add the <img> grid here.
 - **Private mode.** Hide balances behind a tap, biometric auth to reveal.
 - **Wallet rename.** Name your wallet, persisted per passkey.
 
+## Environment
+
+Copy `.env.example` to `.env` and fill in your own keys. Nothing in `.env` is
+committed.
+
+| Variable | Purpose |
+|---|---|
+| `EXPO_PUBLIC_HELIUS_API_KEY` | Mainnet RPC |
+| `EXPO_PUBLIC_ALCHEMY_MAINNET_KEY` | Mainnet RPC fallback |
+| `EXPO_PUBLIC_ALCHEMY_DEVNET_KEY` | Devnet RPC |
+| `EXPO_PUBLIC_JUPITER_API_KEY` | Swap quotes and routing |
+| `EXPO_PUBLIC_PAYMASTER_API_KEY` | Kora paymaster, sponsors fees |
+| `EXPO_PUBLIC_BAGS_API_KEY` | Token metadata |
+| `EXPO_PUBLIC_UMBRA_FEATURE_ENABLED` | Feature flag for private transfers |
+| `EXPO_PUBLIC_ZK_ASSETS_BASE_URL` | Host serving the zk proving assets |
+
+```bash
+npm install
+cp .env.example .env
+npm run typecheck
+npm run android    # or: npm run ios
+```
+
 ## Architecture
 
 Seedless is a product, not a library, so this is a high-level look at how it works rather than a build guide.
