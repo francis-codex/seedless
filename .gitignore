@@ -68,3 +68,9 @@ resumes/
 # Personal school scratch under notes/ — keep local, never commit to the app repo
 /notes/ch*-datapack.md
 /notes/ch*-fable-prompt.md
+project final/
+
+# Legal + third-party docs and personal school scratch — never commit to a PUBLIC repo
+/notes/*.pdf
+/notes/*mNDA*
+/notes/Consolidated_References_DRAFT.md
