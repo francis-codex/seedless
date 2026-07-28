@@ -7,7 +7,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "hooks": "lefthook install",
+    "prepare": "lefthook install"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
@@ -51,6 +53,7 @@
     "@babel/plugin-transform-class-static-block": "^7.28.6",
     "@types/react": "~19.1.0",
     "babel-preset-expo": "^54.0.9",
+    "lefthook": "^2.1.10",
     "typescript": "~5.9.2"
   },
   "overrides": {

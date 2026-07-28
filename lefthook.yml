@@ -1,42 +1,48 @@
-# EXAMPLE USAGE:
-#
-#   Refer for explanation to following link:
-#   https://lefthook.dev/configuration/
-#
-# pre-push:
-#   jobs:
-#     - name: packages audit
-#       tags:
-#         - frontend
-#         - security
-#       run: yarn audit
-#
-#     - name: gems audit
-#       tags:
-#         - backend
-#         - security
-#       run: bundle audit
-#
-# pre-commit:
-#   parallel: true
-#   jobs:
-#     - run: yarn eslint {staged_files}
-#       glob: "*.{js,ts,jsx,tsx}"
-#
-#     - name: rubocop
-#       glob: "*.rb"
-#       exclude:
-#         - config/application.rb
-#         - config/routes.rb
-#       run: bundle exec rubocop --force-exclusion {all_files}
-#
-#     - name: govet
-#       files: git ls-files -m
-#       glob: "*.go"
-#       run: go vet {files}
-#
-#     - script: "hello.js"
-#       runner: node
-#
-#     - script: "hello.go"
-#       runner: go run
+# Git hooks for the Seedless wallet.
+# Install after cloning:  npm run hooks
+# Docs: https://lefthook.dev/configuration/
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: block secrets and env files
+      glob: "*"
+      run: |
+        BAD=$(printf '%s\n' {staged_files} | grep -E '(^|/)\.env(\.|$)|\.zkey$|\.keystore$|\.p12$|\.pem$|(^|/)id_rsa|\.secret$' | grep -v '\.env\.example$' || true)
+        if [ -n "$BAD" ]; then
+          echo "Refusing to commit secret or environment files:"
+          echo "$BAD"
+          echo "If this is intentional, add it to .gitignore or commit with --no-verify and explain why."
+          exit 1
+        fi
+
+    - name: scan staged content for credentials
+      glob: "*.{ts,tsx,js,jsx,json,md,yml,yaml,sh}"
+      run: |
+        HITS=$(git diff --cached -U0 -- {staged_files} \
+          | grep -E '^\+' \
+          | grep -viE '^\+\+\+' \
+          | grep -EI 'mh_live_[A-Za-z0-9]{16,}|sk_live_[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|EXPO_PUBLIC_[A-Z_]+=[A-Za-z0-9_-]{16,}' \
+          || true)
+        if [ -n "$HITS" ]; then
+          echo "Possible credential in staged changes:"
+          echo "$HITS"
+          exit 1
+        fi
+
+    - name: block oversized files
+      glob: "*"
+      run: |
+        for f in {staged_files}; do
+          [ -f "$f" ] || continue
+          SIZE=$(wc -c < "$f")
+          if [ "$SIZE" -gt 5242880 ]; then
+            echo "$f is $((SIZE/1048576))MB. Files over 5MB should not go in the repo."
+            exit 1
+          fi
+        done
+
+pre-push:
+  jobs:
+    - name: typecheck
+      run: npm run typecheck
