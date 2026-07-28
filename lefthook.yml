@@ -45,4 +45,5 @@ pre-commit:
 pre-push:
   jobs:
     - name: typecheck
+      skip_empty: false
       run: npm run typecheck
