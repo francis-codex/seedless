@@ -18,7 +18,7 @@ Report privately, by either channel:
 
 | Channel | Address |
 | --- | --- |
-| Email | **security@seedlesslabs.xyz** |
+| Email | **francis@seedlesslabs.xyz** |
 | Direct message | [@francis_codex](https://x.com/francis_codex) on X |
 
 Include as much of the following as you have:
