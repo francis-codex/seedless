@@ -7,6 +7,10 @@ reports as the highest-priority work in the project.
 If you are here to report something, jump to
 [Reporting a vulnerability](#1-reporting-a-vulnerability).
 
+The canonical public copy of this policy lives at
+**<https://seedlesslabs.xyz/security>** and stays reachable whether or not this
+repository is public.
+
 ---
 
 ## 1. Reporting a vulnerability
