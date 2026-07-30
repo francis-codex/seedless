@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>seedless — what we haven't fixed yet</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 1280px; height: 720px; background: #ffffff;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    overflow: hidden; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  }
+  .frame { width: 1280px; height: 720px; padding: 66px 92px; display: flex; align-items: center; gap: 54px; position: relative; }
+  .frame::after { content: ""; position: absolute; right: 90px; top: 50%; transform: translateY(-50%); width: 620px; height: 620px; border-radius: 50%; background: radial-gradient(circle, rgba(0,178,255,0.15), rgba(0,178,255,0) 68%); z-index: 0; }
+
+  /* LEFT */
+  .left { width: 424px; flex-shrink: 0; display: flex; flex-direction: column; height: 100%; position: relative; z-index: 1; }
+  .brand { display: flex; align-items: center; gap: 18px; }
+  .brand img { width: 64px; height: 64px; border-radius: 16px; display: block; }
+  .brand span { font-size: 44px; font-weight: 800; color: #0b0b0f; letter-spacing: -0.02em; }
+  .midwrap { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .eyebrow { font-size: 22px; font-weight: 800; color: #00B2FF; letter-spacing: 0.07em; margin-bottom: 22px; }
+  .kicker { font-size: 62px; font-weight: 800; color: #0b0b0f; letter-spacing: -0.04em; line-height: 1.0; }
+  .kicker .accent { color: #00B2FF; }
+  .foot { font-size: 19px; font-weight: 700; color: #8b8f9a; letter-spacing: -0.01em; }
+
+  /* RIGHT — dark policy panel */
+  .right { flex: 1; display: flex; justify-content: flex-end; align-items: center; position: relative; z-index: 1; }
+  .panel { width: 616px; background: #0b0c10; border-radius: 34px; padding: 42px 44px 40px; box-shadow: 0 50px 90px -30px rgba(11,11,15,0.55), 0 12px 34px -14px rgba(0,178,255,0.30); position: relative; overflow: hidden; }
+  .panel::before { content: ""; position: absolute; top: -140px; right: -60px; width: 340px; height: 280px; background: radial-gradient(circle, rgba(0,178,255,0.20), rgba(0,178,255,0) 70%); }
+
+  .phead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 34px; position: relative; }
+  .ptitle { font-size: 27px; font-weight: 800; color: #ffffff; letter-spacing: -0.02em; }
+  .pfile { font-size: 17px; font-weight: 700; color: #6f7480; letter-spacing: -0.01em; }
+
+  .row { display: flex; align-items: flex-start; gap: 18px; padding: 19px 0; border-top: 1px solid #1c1f27; position: relative; }
+  .row:first-of-type { border-top: none; padding-top: 0; }
+  .mark { width: 26px; height: 26px; border-radius: 50%; border: 2.5px solid #3a3f4b; flex-shrink: 0; margin-top: 3px; }
+  .txt { font-size: 24px; font-weight: 700; color: #e8eaee; letter-spacing: -0.02em; line-height: 1.28; }
+
+  .plabel { margin-top: 32px; display: inline-flex; align-items: center; gap: 12px; background: rgba(0,178,255,0.14); border-radius: 999px; padding: 13px 22px; position: relative; }
+  .plabel span { font-size: 19px; font-weight: 800; color: #00B2FF; letter-spacing: 0.02em; }
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="left">
+      <div class="brand">
+        <img src="seedless-icon.png" alt="" />
+        <span>seedless</span>
+      </div>
+      <div class="midwrap">
+        <div class="eyebrow">SECURITY POLICY · NOW PUBLIC</div>
+        <div class="kicker">what we<br/>haven't<br/><span class="accent">fixed yet.</span></div>
+      </div>
+      <div class="foot">github.com/seedless-labs/seedless</div>
+    </div>
+
+    <div class="right">
+      <div class="panel">
+        <div class="phead">
+          <div class="ptitle">Known gaps</div>
+          <div class="pfile">SECURITY.md &middot; §4</div>
+        </div>
+
+        <div class="row">
+          <div class="mark"></div>
+          <div class="txt">Automated test coverage is thin. One mainnet smoke test and little else.</div>
+        </div>
+        <div class="row">
+          <div class="mark"></div>
+          <div class="txt">Some code paths still carry hackathon history.</div>
+        </div>
+        <div class="row">
+          <div class="mark"></div>
+          <div class="txt">The on-chain controller is on devnet. No mainnet hardening pass yet.</div>
+        </div>
+        <div class="row">
+          <div class="mark"></div>
+          <div class="txt">Not independently audited. External review being scoped.</div>
+        </div>
+
+        <div class="plabel"><span>We would rather you heard it from us</span></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
