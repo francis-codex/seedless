@@ -77,3 +77,7 @@ project final/
 
 # Personal / travel documents — never in a public repo
 /Breakpoint*.pdf
+
+# Visa / PoF + store-enrollment notes — bank details and personal docs, NEVER commit
+/notes/visa-*.md
+/notes/apple-*.md
