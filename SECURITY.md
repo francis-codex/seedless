@@ -138,8 +138,12 @@ The bottom two rows are ours. That is where we most want your attention.
 
 We would rather state these than have you waste time discovering them:
 
-- **Automated test coverage on the TypeScript surface is limited.** There is a
-  mainnet smoke test and little else.
+- **Automated test coverage is partial.** The pure logic is covered — session
+  key lifecycle, wallet lock, recipient pre-flight for private sends, amount
+  conversion and transfer instruction assembly. **The value-movement paths are
+  not.** Swap, private send and the offramp are only exercised by a mainnet
+  smoke test run by hand, because they need a real device, real funds and
+  mainnet to mean anything.
 - **Several flows evolved quickly** through a hackathon period. Refactor
   consolidation is ongoing and some code paths still carry that history.
 - **The on-chain controller has been deployed to devnet** and has not yet had a
