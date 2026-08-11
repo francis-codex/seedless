@@ -112,18 +112,22 @@ async function validateManifestVersion(): Promise<void> {
       !('manifestVersion' in local) ||
       typeof local.manifestVersion !== 'string'
     ) {
-      console.log(
-        '[ZK Assets] Local manifest missing manifestVersion (legacy format). Clearing cache...'
-      )
+      if (__DEV__) {
+        console.log(
+          '[ZK Assets] Local manifest missing manifestVersion (legacy format). Clearing cache...'
+        )
+      }
       await clearZkAssetsCache()
       return
     }
 
     const remote = await fetchRemoteManifest()
     if (local.manifestVersion !== remote.version) {
-      console.log(
-        `[ZK Assets] Manifest version mismatch (local: ${local.manifestVersion}, remote: ${remote.version}). Clearing cache...`
-      )
+      if (__DEV__) {
+        console.log(
+          `[ZK Assets] Manifest version mismatch (local: ${local.manifestVersion}, remote: ${remote.version}). Clearing cache...`
+        )
+      }
       await clearZkAssetsCache()
     }
   } catch {

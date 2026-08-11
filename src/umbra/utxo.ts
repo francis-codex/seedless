@@ -136,10 +136,15 @@ export async function checkRecipientUmbraStatus(
     const query = getUserAccountQuerierFunction({ client });
     const result = await query(recipientAddress as any);
     const anyResult = result as any;
-    console.log('[umbra] recipient query', recipientAddress, {
-      state: result.state,
-      data: anyResult.data,
-    });
+    // DEV-only. A private send must never write the recipient's address to the
+    // device log in a production build — logcat is readable off-device and it
+    // would undo the exact linkage this feature exists to break.
+    if (__DEV__) {
+      console.log('[umbra] recipient query', recipientAddress, {
+        state: result.state,
+        data: anyResult.data,
+      });
+    }
     if (result.state === 'non_existent') {
       return { registered: false, hasX25519: false };
     }
