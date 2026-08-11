@@ -81,3 +81,6 @@ project final/
 # Visa / PoF + store-enrollment notes — bank details and personal docs, NEVER commit
 /notes/visa-*.md
 /notes/apple-*.md
+
+# Scratch agent config — holds slots for a bot token and a bearer token
+/zeroclaw/
