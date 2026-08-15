@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>builder journey — august 2026 (dark)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1280px;
+    height: 720px;
+    background: #08090c;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .frame {
+    width: 1280px;
+    height: 720px;
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(900px 520px at 50% -8%, rgba(0,178,255,0.20), transparent 62%),
+      radial-gradient(700px 420px at 88% 108%, rgba(0,178,255,0.10), transparent 60%),
+      #08090c;
+  }
+
+  .top-mark {
+    position: absolute;
+    top: 46px; left: 62px;
+    display: flex; align-items: center; gap: 15px;
+    z-index: 6;
+  }
+  .seedless-logo {
+    width: 56px; height: 56px; border-radius: 15px; overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,178,255,0.30);
+  }
+  .seedless-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .brand { font-size: 27px; font-weight: 800; color: #f4f6f8; letter-spacing: -0.02em; }
+
+  .pill {
+    position: absolute;
+    top: 52px; right: 62px;
+    display: inline-flex; align-items: center;
+    padding: 12px 26px; border-radius: 999px;
+    background: #00B2FF;
+    box-shadow: 0 14px 36px rgba(0,178,255,0.40);
+    z-index: 6;
+  }
+  .pill span {
+    font-size: 17px; font-weight: 800; color: #041018;
+    letter-spacing: 0.15em; text-transform: uppercase;
+  }
+
+  .headline {
+    position: absolute;
+    top: 150px; left: 62px;
+    z-index: 6;
+  }
+  .headline .big {
+    font-size: 116px; font-weight: 900; color: #ffffff;
+    letter-spacing: -0.055em; line-height: 0.86;
+  }
+  .headline .sub {
+    margin-top: 20px;
+    font-size: 23px; font-weight: 700; color: #7d8794;
+    letter-spacing: -0.01em;
+  }
+
+  /* 2x2 grid of real win cards */
+  .deck {
+    position: absolute;
+    right: 40px; top: 120px;
+    width: 580px; height: 480px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 12px;
+    z-index: 3;
+  }
+  .card {
+    border-radius: 12px;
+    overflow: hidden;
+    background: #12141a;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.08);
+  }
+  .card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .c1, .c2, .c3, .c4 { /* all equal in grid */ }
+
+  .stats {
+    position: absolute;
+    left: 62px; bottom: 62px;
+    display: flex; gap: 62px;
+    z-index: 6;
+  }
+  .stat-n {
+    font-size: 54px; font-weight: 900; color: #00B2FF;
+    letter-spacing: -0.04em; line-height: 1;
+  }
+  .stat-l {
+    margin-top: 7px; font-size: 16px; font-weight: 700;
+    color: #7d8794; letter-spacing: 0.01em;
+  }
+
+  .fade {
+    position: absolute; inset: 0;
+    background: linear-gradient(100deg, #08090c 30%, rgba(8,9,12,0.86) 44%, rgba(8,9,12,0) 62%);
+    z-index: 4;
+  }
+</style>
+</head>
+<body>
+  <div class="frame">
+
+    <div class="deck">
+      <div class="card c1"><img src="win-umbra-cropped.png" alt="Umbra 2nd place" /></div>
+      <div class="card c2"><img src="win-ika-cropped.png" alt="Ika Winner #04" /></div>
+      <div class="card c3"><img src="win-bags-cropped.png" alt="Bags Winner #5" /></div>
+      <div class="card c4"><img src="win-100xdevs-cropped.png" alt="100xDevs 2nd place" /></div>
+    </div>
+
+    <div class="fade"></div>
+
+    <div class="top-mark">
+      <div class="seedless-logo"><img src="seedless-icon.png" alt="seedless" /></div>
+      <div class="brand">seedless</div>
+    </div>
+
+    <div class="pill"><span>launching september</span></div>
+
+    <div class="headline">
+      <div class="big">eight<br/>months</div>
+      <div class="sub">25 december 2025 &rarr; 13 august 2026</div>
+    </div>
+
+    <div class="stats">
+      <div>
+        <div class="stat-n">190</div>
+        <div class="stat-l">tests, from zero</div>
+      </div>
+      <div>
+        <div class="stat-n">4</div>
+        <div class="stat-l">hackathon results</div>
+      </div>
+      <div>
+        <div class="stat-n">0</div>
+        <div class="stat-l">spent on acquisition</div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
