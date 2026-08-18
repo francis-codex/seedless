@@ -84,3 +84,17 @@ project final/
 
 # Scratch agent config — holds slots for a bot token and a bearer token
 /zeroclaw/
+claude-session-filtered.jsonl
+
+# Business, legal and raise material — never in a public repo
+notes/affidavit-*.md
+notes/apple-submission-pack-*.md
+notes/apple-enrollment-pack-*.md
+notes/bnb-scope-*.md
+notes/call-note-*.html
+notes/call-note-*.pdf
+notes/Seedless-GTM-Plan-*.md
+notes/Seedless-BNB-Proposal-*.pdf
+notes/visa-*.md
+assets/pitch-deck-v6.html
+assets/deck-v6-export/
