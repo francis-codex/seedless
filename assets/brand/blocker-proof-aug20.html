@@ -1,0 +1,54 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:1200px; height:675px; background:#0d0d0f;
+         font-family:"SF Mono","Menlo",monospace; display:flex;
+         align-items:center; justify-content:center; }
+  .win { width:1040px; background:#141417; border-radius:12px;
+         border:1px solid #26262b; overflow:hidden;
+         box-shadow:0 30px 80px rgba(0,0,0,.6); }
+  .bar { height:38px; background:#1c1c20; border-bottom:1px solid #26262b;
+         display:flex; align-items:center; padding:0 15px; gap:8px; }
+  .dot { width:11px; height:11px; border-radius:50%; }
+  .bar span { margin-left:14px; color:#6b6b75; font-size:12.5px; }
+  .body { padding:26px 30px 30px; font-size:15px; line-height:1.95; }
+  .cmd { color:#e6e6ea; }
+  .cmd b { color:#5b8cff; font-weight:400; }
+  .out { color:#7a7a85; }
+  .ok  { color:#3ddc84; font-weight:600; }
+  .err { color:#ff5f56; font-weight:600; }
+  .msg { color:#c9c9d1; }
+  .gap { height:16px; }
+  .foot { margin-top:22px; padding-top:18px; border-top:1px solid #26262b;
+          color:#4e4e58; font-size:13.5px; letter-spacing:.3px; }
+  .foot b { color:#3ddc84; font-weight:600; }
+</style></head><body>
+<div class="win">
+  <div class="bar">
+    <div class="dot" style="background:#ff5f56"></div>
+    <div class="dot" style="background:#ffbd2e"></div>
+    <div class="dot" style="background:#27c93f"></div>
+    <span>proving the blocker &nbsp;·&nbsp; 20 aug</span>
+  </div>
+  <div class="body">
+    <div class="cmd"><b>$</b> node probe.js</div>
+    <div class="gap"></div>
+
+    <div class="out">signTransaction &nbsp;|&nbsp; system program (allowlisted)</div>
+    <div class="ok">&nbsp;&nbsp;→ SIGNED OK</div>
+    <div class="gap"></div>
+
+    <div class="out">signTransaction &nbsp;|&nbsp; memo program (not allowlisted)</div>
+    <div class="err">&nbsp;&nbsp;→ ERROR</div>
+    <div class="msg">&nbsp;&nbsp;&nbsp;&nbsp;program MemoSq4g… is not in the allowed list</div>
+    <div class="gap"></div>
+
+    <div class="out">signTransaction &nbsp;|&nbsp; create associated token account</div>
+    <div class="err">&nbsp;&nbsp;→ ERROR</div>
+    <div class="msg">&nbsp;&nbsp;&nbsp;&nbsp;total transfer amount 2039280 exceeds maximum allowed 1000000</div>
+
+    <div class="foot">20 minutes of scripting. &nbsp;2 exact errors. &nbsp;<b>fix started same day.</b></div>
+  </div>
+</div>
+</body></html>
